@@ -3,8 +3,10 @@ auth.py — Authentication router. Provides get_current_user dependency (Clerk J
 and profile management endpoints. Sign-in/sign-up/OAuth are handled by Clerk.
 """
 import base64
+import logging
 import secrets
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +20,34 @@ from app.schemas.user import (
     UserProfileUpdate,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def _fetch_clerk_email(clerk_user_id: str) -> str | None:
+    """Fetch the user's primary email from Clerk Backend API."""
+    if not settings.CLERK_SECRET_KEY:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://api.clerk.com/v1/users/{clerk_user_id}",
+                headers={"Authorization": f"Bearer {settings.CLERK_SECRET_KEY}"},
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                email_addresses = data.get("email_addresses", [])
+                primary_id = data.get("primary_email_address_id")
+                for ea in email_addresses:
+                    if ea.get("id") == primary_id:
+                        return ea.get("email_address")
+                if email_addresses:
+                    return email_addresses[0].get("email_address")
+    except Exception as exc:
+        logger.warning("Failed to fetch email from Clerk API: %s", exc)
+    return None
 
 
 async def get_current_user(
@@ -55,10 +84,12 @@ async def get_current_user(
     user = result.scalar_one_or_none()
 
     if user is None:
-        # On-first-request fallback: create user row if webhook hasn't arrived yet
+        # On-first-request fallback: create user row if webhook hasn't arrived yet.
+        # Fetch real email from Clerk Backend API (session JWTs don't include email).
+        email = await _fetch_clerk_email(clerk_user_id)
         user = User(
             clerk_user_id=clerk_user_id,
-            email=payload.get("email", f"{clerk_user_id}@clerk.placeholder"),
+            email=email or f"{clerk_user_id}@clerk.pending",
             email_verified=True,
             inbox_email=f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}",
             preferences={},
@@ -67,9 +98,27 @@ async def get_current_user(
         await db.flush()
         await db.refresh(user)
 
-    # Backfill inbox_email for users created before this feature
+    dirty = False
+
+    # Backfill: fix placeholder emails by fetching from Clerk API
+    if user.email and ("@clerk.placeholder" in user.email or "@clerk.pending" in user.email):
+        real_email = await _fetch_clerk_email(clerk_user_id)
+        if real_email:
+            user.email = real_email
+            dirty = True
+
+    # Backfill: generate inbox_email if missing
     if not user.inbox_email:
         user.inbox_email = f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}"
+        dirty = True
+
+    # Backfill: update inbox_email if on a stale domain
+    if user.inbox_email and not user.inbox_email.endswith(f"@{settings.INBOX_DOMAIN}"):
+        local_part = user.inbox_email.split("@")[0]
+        user.inbox_email = f"{local_part}@{settings.INBOX_DOMAIN}"
+        dirty = True
+
+    if dirty:
         await db.flush()
 
     return user
