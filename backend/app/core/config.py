@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
     # Email — Resend
     RESEND_API_KEY: str = ""
-    FROM_EMAIL: str = "noreply@ideaforge.dev"
-    INBOX_DOMAIN: str = "inbox.ideaforge.dev"
+    FROM_EMAIL: str = "noreply@myide.ai"
+    INBOX_DOMAIN: str = "inbox.myide.ai"
 
     # Integration token encryption
     INTEGRATION_TOKEN_KEY: str = ""

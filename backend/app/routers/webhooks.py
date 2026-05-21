@@ -1,6 +1,6 @@
 """
 webhooks.py — Inbound email webhook handler for Resend.
-Receives emails sent to user@inbox.ideaforge.dev and creates inbox items.
+Receives emails sent to user@inbox.myide.ai and creates inbox items.
 """
 import hashlib
 import hmac
