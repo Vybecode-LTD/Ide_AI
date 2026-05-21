@@ -25,7 +25,7 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 
 def _compute_resume_path(
-    project_id: _uuid.UUID,
+    project_id: __uuid.UUID,
     session_status: str | None,
     discovery_stage: str | None,
     block_count: int,
@@ -171,7 +171,7 @@ async def list_library_projects(
 
 @router.post("/{project_id}/export")
 async def export_ideai_file(
-    project_id: uuid.UUID,
+    project_id: _uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -237,7 +237,7 @@ async def import_ideai_file(
 
 @router.post("/{project_id}/snapshots", response_model=SnapshotSummary, status_code=status.HTTP_201_CREATED)
 async def create_snapshot(
-    project_id: uuid.UUID,
+    project_id: _uuid.UUID,
     payload: SnapshotCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -259,7 +259,7 @@ async def create_snapshot(
 
 @router.get("/{project_id}/snapshots", response_model=list[SnapshotSummary])
 async def list_snapshots(
-    project_id: uuid.UUID,
+    project_id: _uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -274,7 +274,7 @@ async def list_snapshots(
 
 @router.post("/snapshots/{snapshot_id}/restore")
 async def restore_snapshot(
-    snapshot_id: uuid.UUID,
+    snapshot_id: _uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
