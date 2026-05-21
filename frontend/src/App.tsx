@@ -30,6 +30,7 @@ const SprintPlanner = lazy(() => import('./pages/SprintPlanner').then(m => ({ de
 const ChannelMix = lazy(() => import('./pages/modules/ChannelMix').then(m => ({ default: m.ChannelMix })))
 const MoodBoard = lazy(() => import('./pages/modules/MoodBoard').then(m => ({ default: m.MoodBoard })))
 const WorldBuilder = lazy(() => import('./pages/modules/WorldBuilder').then(m => ({ default: m.WorldBuilder })))
+const PromptKitPage = lazy(() => import('./pages/PromptKit').then(m => ({ default: m.PromptKit })))
 const PathwayReview = lazy(() => import('./pages/PathwayReview').then(m => ({ default: m.PathwayReview })))
 const PathwayExecute = lazy(() => import('./pages/PathwayExecute').then(m => ({ default: m.PathwayExecute })))
 const ModuleSessionPage = lazy(() => import('./pages/ModuleSession').then(m => ({ default: m.ModuleSession })))
@@ -46,6 +47,7 @@ const MODULE_COMPONENTS: Record<string, React.LazyExoticComponent<React.Componen
   MarketAnalysis,
   PitchMode,
   SprintPlanner,
+  PromptKit: PromptKitPage,
   ChannelMix,
   MoodBoard,
   WorldBuilder,
@@ -75,6 +77,7 @@ const ROUTE_SUFFIX_MAP: Record<string, string> = {
   'channel-mix': 'ChannelMix',
   'mood-board': 'MoodBoard',
   'world-builder': 'WorldBuilder',
+  prompts: 'PromptKit',
 }
 
 function ModuleRouter() {

@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card } from '../components/ui/Card'
+import { FeedbackPanel } from '../components/sharing/FeedbackPanel'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -46,6 +47,9 @@ interface SharedData {
     revenue_projections: unknown
     marketing_strategies: unknown
   } | null
+  allow_feedback: boolean
+  allow_ratings: boolean
+  share_token: string
 }
 
 export function SharedProject() {
@@ -262,6 +266,15 @@ export function SharedProject() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* Feedback (comments + ratings) */}
+        {(data.allow_feedback || data.allow_ratings) && (
+          <FeedbackPanel
+            shareToken={data.share_token}
+            allowFeedback={data.allow_feedback}
+            allowRatings={data.allow_ratings}
+          />
         )}
 
         {/* Footer */}

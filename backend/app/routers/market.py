@@ -15,6 +15,7 @@ from app.routers.auth import get_current_user
 from app.schemas.market_analysis import MarketAnalysisGenerate, MarketAnalysisRead
 from app.services import market_service
 from app.services import market_export_service
+from app.services.entitlement_service import check_feature
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -27,6 +28,14 @@ async def generate_analysis(
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger market analysis generation. Returns SSE stream with progress events."""
+    # Enforce plan limits
+    feature_check = check_feature(current_user, "market_analysis")
+    if not feature_check["allowed"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Market analysis requires a paid plan. Upgrade to Basic or Pro.",
+        )
+
     # Verify project ownership
     proj_result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == current_user.id)

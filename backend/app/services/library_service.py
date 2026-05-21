@@ -12,10 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.block import Block
 from app.models.design_sheet import DesignSheet
 from app.models.market_analysis import MarketAnalysis
+from app.models.module_pathway import ModulePathway
+from app.models.module_response import ModuleResponse
 from app.models.pipeline_node import PipelineNode
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
+from app.models.prompt_kit import PromptKit
 from app.models.session import DiscoverySession
+from app.models.sprint_plan import SprintPlan
 
 
 IDEAI_FORMAT_VERSION = "1.0"
@@ -51,6 +55,29 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
     market_r = await db.execute(select(MarketAnalysis).where(MarketAnalysis.project_id == project_id))
     market = market_r.scalar_one_or_none()
 
+    # Prompt kits
+    pk_r = await db.execute(
+        select(PromptKit).where(PromptKit.project_id == project_id).order_by(PromptKit.created_at)
+    )
+    prompt_kits = list(pk_r.scalars().all())
+
+    # Sprint plan
+    sprint_r = await db.execute(select(SprintPlan).where(SprintPlan.project_id == project_id))
+    sprint_plan = sprint_r.scalar_one_or_none()
+
+    # Module pathway
+    mp_r = await db.execute(
+        select(ModulePathway).where(ModulePathway.project_id == project_id)
+        .order_by(ModulePathway.updated_at.desc())
+    )
+    module_pathway = mp_r.scalars().first()
+
+    # Module responses
+    mr_r = await db.execute(
+        select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+    )
+    module_responses = list(mr_r.scalars().all())
+
     # Snapshots (metadata only — not snapshot_data to avoid recursion)
     snap_r = await db.execute(
         select(ProjectSnapshot)
@@ -68,6 +95,10 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
             "complexity": project.complexity,
             "tone": project.tone,
             "accent_color": project.accent_color,
+            "pathway_id": getattr(project, "pathway_id", None),
+            "ai_partner_style": getattr(project, "ai_partner_style", None),
+            "primary_category": getattr(project, "primary_category", None),
+            "secondary_category": getattr(project, "secondary_category", None),
             "created_at": project.created_at.isoformat() if project.created_at else None,
         },
         "design_sheet": None,
@@ -75,6 +106,10 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
         "blocks": [],
         "pipeline": [],
         "market_analysis": None,
+        "prompt_kits": [],
+        "sprint_plan": None,
+        "module_pathway": None,
+        "module_responses": [],
         "snapshots": [],
     }
 
@@ -126,6 +161,36 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
             "marketing_strategies": market.marketing_strategies,
             "status": market.status,
         }
+
+    for pk in prompt_kits:
+        state["prompt_kits"].append({
+            "platform": pk.platform,
+            "content": pk.content,
+            "version": pk.version,
+        })
+
+    if sprint_plan and sprint_plan.status == "complete":
+        state["sprint_plan"] = {
+            "milestones": sprint_plan.milestones,
+            "sprints": sprint_plan.sprints,
+            "timeline": sprint_plan.timeline,
+            "status": sprint_plan.status,
+        }
+
+    if module_pathway:
+        state["module_pathway"] = {
+            "modules": module_pathway.modules,
+            "lite_deep_settings": module_pathway.lite_deep_settings,
+            "status": module_pathway.status,
+        }
+
+    for mr in module_responses:
+        state["module_responses"].append({
+            "module_id": mr.module_id,
+            "responses": mr.responses,
+            "status": mr.status,
+            "completed_at": mr.completed_at.isoformat() if mr.completed_at else None,
+        })
 
     for snap in snapshots:
         state["snapshots"].append({
@@ -335,28 +400,22 @@ async def restore_snapshot(
     project.complexity = proj_state.get("complexity", project.complexity)
     project.tone = proj_state.get("tone", project.tone)
     project.accent_color = proj_state.get("accent_color", project.accent_color)
+    # Restore pathway/category fields if present in snapshot
+    if "pathway_id" in proj_state:
+        project.pathway_id = proj_state["pathway_id"]
+    if "ai_partner_style" in proj_state:
+        project.ai_partner_style = proj_state["ai_partner_style"]
+    if "primary_category" in proj_state:
+        project.primary_category = proj_state["primary_category"]
+    if "secondary_category" in proj_state:
+        project.secondary_category = proj_state["secondary_category"]
 
     # Clear existing child data
-    await db.execute(select(DesignSheet).where(DesignSheet.project_id == project_id))
-    existing_sheets = await db.execute(select(DesignSheet).where(DesignSheet.project_id == project_id))
-    for s in existing_sheets.scalars().all():
-        await db.delete(s)
-
-    existing_sessions = await db.execute(select(DiscoverySession).where(DiscoverySession.project_id == project_id))
-    for s in existing_sessions.scalars().all():
-        await db.delete(s)
-
-    existing_blocks = await db.execute(select(Block).where(Block.project_id == project_id))
-    for b in existing_blocks.scalars().all():
-        await db.delete(b)
-
-    existing_pipes = await db.execute(select(PipelineNode).where(PipelineNode.project_id == project_id))
-    for p in existing_pipes.scalars().all():
-        await db.delete(p)
-
-    existing_market = await db.execute(select(MarketAnalysis).where(MarketAnalysis.project_id == project_id))
-    for m in existing_market.scalars().all():
-        await db.delete(m)
+    for model in (DesignSheet, DiscoverySession, Block, PipelineNode, MarketAnalysis,
+                  PromptKit, SprintPlan, ModulePathway, ModuleResponse):
+        existing = await db.execute(select(model).where(model.project_id == project_id))
+        for obj in existing.scalars().all():
+            await db.delete(obj)
 
     await db.flush()
 
@@ -425,6 +484,50 @@ async def restore_snapshot(
             status=market_data.get("status", "complete"),
         )
         db.add(market)
+
+    # Restore prompt kits
+    for pk_data in state.get("prompt_kits", []):
+        pk = PromptKit(
+            project_id=project_id,
+            platform=pk_data.get("platform", "generic"),
+            content=pk_data.get("content", ""),
+            version=pk_data.get("version", 1),
+        )
+        db.add(pk)
+
+    # Restore sprint plan
+    sprint_data = state.get("sprint_plan")
+    if sprint_data:
+        sprint = SprintPlan(
+            project_id=project_id,
+            user_id=user_id,
+            milestones=sprint_data.get("milestones"),
+            sprints=sprint_data.get("sprints"),
+            timeline=sprint_data.get("timeline"),
+            status=sprint_data.get("status", "complete"),
+        )
+        db.add(sprint)
+
+    # Restore module pathway
+    mp_data = state.get("module_pathway")
+    if mp_data:
+        mp = ModulePathway(
+            project_id=project_id,
+            modules=mp_data.get("modules", []),
+            lite_deep_settings=mp_data.get("lite_deep_settings", {}),
+            status=mp_data.get("status", "pending"),
+        )
+        db.add(mp)
+
+    # Restore module responses
+    for mr_data in state.get("module_responses", []):
+        mr = ModuleResponse(
+            project_id=project_id,
+            module_id=mr_data.get("module_id", ""),
+            responses=mr_data.get("responses", {}),
+            status=mr_data.get("status", "pending"),
+        )
+        db.add(mr)
 
     await db.flush()
     return project

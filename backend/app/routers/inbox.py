@@ -116,8 +116,14 @@ async def promote_to_project(
 
     project = Project(
         name=payload.name or item.subject[:200],
-        description=item.body or "",
-        owner_id=current_user.id,
+        description=item.body or item.subject,
+        user_id=current_user.id,
+        platform="custom",
+        audience="consumers",
+        complexity="medium",
+        tone="casual",
+        pathway_id="software_product",
+        ai_partner_style="strategist",
     )
     db.add(project)
     await db.flush()

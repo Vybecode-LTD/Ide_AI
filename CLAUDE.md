@@ -28,12 +28,12 @@ The full process takes 15–30 minutes: describe an idea, configure options, go 
 | Layer | Stack |
 |-------|-------|
 | Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL, Anthropic Claude API (claude-sonnet-4-6) |
-| Frontend | React 18, TypeScript, Vite 7, Tailwind CSS v4 (CSS-based config, no tailwind.config.js), Framer Motion, Zustand |
+| Frontend | React 19.2, TypeScript, Vite 7.3, Tailwind CSS v4 (CSS-based config, no tailwind.config.js), Framer Motion, Zustand |
 | Auth | **Clerk** (Google/Microsoft/GitHub OAuth + email/password) — migrated from custom JWT |
 | Billing | **Stripe** — checkout sessions, billing portal, webhook sync |
 | Email | Resend API — inbound email webhooks for Idea Inbox |
 | Deployment | Railway (2 services — backend + frontend exposed publicly), Docker |
-| AI Streaming | Server-Sent Events (SSE) for discovery chat + market analysis |
+| AI Streaming | Server-Sent Events (SSE) for discovery chat, market analysis, module responses |
 | Export | fpdf2 (PDF), python-docx (DOCX), Jinja2 templates, ZIP bundling |
 
 ---
@@ -49,12 +49,13 @@ D:\Development\Ide_AI\
 │   │   │   ├── config.py              # Settings from env vars (pydantic-settings)
 │   │   │   ├── clerk.py               # Clerk JWT verification (JWKS/RS256)
 │   │   │   └── database.py            # Async SQLAlchemy engine + session
+│   │   │
 │   │   ├── models/                    # SQLAlchemy ORM models (all UUID PKs)
 │   │   │   ├── user.py                # User account (email/password + OAuth, email_verified, account_type, bio, inbox_email)
 │   │   │   ├── project.py, session.py, design_sheet.py
 │   │   │   ├── block.py, pipeline_node.py, prompt_kit.py
-│   │   │   ├── market_analysis.py, sprint_plan.py, version.py
-│   │   │   ├── email_verification.py  # 6-digit codes with expiry
+│   │   │   ├── market_analysis.py, sprint_plan.py, version.py, password_reset.py
+│   │   │   ├── email_verification.py  # Legacy (now handled by Clerk)
 │   │   │   ├── idea_inbox.py          # Inbound email → idea items
 │   │   │   ├── project_share.py       # Sharing with feedback/ratings toggles
 │   │   │   ├── share_comment.py       # Comments on shared projects
@@ -66,20 +67,24 @@ D:\Development\Ide_AI\
 │   │   │   └── project_snapshot.py, user_memory.py
 │   │   ├── schemas/                   # Pydantic v2 request/response schemas
 │   │   ├── routers/                   # FastAPI route handlers
-│   │   │   ├── auth.py                # Clerk-based /me, avatar upload, profile updates
+│   │   │   ├── auth.py                # Clerk-based /me, avatar, profile, entitlements
 │   │   │   ├── billing.py             # Stripe checkout, billing portal, webhook
 │   │   │   ├── clerk_webhook.py       # Clerk user sync (create/update/delete)
-│   │   │   ├── projects.py            # Project CRUD
-│   │   │   ├── discovery.py           # SSE chat, greeting, partner switching
+│   │   │   ├── projects.py            # Project CRUD (with entitlement gate)
+│   │   │   ├── discovery.py           # SSE chat, greeting, partner switching (idempotent start)
 │   │   │   ├── meta.py                # GET /meta/partner-styles
 │   │   │   ├── pathways.py            # GET /pathways, POST /pathways/detect
-│   │   │   ├── blocks.py, pipeline.py, exports.py
-│   │   │   ├── market.py, sprints.py, sharing.py, library.py, prompts.py
+│   │   │   ├── blocks.py, pipeline.py, design_sheet.py, exports.py
+│   │   │   ├── market.py              # Market analysis SSE (with entitlement gate)
+│   │   │   ├── sprints.py             # Sprint plans (with ownership checks)
+│   │   │   ├── sharing.py             # Project sharing with feedback/ratings, ownership checks
+│   │   │   ├── library.py             # Library listing with progress metadata, snapshots, .ideai
+│   │   │   ├── prompts.py             # Prompt kit generate/rewrite (with entitlement gate)
 │   │   │   ├── inbox.py               # Idea inbox CRUD + build-to-project
 │   │   │   ├── templates.py           # GET /templates (seed data)
-│   │   │   ├── branching.py           # Concept branching (fork/compare/merge)
-│   │   │   ├── integrations.py        # External tool OAuth + push (Notion, Trello, etc.)
-│   │   │   ├── webhooks.py            # Inbound email webhook (Resend)
+│   │   │   ├── branching.py           # Concept branching (deep copy, compare, merge)
+│   │   │   ├── integrations.py        # External tool integrations (coming_soon)
+│   │   │   ├── webhooks.py            # Inbound email webhook (HMAC verified)
 │   │   │   └── module_pathway.py, modules.py
 │   │   ├── services/                  # Business logic
 │   │   │   ├── ai_service.py          # build_system_prompt(), build_greeting_prompt(), stream_chat()
@@ -91,9 +96,11 @@ D:\Development\Ide_AI\
 │   │   │   ├── pipeline_service.py    # Stack recommendation, cost estimation, compatibility
 │   │   │   ├── export_service.py      # MD/PDF/DOCX/ZIP generation
 │   │   │   ├── categorization_service.py, modular_pathway_service.py, module_service.py
-│   │   │   ├── market_service.py, sprint_service.py, prompt_kit_service.py
+│   │   │   ├── market_service.py, market_export_service.py, sprint_service.py
+│   │   │   ├── prompt_kit_service.py, prompt_package_service.py
+│   │   │   ├── entitlement_service.py  # Plan limits (free/basic/pro), feature gates
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
-│   │   ├── alembic/versions/          # Database migrations (001–016, linear chain)
+│   │   ├── alembic/versions/          # Database migrations (001–023, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
 │   ├── tests/                         # 24 unit tests + 4 integration tests
 │   ├── pyproject.toml, Dockerfile, railway.toml
@@ -106,10 +113,12 @@ D:\Development\Ide_AI\
 │   │   │   ├── CheckoutRedirect.tsx   # Stripe checkout redirect
 │   │   │   ├── Home.tsx               # Idea input, partner grid, template grid, project creation
 │   │   │   ├── Discovery.tsx          # SSE chat UI, partner badge, mid-session switching
+│   │   │   ├── Blocks.tsx              # Feature blocks board
 │   │   │   ├── Pipeline.tsx, Exports.tsx, MarketAnalysis.tsx, SprintPlanner.tsx
+│   │   │   ├── PromptKit.tsx           # Platform-specific prompt generation
 │   │   │   ├── Profile.tsx            # Avatar upload, bio, stats, billing portal link
 │   │   │   ├── Inbox.tsx              # Idea inbox list, partner picker, build-to-project
-│   │   │   ├── Library.tsx            # Project library with branch indicators
+│   │   │   ├── Library.tsx            # Project library with progress metadata, smart resume
 │   │   │   ├── Settings.tsx           # App settings, tutorial reset, profile link
 │   │   │   ├── SharedProject.tsx      # Public shared view with comments + ratings
 │   │   │   ├── PathwayReview.tsx, PathwayExecute.tsx, ModuleSession.tsx
@@ -131,7 +140,7 @@ D:\Development\Ide_AI\
 │   │   │   ├── tutorial/              # StageInterlude, PulseBeacon, Whisper
 │   │   │   ├── nebula/                # Animated background canvas
 │   │   │   └── ui/                    # Button, Modal, Card, Input, Badge, Drawer
-│   │   ├── stores/                    # Zustand: authStore, projectStore, uiStore, discoveryStore, pathwayStore, modulePathwayStore, tutorialStore
+│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore
 │   │   ├── hooks/                     # useSSE, useVoiceInput
 │   │   ├── lib/apiClient.ts           # Axios instance with auth interceptors
 │   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway)
@@ -159,15 +168,17 @@ D:\Development\Ide_AI\
 - `apiClient.ts` attaches Clerk session token via `getToken()`
 - Avatar upload (JPEG/PNG/WebP, max 2MB, stored as base64 data URI)
 - Per-user persistent memory injected into AI context
-- Endpoints: `GET /auth/me`, `PATCH /auth/me`, `POST /auth/me/avatar`
+- Endpoints: `GET /auth/me`, `PATCH /auth/me`, `POST /auth/me/avatar`, `GET /auth/me/entitlements`
 
-### 1b. Stripe Billing
+### 1b. Stripe Billing + Entitlements
 - Checkout sessions for subscription plans (Basic Monthly/Yearly, Pro Monthly/Yearly)
 - Billing portal for managing subscriptions
 - Stripe webhook syncs customer ID and subscription status
 - `CheckoutRedirect.tsx` handles post-checkout flow
 - `Profile.tsx` has "Manage Billing" button
 - `Landing.tsx` has pricing section with Upgrade buttons
+- Entitlement service: plan-based limits (free: 3 projects / basic: 25 / pro: unlimited)
+- Feature gates on project creation, prompt kit generation, and market analysis
 - Endpoints: `POST /billing/checkout`, `POST /billing/portal`, `POST /billing/webhook`
 - DB: `stripe_customer_id` on users (migration 019)
 
@@ -256,11 +267,12 @@ D:\Development\Ide_AI\
 
 ### 10. Market Analysis
 - AI-driven competitive analysis, streamed via SSE
-- Endpoint: `POST /market/{project_id}/analyze`
+- Endpoint: `POST /market/{project_id}/generate`
 - DB: `market_analyses` table (migration 002)
 
 ### 11. Sprint Planner
 - Auto-generated development sprint plans from design sheet + feature blocks
+- Ownership verification on get/update/delete
 - Endpoint: `POST /sprints/{project_id}/generate`
 - DB: `sprint_plans` table (migrations 007, 008)
 
@@ -274,6 +286,7 @@ D:\Development\Ide_AI\
 ### 13. Export System
 - Formats: Markdown (.md), plain text (.txt), PDF (.pdf), Word (.docx), ZIP (all formats)
 - Platform-specific Jinja2 templates
+- Market analysis export: PDF, DOCX, TXT via `GET /market/{id}/export?format=pdf|docx|txt`
 - Endpoint: `GET /projects/{id}/export?format=md|pdf|docx|zip`
 
 ### 14. Modular Dynamic Design Kit Pathway
@@ -359,9 +372,10 @@ D:\Development\Ide_AI\
 - Endpoints: `POST /projects/{id}/branch`, `POST /projects/{id}/merge/{branch_id}`, `GET /projects/{id}/branches`, `GET /projects/{id}/compare/{branch_id}`
 - DB: `concept_branches` table (migration 016)
 
-### 24. External Integrations
-- 6 external tool integrations: Notion, Trello, Linear, Figma, Google Docs, Airtable
-- OAuth connect/disconnect per provider
+### 24. External Integrations (de-scoped — coming soon)
+- 6 planned integrations: Notion, Trello, Linear, Figma, Google Docs, Airtable
+- Currently de-scoped: unconnected providers return `status: "coming_soon"`
+- OAuth connect/disconnect per provider (infrastructure in place)
 - Push project data to connected tools (design kit → formatted output per platform)
 - Encrypted token storage (Fernet) for stored OAuth credentials
 - Endpoints: `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}`
@@ -418,7 +432,7 @@ D:\Development\Ide_AI\
 
 | Domain | Key Routes |
 |--------|------------|
-| Auth | `GET /auth/me`, `PATCH /auth/me`, `POST /auth/me/avatar` (Clerk handles sign-in/sign-up) |
+| Auth | `GET /auth/me`, `PATCH /auth/me`, `POST /auth/me/avatar`, `GET /auth/me/entitlements` (Clerk handles sign-in/sign-up) |
 | Billing | `POST /billing/checkout`, `POST /billing/portal`, `POST /billing/webhook` |
 | Clerk Webhook | `POST /webhooks/clerk` (user sync) |
 | Projects | `POST /projects`, `GET /projects/{id}`, `PATCH /projects/{id}` |
@@ -428,10 +442,12 @@ D:\Development\Ide_AI\
 | Blocks | `GET /projects/{id}/blocks`, `POST /projects/{id}/blocks/generate`, `PATCH /blocks/{id}`, `DELETE /blocks/{id}` |
 | Pipeline | `GET /projects/{id}/pipeline`, `POST /projects/{id}/pipeline/recommend`, `PATCH /projects/{id}/pipeline/{layer}`, `POST /projects/{id}/pipeline/ui-skeleton` |
 | Exports | `GET /projects/{id}/export?format=md\|pdf\|docx\|zip` |
-| Market | `POST /market/{project_id}/analyze` (SSE) |
+| Market | `POST /market/{project_id}/generate` (SSE), `GET /market/{project_id}`, `GET /market/{project_id}/report`, `GET /market/{project_id}/export` |
 | Sprints | `POST /sprints/{project_id}/generate` |
 | Sharing | Project share CRUD, `POST/GET /sharing/public/{token}/comments`, `POST/GET /sharing/public/{token}/ratings` |
-| Versions | `POST /projects/{id}/versions/{vid}/restore` |
+| Library | `GET /library`, `POST /library/{id}/snapshots`, `GET /library/{id}/snapshots`, `POST /library/{id}/snapshots/{sid}/restore`, `GET /library/export/{id}`, `POST /library/import` |
+| Module Pathway | `POST /module-pathway/{id}/categorize`, `POST /module-pathway/{id}/assemble`, `POST /module-pathway/{id}/review`, `POST /module-pathway/{id}/lock` |
+| Modules | `POST /modules/{id}/{module_id}/start` (SSE), `POST /modules/{id}/{module_id}/respond` (SSE), `POST /modules/{id}/{module_id}/skip`, `GET /modules/{id}/{module_id}/summary` |
 | Inbox | `GET /inbox`, `GET /inbox/count`, `PATCH /inbox/{id}`, `POST /inbox/{id}/build`, `DELETE /inbox/{id}` |
 | Templates | `GET /templates` |
 | Branching | `POST /projects/{id}/branch`, `POST /projects/{id}/merge/{branch_id}`, `GET /projects/{id}/branches`, `GET /projects/{id}/compare/{branch_id}` |
@@ -480,5 +496,5 @@ D:\Development\Ide_AI\
 
 ## Last Completed Task
 
-**Task:** Release cleanup — removed legacy auth pages (Login, Register, VerifyEmail, OAuthCallback, ForgotPassword, ResetPassword), dead backend code (security.py, oauth.py), unused JWT/OAuth config, stale email functions, python-jose dependency. Updated CLAUDE.md and CONTEXT_HANDOFF.md to reflect Clerk auth, Stripe billing, Ide/AI rebrand, and migrations 017–023.
-**Date:** 2026-03-18
+**Task:** Comprehensive codebase audit (Codex-generated roadmap, 9 items). P0 bug fixes (discovery resume, inbox promotion crash, branch creation, share routes, module session resume). Security hardening (ownership checks on sharing/sprints, JWT hardening, webhook HMAC, token encryption, payload limits). Product completion: library progress metadata + smart resume, snapshot unification, sharing feedback UI (CommentSection/StarRating/FeedbackPanel), deep-copy branching, dedicated PromptKit page, entitlement service (free/basic/pro gates), frontend dependency upgrades (0 vulnerabilities), integrations de-scoped to coming_soon. Docs cleanup: CONTEXT_HANDOFF.md + CLAUDE.md rewritten.
+**Date:** 2026-05-21

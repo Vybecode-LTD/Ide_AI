@@ -60,7 +60,10 @@ export function Exports() {
   const handleSnapshot = async () => {
     if (!projectId) return
     try {
-      await apiClient.post(`/projects/${projectId}/versions/auto`)
+      await apiClient.post(`/library/${projectId}/snapshots`, {
+        name: `Auto snapshot ${new Date().toLocaleString()}`,
+        description: 'Saved from Export page',
+      })
     } catch (err) {
       console.error('Snapshot failed:', err)
     }

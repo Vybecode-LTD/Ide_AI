@@ -35,6 +35,8 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
   // Create form state
   const [isPublic, setIsPublic] = useState(true)
   const [password, setPassword] = useState('')
+  const [allowFeedback, setAllowFeedback] = useState(true)
+  const [allowRatings, setAllowRatings] = useState(true)
 
   // Fetch existing share status
   useEffect(() => {
@@ -54,8 +56,12 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
   const fetchShareStatus = async () => {
     setLoading(true)
     try {
-      const { data } = await apiClient.get(`/sharing/projects/${projectId}/share`)
-      setShareData(data)
+      const { data } = await apiClient.get(`/sharing/${projectId}/status`)
+      if (data.active) {
+        setShareData(data)
+      } else {
+        setShareData(null)
+      }
     } catch {
       // No existing share — that's fine
       setShareData(null)
@@ -67,8 +73,10 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const { data } = await apiClient.post(`/sharing/projects/${projectId}/share`, {
+      const { data } = await apiClient.post(`/sharing/${projectId}`, {
         is_public: isPublic,
+        allow_feedback: allowFeedback,
+        allow_ratings: allowRatings,
         ...(password.trim() ? { password: password.trim() } : {}),
       })
       setShareData(data)
@@ -91,7 +99,7 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
   const handleRevoke = async () => {
     setRevoking(true)
     try {
-      await apiClient.delete(`/sharing/projects/${projectId}/share`)
+      await apiClient.delete(`/sharing/${projectId}`)
       setShareData(null)
     } catch (err) {
       console.error('Failed to revoke share link:', err)
@@ -247,6 +255,28 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
                   />
                 </div>
               )}
+
+              {/* Feedback toggles */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowFeedback}
+                    onChange={(e) => setAllowFeedback(e.target.checked)}
+                    className="accent-accent"
+                  />
+                  Allow viewer comments
+                </label>
+                <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowRatings}
+                    onChange={(e) => setAllowRatings(e.target.checked)}
+                    className="accent-accent"
+                  />
+                  Allow star ratings
+                </label>
+              </div>
 
               <Button
                 className="w-full"

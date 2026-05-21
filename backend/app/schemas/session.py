@@ -8,8 +8,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SessionCreate(BaseModel):
-    """Schema for starting a new discovery session."""
+    """Schema for starting or resuming a discovery session."""
     project_id: uuid.UUID
+    force_new: bool = False
 
 
 class SessionRead(BaseModel):

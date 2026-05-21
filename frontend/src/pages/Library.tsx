@@ -25,6 +25,14 @@ interface LibraryProject {
   created_at: string
   updated_at: string
   snapshot_count: number
+  // Progress metadata
+  discovery_stage: string | null
+  discovery_message_count: number
+  design_confidence: number
+  block_count: number
+  pathway_status: string | null
+  pathway_locked: boolean
+  recommended_resume_path: string
 }
 
 interface Snapshot {
@@ -214,6 +222,31 @@ export function Library() {
     return <span className="text-accent ml-1">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
   }
 
+  /** Human-readable progress label for a project. */
+  const progressLabel = (p: LibraryProject) => {
+    if (!p.discovery_stage) return 'Not started'
+    if (p.discovery_stage !== 'confirm' && p.discovery_stage !== 'complete')
+      return `Discovery (${p.discovery_stage})`
+    if (!p.pathway_status || p.pathway_status === 'pending') return 'Pathway review'
+    if (p.pathway_status === 'active') return 'Modules in progress'
+    if (p.block_count === 0) return 'Ready for blocks'
+    return 'Complete'
+  }
+
+  /** Color class for the progress badge. */
+  const progressColor = (p: LibraryProject) => {
+    if (!p.discovery_stage) return 'text-text-muted'
+    if (p.pathway_status === 'complete' && p.block_count > 0) return 'text-green-400'
+    return 'text-yellow-400'
+  }
+
+  /** Resume button label based on where the user left off. */
+  const resumeLabel = (p: LibraryProject) => {
+    if (!p.discovery_stage) return 'Start'
+    if (p.pathway_status === 'complete' && p.block_count > 0) return 'View'
+    return 'Resume'
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
@@ -288,13 +321,14 @@ export function Library() {
               /* ── Explorer-style list view ── */
               <div className="rounded-lg border border-border overflow-hidden mb-6">
                 {/* Header row */}
-                <div className="hidden md:grid grid-cols-[1fr_120px_120px_100px_48px] gap-2 px-4 py-2 bg-white/3 border-b border-border text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                <div className="hidden md:grid grid-cols-[1fr_120px_140px_120px_100px_56px] gap-2 px-4 py-2 bg-white/3 border-b border-border text-[10px] font-semibold text-text-muted uppercase tracking-wider">
                   <button onClick={() => handleSort('name')} className="text-left flex items-center hover:text-white transition-colors">
                     Name <SortIcon col="name" />
                   </button>
                   <button onClick={() => handleSort('platform')} className="text-left flex items-center hover:text-white transition-colors">
                     Platform <SortIcon col="platform" />
                   </button>
+                  <span>Progress</span>
                   <button onClick={() => handleSort('updated_at')} className="text-left flex items-center hover:text-white transition-colors">
                     Modified <SortIcon col="updated_at" />
                   </button>
@@ -311,7 +345,7 @@ export function Library() {
                         selectedProjectId === project.id ? null : project.id
                       )
                     }
-                    className={`w-full grid grid-cols-1 md:grid-cols-[1fr_120px_120px_100px_48px] gap-1 md:gap-2 px-4 py-3 text-left border-b border-border last:border-b-0 transition-colors ${
+                    className={`w-full grid grid-cols-1 md:grid-cols-[1fr_120px_140px_120px_100px_56px] gap-1 md:gap-2 px-4 py-3 text-left border-b border-border last:border-b-0 transition-colors ${
                       selectedProjectId === project.id
                         ? 'bg-accent/5 border-l-2 border-l-accent'
                         : 'hover:bg-white/3'
@@ -335,6 +369,17 @@ export function Library() {
                       <span className="md:hidden text-[10px] text-text-muted/50 mr-1">Platform:</span>
                       {project.platform}
                     </span>
+                    {/* Progress */}
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium ${progressColor(project)}`}>
+                        {progressLabel(project)}
+                      </span>
+                      {project.design_confidence > 0 && (
+                        <span className="text-[10px] text-text-muted bg-white/5 px-1.5 py-0.5 rounded">
+                          {project.design_confidence}%
+                        </span>
+                      )}
+                    </div>
                     {/* Modified */}
                     <span className="text-xs text-text-muted">
                       <span className="md:hidden text-[10px] text-text-muted/50 mr-1">Modified:</span>
@@ -344,14 +389,14 @@ export function Library() {
                     <span className="text-xs text-text-muted">
                       {project.snapshot_count} ver{project.snapshot_count !== 1 ? 's' : ''}
                     </span>
-                    {/* Actions */}
+                    {/* Actions — smart resume routing */}
                     <Link
-                      to={`/discovery/${project.id}`}
+                      to={project.recommended_resume_path || `/discovery/${project.id}`}
                       onClick={(e) => e.stopPropagation()}
                       className="text-accent text-xs hover:underline"
                       title="Open project"
                     >
-                      Open
+                      {resumeLabel(project)}
                     </Link>
                   </button>
                 ))}
@@ -396,9 +441,22 @@ export function Library() {
                           {project.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-3 text-[10px] text-text-muted">
+                      <div className="flex items-center gap-2 text-[10px] text-text-muted mb-2">
                         <span className="bg-white/5 px-2 py-0.5 rounded">{project.platform}</span>
+                        <span className={`font-medium ${progressColor(project)}`}>
+                          {progressLabel(project)}
+                        </span>
+                        {project.design_confidence > 0 && (
+                          <span className="bg-white/5 px-1.5 py-0.5 rounded">
+                            {project.design_confidence}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px] text-text-muted">
                         <span>{project.snapshot_count} snapshot{project.snapshot_count !== 1 ? 's' : ''}</span>
+                        {project.block_count > 0 && (
+                          <span>{project.block_count} block{project.block_count !== 1 ? 's' : ''}</span>
+                        )}
                         <span className="ml-auto">{formatDate(project.updated_at)}</span>
                       </div>
                     </Card>

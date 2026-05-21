@@ -83,7 +83,7 @@ export function Settings() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `ideaforge-projects-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = `ideai-projects-${new Date().toISOString().slice(0, 10)}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch {
@@ -265,7 +265,7 @@ export function Settings() {
                 <Card>
                   <h3 className="text-sm font-semibold text-white mb-2">About</h3>
                   <p className="text-xs text-text-muted">
-                    ideaFORGE v0.1.0 — Transform rough ideas into structured design kits.
+                    Ide/AI v0.2.0 — Transform rough ideas into structured design kits.
                   </p>
                 </Card>
               </>

@@ -61,6 +61,9 @@ export interface ModuleStartResponse {
   redirect?: string
   already_complete?: boolean
   message?: string
+  resumed?: boolean
+  messages?: Array<{ role: string; content: string }>
+  extracted?: Record<string, unknown>
 }
 
 export interface ModuleResponseRecord {

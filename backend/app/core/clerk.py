@@ -35,15 +35,28 @@ def verify_clerk_token(token: str) -> dict:
     client = _get_jwk_client()
     signing_key = client.get_signing_key_from_jwt(token)
 
-    payload = jwt.decode(
-        token,
-        signing_key.key,
-        algorithms=["RS256"],
-        options={
+    decode_kwargs: dict = {
+        "algorithms": ["RS256"],
+        "options": {
             "verify_exp": True,
             "verify_iat": True,
             "verify_nbf": True,
         },
-    )
+    }
+
+    # Constrain issuer when configured (recommended for production)
+    if settings.CLERK_ISSUER:
+        decode_kwargs["issuer"] = settings.CLERK_ISSUER
+
+    # Constrain audience when configured
+    if settings.CLERK_AUDIENCE:
+        decode_kwargs["audience"] = settings.CLERK_AUDIENCE
+
+    payload = jwt.decode(token, signing_key.key, **decode_kwargs)
+
+    # Verify authorized party (azp) when configured
+    azp = payload.get("azp")
+    if settings.CLERK_AUTHORIZED_PARTIES and azp not in settings.CLERK_AUTHORIZED_PARTIES:
+        raise jwt.InvalidTokenError("Invalid authorized party")
 
     return payload

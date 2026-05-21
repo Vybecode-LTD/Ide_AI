@@ -24,10 +24,38 @@ from app.services import sharing_service
 router = APIRouter(prefix="/sharing", tags=["sharing"])
 
 
+async def _verify_project_owner(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> Project:
+    """Verify the user owns the project. Raises 404 if not found or not owned."""
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == user_id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
+
+
+def _share_expired(share: ProjectShare) -> bool:
+    """Check if a share link has expired."""
+    return bool(share.expires_at and share.expires_at < datetime.now(timezone.utc))
+
+
+def _raise_if_expired(share: ProjectShare) -> None:
+    """Raise 410 if share is expired."""
+    if _share_expired(share):
+        raise HTTPException(status_code=410, detail="Share link has expired")
+
+
 class CreateShareRequest(BaseModel):
     is_public: bool = True
     password: str | None = None
     expires_hours: int | None = None
+    allow_feedback: bool = True
+    allow_ratings: bool = True
 
 
 class VerifyPasswordRequest(BaseModel):
@@ -53,6 +81,8 @@ async def create_share(
         is_public=payload.is_public,
         password=payload.password,
         expires_hours=payload.expires_hours,
+        allow_feedback=payload.allow_feedback,
+        allow_ratings=payload.allow_ratings,
     )
 
     base_url = settings.FRONTEND_URL.rstrip("/")
@@ -74,6 +104,7 @@ async def get_share_status(
     db: AsyncSession = Depends(get_db),
 ):
     """Check if a project has an active share link."""
+    await _verify_project_owner(db, project_id, current_user.id)
     share = await sharing_service.get_share_by_project(db, project_id)
     if not share:
         return {"active": False}
@@ -98,6 +129,7 @@ async def revoke_share(
     db: AsyncSession = Depends(get_db),
 ):
     """Revoke the share link for a project."""
+    await _verify_project_owner(db, project_id, current_user.id)
     share = await sharing_service.get_share_by_project(db, project_id)
     if not share:
         raise HTTPException(status_code=404, detail="No active share found")
@@ -131,6 +163,9 @@ async def get_shared_project(
     await db.flush()
 
     data = await sharing_service.get_shared_project_data(db, share.project_id)
+    data["allow_feedback"] = bool(share.allow_feedback)
+    data["allow_ratings"] = bool(share.allow_ratings)
+    data["share_token"] = token
     return data
 
 
@@ -151,6 +186,9 @@ async def verify_shared_password(
     if not share.password_hash:
         # No password needed
         data = await sharing_service.get_shared_project_data(db, share.project_id)
+        data["allow_feedback"] = bool(share.allow_feedback)
+        data["allow_ratings"] = bool(share.allow_ratings)
+        data["share_token"] = token
         return data
 
     if not sharing_service.verify_password(payload.password, share.password_hash):
@@ -160,6 +198,9 @@ async def verify_shared_password(
     await db.flush()
 
     data = await sharing_service.get_shared_project_data(db, share.project_id)
+    data["allow_feedback"] = bool(share.allow_feedback)
+    data["allow_ratings"] = bool(share.allow_ratings)
+    data["share_token"] = token
     return data
 
 
@@ -172,6 +213,11 @@ async def export_shared_csv(
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share link not found")
+    _raise_if_expired(share)
+
+    # Block CSV access for password-protected shares (no viewer verification)
+    if not share.is_public and share.password_hash:
+        raise HTTPException(status_code=403, detail="Password verification required")
 
     data = await sharing_service.get_shared_project_data(db, share.project_id)
     project_name = data.get("project", {}).get("name", "project")
@@ -203,6 +249,7 @@ async def get_comments(token: str, db: AsyncSession = Depends(get_db)):
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
+    _raise_if_expired(share)
     result = await db.execute(
         select(ShareComment)
         .where(ShareComment.share_id == share.id)
@@ -226,6 +273,7 @@ async def add_comment(token: str, payload: CommentCreate, db: AsyncSession = Dep
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
+    _raise_if_expired(share)
     if not share.allow_feedback:
         raise HTTPException(status_code=403, detail="Comments are disabled for this share")
 
@@ -251,6 +299,7 @@ async def get_ratings(token: str, db: AsyncSession = Depends(get_db)):
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
+    _raise_if_expired(share)
     result = await db.execute(
         select(
             sa_func.count(ShareRating.id).label("count"),
@@ -271,6 +320,7 @@ async def add_rating(token: str, payload: RatingCreate, db: AsyncSession = Depen
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
+    _raise_if_expired(share)
     if not share.allow_ratings:
         raise HTTPException(status_code=403, detail="Ratings are disabled for this share")
 

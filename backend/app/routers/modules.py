@@ -140,21 +140,37 @@ async def start_module(
     )
     module_resp = mr_result.scalar_one_or_none()
 
+    mode = pathway.lite_deep_settings.get(module_id, "lite")
+
+    # Resume: return existing active session messages instead of overwriting
+    if module_resp and module_resp.status == "active":
+        messages = (module_resp.responses or {}).get("messages", [])
+        return {
+            "module_id": module_id,
+            "label": defn["label"],
+            "messages": messages,
+            "question_number": sum(1 for m in messages if m.get("role") == "assistant"),
+            "total_questions": 10 if mode == "deep" else 3,
+            "mode": mode,
+            "resumed": True,
+        }
+
+    # Completed: return transcript and extracted output for review
     if module_resp and module_resp.status == "complete":
         return {
             "module_id": module_id,
+            "label": defn["label"],
             "already_complete": True,
-            "message": "This module is already completed.",
+            "messages": (module_resp.responses or {}).get("messages", []),
+            "extracted": (module_resp.responses or {}).get("extracted", {}),
         }
 
-    # Cross-populate from completed modules
+    # Fresh start: generate first question
     completed_outputs = await _get_completed_module_outputs(project_id, db)
     pre_populated = cross_populate_fields(completed_outputs, module_id)
 
     concept_sheet = await _get_concept_sheet_dict(project_id, db)
-    mode = pathway.lite_deep_settings.get(module_id, "lite")
 
-    # Generate first question
     first_question = await generate_first_question(
         module_id,
         concept_sheet,
@@ -163,18 +179,14 @@ async def start_module(
         pre_populated=pre_populated,
     )
 
-    # Create/update module response record
-    if not module_resp:
-        module_resp = ModuleResponse(
-            project_id=project_id,
-            module_id=module_id,
-            responses={"messages": [{"role": "assistant", "content": first_question}]},
-            status="active",
-        )
-        db.add(module_resp)
-    else:
-        module_resp.responses = {"messages": [{"role": "assistant", "content": first_question}]}
-        module_resp.status = "active"
+    # Create new module response record
+    module_resp = ModuleResponse(
+        project_id=project_id,
+        module_id=module_id,
+        responses={"messages": [{"role": "assistant", "content": first_question}]},
+        status="active",
+    )
+    db.add(module_resp)
 
     await db.commit()
 

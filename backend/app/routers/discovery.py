@@ -37,10 +37,18 @@ async def start_session(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     try:
-        session = await discovery_service.create_session(db, payload.project_id)
-        # Inherit AI partner style from project
-        session.ai_partner_style = getattr(project, "ai_partner_style", "strategist")
+        session, created = await discovery_service.create_or_resume_session(
+            db,
+            payload.project_id,
+            force_new=payload.force_new,
+        )
+
+        # Only set partner style for new sessions or legacy sessions missing it
+        if created or not getattr(session, "ai_partner_style", None):
+            session.ai_partner_style = getattr(project, "ai_partner_style", "strategist")
+
         await db.commit()
+        await db.refresh(session)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return session

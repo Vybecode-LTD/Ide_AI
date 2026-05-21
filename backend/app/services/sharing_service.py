@@ -25,6 +25,8 @@ async def create_share(
     is_public: bool = True,
     password: str | None = None,
     expires_hours: int | None = None,
+    allow_feedback: bool = True,
+    allow_ratings: bool = True,
 ) -> ProjectShare:
     """Create a new share link for a project."""
     # Revoke any existing share first
@@ -51,6 +53,8 @@ async def create_share(
         password_hash=pw_hash,
         expires_at=expires_at,
         created_by=user_id,
+        allow_feedback=allow_feedback,
+        allow_ratings=allow_ratings,
     )
     db.add(share)
     await db.flush()

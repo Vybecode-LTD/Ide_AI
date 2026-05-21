@@ -36,6 +36,7 @@ interface SheetData {
   tech_constraints?: string
   success_metric?: string
   confidence_score: number
+  fields_data?: Record<string, unknown>
 }
 
 /** Initial chips shown before first AI response */
@@ -84,22 +85,22 @@ export function Discovery() {
     onError: (err) => console.error('SSE error:', err),
   })
 
+  // Stable save helper — reused by interval, visibility, and unmount saves
+  const saveProgress = useCallback(async () => {
+    if (!sessionId || messages.length === 0) return
+    await apiClient.patch(`/discovery/${sessionId}/progress`, {
+      messages,
+      stage,
+    })
+  }, [sessionId, messages, stage])
+
   // Auto-save progress: save every 30s while session is active
   useEffect(() => {
     if (!sessionId || messages.length === 0) return
 
-    const saveProgress = async () => {
-      try {
-        await apiClient.patch(`/discovery/${sessionId}/progress`, {
-          messages,
-          stage,
-        })
-      } catch (err) {
-        console.error('Auto-save failed:', err)
-      }
-    }
-
-    autoSaveTimerRef.current = setInterval(saveProgress, AUTO_SAVE_INTERVAL_MS)
+    autoSaveTimerRef.current = setInterval(() => {
+      saveProgress().catch((err) => console.error('Auto-save failed:', err))
+    }, AUTO_SAVE_INTERVAL_MS)
 
     return () => {
       if (autoSaveTimerRef.current) {
@@ -107,7 +108,26 @@ export function Discovery() {
         autoSaveTimerRef.current = null
       }
     }
-  }, [sessionId, messages, stage])
+  }, [sessionId, messages.length, saveProgress])
+
+  // Save when page becomes hidden (tab switch, minimize)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveProgress().catch((err) => console.error('Visibility save failed:', err))
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [saveProgress])
+
+  // Save on unmount (navigation away)
+  useEffect(() => {
+    return () => {
+      saveProgress().catch((err) => console.error('Unmount save failed:', err))
+    }
+  }, [saveProgress])
 
   // Auto-save on stage change
   useEffect(() => {
@@ -141,6 +161,28 @@ export function Discovery() {
     }
   }, [partnerStyle, allPartners])
 
+  // Load design sheet state from backend
+  const loadSheet = useCallback(async (id: string) => {
+    try {
+      const { data } = await apiClient.get(`/discovery/${id}/sheet`)
+      setSheet({
+        problem: data.problem ?? undefined,
+        audience: data.audience ?? undefined,
+        mvp: data.mvp ?? undefined,
+        features: data.features ?? undefined,
+        tone: data.tone ?? undefined,
+        platform: data.platform ?? undefined,
+        tech_constraints: data.tech_constraints ?? undefined,
+        success_metric: data.success_metric ?? undefined,
+        confidence_score: data.confidence_score ?? 0,
+        fields_data: data.fields_data ?? undefined,
+      } as SheetData)
+    } catch {
+      // Sheet may not exist yet for fresh projects
+      setSheet({ confidence_score: 0 })
+    }
+  }, [])
+
   // Fetch pathways + activate the project's pathway
   useEffect(() => {
     if (!projectId) return
@@ -162,6 +204,9 @@ export function Discovery() {
         if (cancelled) return
         setSessionId(data.id)
         if (data.ai_partner_style) setPartnerStyle(data.ai_partner_style)
+
+        // Always load the current design sheet
+        await loadSheet(data.id)
 
         if (data.messages?.length) {
           setMessages(data.messages)

@@ -18,6 +18,21 @@ from app.services import sprint_service
 router = APIRouter(prefix="/sprints", tags=["sprints"])
 
 
+async def _verify_project_owner(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> Project:
+    """Verify the user owns the project. Raises 404 if not found or not owned."""
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == user_id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return project
+
+
 @router.post("/{project_id}/generate")
 async def generate_sprint_plan(
     project_id: uuid.UUID,
@@ -48,6 +63,7 @@ async def get_sprint_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """Get the stored sprint plan for a project."""
+    await _verify_project_owner(db, project_id, current_user.id)
     plan = await sprint_service.get_sprint_plan(db, project_id)
     if not plan:
         raise HTTPException(status_code=404, detail="No sprint plan found. Generate one first.")
@@ -71,6 +87,7 @@ async def update_sprint_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """Update sprint plan (manual edits to tasks, assignments, etc.)."""
+    await _verify_project_owner(db, project_id, current_user.id)
     plan = await sprint_service.get_sprint_plan(db, project_id)
     if not plan:
         raise HTTPException(status_code=404, detail="No sprint plan found")
@@ -119,6 +136,7 @@ async def delete_sprint_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete the sprint plan for a project."""
+    await _verify_project_owner(db, project_id, current_user.id)
     plan = await sprint_service.get_sprint_plan(db, project_id)
     if not plan:
         raise HTTPException(status_code=404, detail="No sprint plan found")

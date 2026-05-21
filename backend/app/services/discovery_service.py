@@ -33,6 +33,43 @@ def _get_pathway(pathway: PathwayConfig | None = None) -> PathwayConfig:
 # Session helpers
 # ---------------------------------------------------------------------------
 
+async def get_latest_active_session_for_project(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+) -> DiscoverySession | None:
+    """Return the latest active discovery session for a project, if any."""
+    result = await db.execute(
+        select(DiscoverySession)
+        .where(
+            DiscoverySession.project_id == project_id,
+            DiscoverySession.status == "active",
+        )
+        .order_by(DiscoverySession.updated_at.desc(), DiscoverySession.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def create_or_resume_session(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    *,
+    force_new: bool = False,
+) -> tuple[DiscoverySession, bool]:
+    """Return an active session for the project, creating one only if needed.
+
+    Returns:
+        (session, created) — created is True when a new session was made.
+    """
+    if not force_new:
+        existing = await get_latest_active_session_for_project(db, project_id)
+        if existing:
+            return existing, False
+
+    session = await create_session(db, project_id)
+    return session, True
+
+
 async def create_session(db: AsyncSession, project_id: uuid.UUID) -> DiscoverySession:
     """Create a new discovery session and initialize an empty design sheet."""
     # Verify project exists

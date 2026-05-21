@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.encryption import encrypt_secret
 from app.models.external_integration import ExternalIntegration
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -72,6 +73,7 @@ async def list_integrations(
             "has_token": False,
             "config": None,
             "created_at": None,
+            "status": "coming_soon",
         })
     return items
 
@@ -103,7 +105,7 @@ async def create_integration(
     integration = ExternalIntegration(
         user_id=current_user.id,
         provider=payload.provider,
-        access_token=payload.access_token,
+        access_token=encrypt_secret(payload.access_token),
         config=payload.config or {},
     )
     db.add(integration)
@@ -135,7 +137,7 @@ async def update_integration(
         raise HTTPException(status_code=404, detail="Integration not found")
 
     if payload.access_token is not None:
-        integration.access_token = payload.access_token
+        integration.access_token = encrypt_secret(payload.access_token)
     if payload.config is not None:
         integration.config = payload.config
     if payload.enabled is not None:

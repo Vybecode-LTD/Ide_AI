@@ -83,6 +83,25 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@router.get("/me/entitlements")
+async def get_entitlements(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the user's plan limits and current usage."""
+    from app.services.entitlement_service import get_limits, check_project_limit
+
+    limits = get_limits(current_user)
+    project_check = await check_project_limit(current_user, db)
+    return {
+        "plan": current_user.account_type or "free",
+        "limits": limits,
+        "usage": {
+            "projects": project_check["current"],
+        },
+    }
+
+
 @router.patch("/me", response_model=UserProfile)
 async def update_me(
     payload: UserProfileUpdate,

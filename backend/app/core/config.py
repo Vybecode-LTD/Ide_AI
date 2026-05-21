@@ -26,6 +26,17 @@ class Settings(BaseSettings):
     FROM_EMAIL: str = "noreply@ideaforge.dev"
     INBOX_DOMAIN: str = "inbox.ideaforge.dev"
 
+    # Integration token encryption
+    INTEGRATION_TOKEN_KEY: str = ""
+
+    # Resend inbound email webhook verification
+    RESEND_WEBHOOK_SECRET: str = ""
+
+    # Clerk JWT hardening (optional but recommended for production)
+    CLERK_ISSUER: str = ""
+    CLERK_AUDIENCE: str = ""
+    CLERK_AUTHORIZED_PARTIES: list[str] = []
+
     # Stripe billing
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""

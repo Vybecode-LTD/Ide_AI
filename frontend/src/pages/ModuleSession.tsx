@@ -84,8 +84,22 @@ export function ModuleSession() {
           return
         }
 
+        // Resumed: load existing messages from backend
+        if (data.resumed && data.messages?.length) {
+          setModuleLabel(data.label)
+          setTotalQuestions(data.total_questions)
+          setQuestionNumber(data.question_number)
+          setMessages(data.messages as Message[])
+          return
+        }
+
+        // Already complete: show transcript and completion state
         if (data.already_complete) {
+          setModuleLabel(data.label || moduleId || '')
           setIsComplete(true)
+          if (data.messages?.length) {
+            setMessages(data.messages as Message[])
+          }
           return
         }
 

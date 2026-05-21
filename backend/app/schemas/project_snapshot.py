@@ -41,7 +41,7 @@ class SnapshotSummary(BaseModel):
 
 
 class LibraryProjectRead(BaseModel):
-    """Schema for a project in the library listing with snapshot count."""
+    """Schema for a project in the library listing with progress metadata."""
     id: uuid.UUID
     user_id: uuid.UUID
     name: str
@@ -54,5 +54,13 @@ class LibraryProjectRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     snapshot_count: int = 0
+    # Progress metadata
+    discovery_stage: Optional[str] = None
+    discovery_message_count: int = 0
+    design_confidence: int = 0
+    block_count: int = 0
+    pathway_status: Optional[str] = None
+    pathway_locked: bool = False
+    recommended_resume_path: str = ""
 
     model_config = ConfigDict(from_attributes=True)
