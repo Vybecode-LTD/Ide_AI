@@ -25,7 +25,7 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 
 def _compute_resume_path(
-    project_id: __uuid.UUID,
+    project_id: _uuid.UUID,
     session_status: str | None,
     discovery_stage: str | None,
     block_count: int,
