@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Email — Resend
     RESEND_API_KEY: str = ""
-    FROM_EMAIL: str = "noreply@myide.ai"
+    FROM_EMAIL: str = "noreply@send.myide.ai"
     INBOX_DOMAIN: str = "inbox.myide.ai"
 
     # Integration token encryption
