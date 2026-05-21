@@ -92,6 +92,7 @@ export const useModulePathwayStore = create<ModulePathwayStoreState>()((set, get
         `/projects/${projectId}/pathway`
       )
       set({ pathway: data, loading: false })
+      get().checkCompletion()
     } catch (err) {
       set({ loading: false, error: (err as Error).message })
     }
@@ -116,6 +117,7 @@ export const useModulePathwayStore = create<ModulePathwayStoreState>()((set, get
         `/projects/${projectId}/pathway/lock`
       )
       set({ pathway: data, loading: false })
+      get().checkCompletion()
     } catch (err) {
       set({ loading: false, error: (err as Error).message })
     }

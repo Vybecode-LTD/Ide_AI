@@ -3,7 +3,7 @@
  * Displays target market, competitors, TAM/SAM/SOM, revenue projections, and marketing strategy.
  * @module pages/MarketAnalysis
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
@@ -11,6 +11,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient, { getAuthToken } from '../lib/apiClient'
 import { downloadBlob } from '../lib/exportUtils'
+import type { EntitlementDetail } from '../lib/extractError'
+import { UpgradeModal } from '../components/ui/UpgradeModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -215,12 +217,18 @@ function BarChart({ items, maxValue }: { items: Array<{ label: string; value: nu
 
 /** Donut chart built with CSS conic-gradient. */
 function DonutChart({ segments }: { segments: Array<{ label: string; pct: number; color: string }> }) {
-  let cumulative = 0
-  const gradientStops = segments.map(seg => {
-    const start = cumulative
-    cumulative += seg.pct
-    return `${seg.color} ${start}% ${cumulative}%`
-  })
+  const gradientStops = useMemo(() => {
+    return segments.reduce<{ stops: string[]; running: number }>(
+      (acc, seg) => {
+        const start = acc.running
+        const end = start + seg.pct
+        acc.stops.push(`${seg.color} ${start}% ${end}%`)
+        acc.running = end
+        return acc
+      },
+      { stops: [], running: 0 },
+    ).stops
+  }, [segments])
   const conicGradient = `conic-gradient(${gradientStops.join(', ')})`
 
   return (
@@ -818,6 +826,7 @@ export function MarketAnalysis() {
   const [progress, setProgress] = useState(0)
   const [currentSection, setCurrentSection] = useState('')
   const [streamText, setStreamText] = useState('')
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Fetch existing analysis on mount
@@ -864,7 +873,19 @@ export function MarketAnalysis() {
         signal: controller.signal,
       })
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        if (response.status === 403) {
+          try {
+            const body = await response.json()
+            const d = body?.detail
+            if (d && (d.code === 'project_limit_reached' || d.code === 'feature_limit_reached')) {
+              setUpgradeDetail(d as EntitlementDetail)
+              return
+            }
+          } catch { /* not JSON */ }
+        }
+        throw new Error(`HTTP ${response.status}`)
+      }
       if (!response.body) throw new Error('No response body')
 
       const reader = response.body.getReader()
@@ -1125,6 +1146,8 @@ export function MarketAnalysis() {
           </div>
         )}
       </div>
+
+      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

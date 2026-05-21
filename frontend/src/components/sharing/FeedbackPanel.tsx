@@ -12,12 +12,15 @@ interface FeedbackPanelProps {
   shareToken: string
   allowFeedback: boolean
   allowRatings: boolean
+  /** JWT for private share access (returned by /verify). Optional for public shares. */
+  shareAccessToken?: string | null
 }
 
 export function FeedbackPanel({
   shareToken,
   allowFeedback,
   allowRatings,
+  shareAccessToken,
 }: FeedbackPanelProps) {
   const [averageScore, setAverageScore] = useState(0)
   const [totalRatings, setTotalRatings] = useState(0)
@@ -25,8 +28,11 @@ export function FeedbackPanel({
   const fetchRatings = useCallback(async () => {
     if (!allowRatings) return
     try {
+      const headers: Record<string, string> = {}
+      if (shareAccessToken) headers['Authorization'] = `Bearer ${shareAccessToken}`
       const resp = await fetch(
         `${API_BASE}/sharing/public/${shareToken}/ratings`,
+        { headers },
       )
       if (resp.ok) {
         const data = await resp.json()
@@ -36,11 +42,12 @@ export function FeedbackPanel({
     } catch {
       // silently fail
     }
-  }, [shareToken, allowRatings])
+  }, [shareToken, allowRatings, shareAccessToken])
 
-  useEffect(() => {
-    fetchRatings()
-  }, [fetchRatings])
+  // Fetch ratings on mount / when dependencies change.
+  // The setState is inside an async callback (not synchronous in the effect body).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchRatings() }, [fetchRatings])
 
   if (!allowFeedback && !allowRatings) return null
 
@@ -58,11 +65,12 @@ export function FeedbackPanel({
             averageScore={averageScore}
             totalRatings={totalRatings}
             onRated={fetchRatings}
+            shareAccessToken={shareAccessToken}
           />
         </div>
       )}
 
-      {allowFeedback && <CommentSection shareToken={shareToken} />}
+      {allowFeedback && <CommentSection shareToken={shareToken} shareAccessToken={shareAccessToken} />}
     </section>
   )
 }

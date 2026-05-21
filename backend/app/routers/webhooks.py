@@ -1,9 +1,10 @@
 """
 webhooks.py — Inbound email webhook handler for Resend.
 Receives emails sent to user@inbox.myide.ai and creates inbox items.
+
+Resend delivers webhook payloads using Svix, so verification uses the
+standard ``svix-id``, ``svix-timestamp``, ``svix-signature`` headers.
 """
-import hashlib
-import hmac
 import logging
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -20,18 +21,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-def _verify_resend_signature(raw_body: bytes, signature: str | None) -> bool:
-    """Verify Resend webhook HMAC signature if secret is configured."""
+def _verify_resend_webhook(raw_body: bytes, headers: dict[str, str]) -> dict:
+    """Verify a Resend webhook using Svix signature verification.
+
+    Returns the parsed payload on success.
+    Raises ``HTTPException(401)`` if the signature is invalid.
+    """
+    from svix.webhooks import Webhook, WebhookVerificationError
+
     if not settings.RESEND_WEBHOOK_SECRET:
-        return True  # No secret configured — skip verification (dev only)
-    if not signature:
-        return False
-    expected = hmac.new(
-        settings.RESEND_WEBHOOK_SECRET.encode("utf-8"),
-        raw_body,
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
+        raise RuntimeError("RESEND_WEBHOOK_SECRET is required")
+
+    wh = Webhook(settings.RESEND_WEBHOOK_SECRET)
+    try:
+        return wh.verify(
+            raw_body.decode("utf-8"),
+            {
+                "svix-id": headers.get("svix-id", ""),
+                "svix-timestamp": headers.get("svix-timestamp", ""),
+                "svix-signature": headers.get("svix-signature", ""),
+            },
+        )
+    except WebhookVerificationError:
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
 
 @router.post("/inbound-email", status_code=status.HTTP_200_OK)
@@ -52,18 +64,22 @@ async def inbound_email(request: Request):
 
     # Reject oversized payloads (max 256KB)
     if len(raw_body) > 256 * 1024:
-        return {"status": "payload too large"}
+        raise HTTPException(status_code=413, detail="Payload too large")
 
-    # Verify signature when secret is configured
-    signature = request.headers.get("resend-signature") or request.headers.get("svix-signature")
-    if settings.RESEND_WEBHOOK_SECRET and not _verify_resend_signature(raw_body, signature):
-        logger.warning("Inbound email webhook: invalid signature")
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    # Verify signature when secret is configured; in development without a
+    # secret just parse the JSON directly.
+    if settings.RESEND_WEBHOOK_SECRET:
+        payload = _verify_resend_webhook(raw_body, dict(request.headers))
+    elif settings.ENVIRONMENT != "production":
+        try:
+            payload = request.scope.get("_json") or await request.json()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+    else:
+        raise HTTPException(status_code=500, detail="Webhook secret is required in production")
 
-    try:
-        payload = request.scope.get("_json") or await request.json()
-    except Exception:
-        return {"status": "invalid payload"}
+    # ── Idempotency: Svix retries carry the same svix-id header ───────
+    event_id = request.headers.get("svix-id")
 
     to_email = payload.get("to", "")
     subject = payload.get("subject", "Untitled Idea")
@@ -87,12 +103,21 @@ async def inbound_email(request: Request):
             logger.info("Inbound email for unknown recipient: %s", to_email)
             return {"status": "unknown recipient"}
 
+        # Idempotency check: skip duplicate events
+        if event_id:
+            existing = await db.execute(
+                select(IdeaInbox.id).where(IdeaInbox.provider_event_id == event_id)
+            )
+            if existing.scalar_one_or_none():
+                return {"status": "duplicate"}
+
         item = IdeaInbox(
             user_id=user.id,
             subject=subject[:500],
             body=body[:10000] if body else None,
             source="email",
             sender_email=sender[:255] if sender else None,
+            provider_event_id=event_id[:255] if event_id else None,
         )
         db.add(item)
         await db.commit()

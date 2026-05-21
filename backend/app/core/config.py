@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Resend inbound email webhook verification
     RESEND_WEBHOOK_SECRET: str = ""
 
+    # Viewer access token for password-protected shares
+    SHARE_ACCESS_SECRET: str = ""
+
     # Clerk JWT hardening (optional but recommended for production)
     CLERK_ISSUER: str = ""
     CLERK_AUDIENCE: str = ""

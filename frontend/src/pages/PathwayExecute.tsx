@@ -37,13 +37,21 @@ export function PathwayExecute() {
 
   useEffect(() => {
     if (!projectId) return
-    fetchPathway(projectId)
-    fetchResponses(projectId)
+    let cancelled = false
 
-    // If we don't have assembled modules with full metadata, re-fetch
-    if (assembledModules.length === 0) {
-      assemble(projectId).catch(() => {})
+    const init = async () => {
+      await fetchPathway(projectId)
+      await fetchResponses(projectId)
+      // If we don't have assembled modules with full metadata, re-fetch.
+      // Read the store directly — the `assembledModules` closure may be stale.
+      if (!cancelled && useModulePathwayStore.getState().assembledModules.length === 0) {
+        await assemble(projectId).catch(() => {})
+      }
     }
+
+    void init()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   const handleStartModule = (moduleId: string) => {

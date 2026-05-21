@@ -222,8 +222,13 @@ async def save_progress(
 ):
     """Save current discovery progress without side effects.
 
-    Used for auto-save (every 30s or on stage change). Only updates
-    the session's messages and stage — no AI calls, no sheet extraction.
+    Used for auto-save (every 30s, on stage change, visibility-hidden, and
+    unmount).  The client sends only ``stage`` and ``client_message_count``.
+    The backend never accepts a raw messages array from the browser — it is
+    the canonical owner of persisted messages.
+
+    If the client's message count is lower than the server's, the save is
+    treated as stale and silently ignored (no data overwritten).
     """
     session = await discovery_service.get_session(db, session_id)
     if not session:
@@ -236,9 +241,19 @@ async def save_progress(
     if not proj_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    # Update messages and stage in place
-    session.messages = payload.messages
-    session.stage = payload.stage
+    server_count = len(session.messages or [])
+
+    # Guard: if the client is behind the server, do not mutate anything.
+    if payload.client_message_count is not None and payload.client_message_count < server_count:
+        return {
+            "status": "ignored_stale_client",
+            "session_id": str(session_id),
+            "server_message_count": server_count,
+        }
+
+    # Only update stage — messages are never overwritten by the client.
+    if payload.stage:
+        session.stage = payload.stage
     await db.commit()
 
     return {"status": "saved", "session_id": str(session_id)}

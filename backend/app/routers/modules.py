@@ -38,6 +38,39 @@ from app.services.modular_pathway_service import get_module_definition
 router = APIRouter(prefix="/modules", tags=["modules"])
 
 
+async def _sync_pathway_completion(project_id: uuid.UUID, db: AsyncSession) -> str | None:
+    """Update ModulePathway.status based on module response states.
+
+    Sets ``"complete"`` when every module in the pathway is either complete
+    or skipped.  Re-opens to ``"active"`` if a previously complete pathway
+    has an incomplete module (e.g. after a module reset).
+
+    Returns the new pathway status, or *None* if no pathway exists.
+    """
+    pw_result = await db.execute(
+        select(ModulePathway).where(ModulePathway.project_id == project_id)
+    )
+    pathway = pw_result.scalar_one_or_none()
+    if not pathway or not pathway.modules:
+        return None
+
+    responses_result = await db.execute(
+        select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+    )
+    status_map = {r.module_id: r.status for r in responses_result.scalars().all()}
+    all_done = all(
+        status_map.get(mid) in {"complete", "skipped"} for mid in pathway.modules
+    )
+
+    if all_done:
+        pathway.status = "complete"
+    elif pathway.status == "complete":
+        pathway.status = "active"
+
+    await db.flush()
+    return pathway.status
+
+
 async def _get_project_for_module(
     project_id: uuid.UUID,
     current_user: User,
@@ -280,6 +313,11 @@ async def respond_to_module(
             current_data["extracted"] = extracted
             module_resp.responses = current_data
 
+        # Sync pathway completion status when a module finishes
+        pathway_new_status = None
+        if complete:
+            pathway_new_status = await _sync_pathway_completion(project_id, db)
+
         await db.commit()
 
         # Parse chips from response
@@ -290,7 +328,7 @@ async def respond_to_module(
 
         question_number = sum(1 for m in messages if m.get("role") == "assistant")
 
-        yield f"data: {json.dumps({'type': 'done', 'complete': complete, 'question_number': question_number, 'chips': chips})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'complete': complete, 'question_number': question_number, 'chips': chips, 'pathway_status': pathway_new_status})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -326,8 +364,9 @@ async def skip_module(
         )
         db.add(module_resp)
 
+    pathway_new_status = await _sync_pathway_completion(project_id, db)
     await db.commit()
-    return {"module_id": module_id, "status": "skipped"}
+    return {"module_id": module_id, "status": "skipped", "pathway_status": pathway_new_status}
 
 
 # ── Module Summary ───────────────────────────────────────────────────

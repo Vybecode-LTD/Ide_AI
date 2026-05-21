@@ -6,10 +6,10 @@ Stage order, transitions, and confidence weights are driven by the active Pathwa
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import case, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.session import DiscoverySession
@@ -37,17 +37,45 @@ async def get_latest_active_session_for_project(
     db: AsyncSession,
     project_id: uuid.UUID,
 ) -> DiscoverySession | None:
-    """Return the latest active discovery session for a project, if any."""
+    """Return the best active discovery session for a project.
+
+    Prefers a non-empty session (one with at least one message) over a newer
+    empty one.  This recovers users who hit the old empty-session bug: the
+    latest session may be an empty orphan while the real conversation sits in
+    an older row.
+    """
+    message_count = func.coalesce(func.jsonb_array_length(DiscoverySession.messages), 0)
+
     result = await db.execute(
         select(DiscoverySession)
         .where(
             DiscoverySession.project_id == project_id,
             DiscoverySession.status == "active",
         )
-        .order_by(DiscoverySession.updated_at.desc(), DiscoverySession.created_at.desc())
+        .order_by(
+            # Non-empty sessions sort first (0 < 1)
+            case((message_count > 0, 0), else_=1),
+            DiscoverySession.updated_at.desc(),
+            DiscoverySession.created_at.desc(),
+        )
         .limit(1)
     )
-    return result.scalar_one_or_none()
+    selected = result.scalar_one_or_none()
+
+    if selected is not None:
+        # Retire newer empty orphan sessions so they don't reappear.
+        empty_sessions = await db.execute(
+            select(DiscoverySession).where(
+                DiscoverySession.project_id == project_id,
+                DiscoverySession.status == "active",
+                DiscoverySession.id != selected.id,
+                func.coalesce(func.jsonb_array_length(DiscoverySession.messages), 0) == 0,
+            )
+        )
+        for orphan in empty_sessions.scalars():
+            orphan.status = "abandoned"
+
+    return selected
 
 
 async def create_or_resume_session(
@@ -111,7 +139,7 @@ async def add_message(
     messages.append({
         "role": role,
         "content": content,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     session.messages = messages
     await db.flush()

@@ -12,6 +12,8 @@ interface StarRatingProps {
   averageScore: number
   totalRatings: number
   onRated?: () => void
+  /** JWT for private share access (returned by /verify). Optional for public shares. */
+  shareAccessToken?: string | null
 }
 
 export function StarRating({
@@ -19,6 +21,7 @@ export function StarRating({
   averageScore,
   totalRatings,
   onRated,
+  shareAccessToken,
 }: StarRatingProps) {
   const [hovered, setHovered] = useState(0)
   const [selected, setSelected] = useState(0)
@@ -32,11 +35,13 @@ export function StarRating({
     setSubmitting(true)
     setError(null)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (shareAccessToken) headers['Authorization'] = `Bearer ${shareAccessToken}`
       const resp = await fetch(
         `${API_BASE}/sharing/public/${shareToken}/ratings`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ score }),
         },
       )

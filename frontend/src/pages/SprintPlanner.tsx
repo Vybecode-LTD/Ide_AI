@@ -10,6 +10,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient, { getAuthToken } from '../lib/apiClient'
 import { downloadBlob } from '../lib/exportUtils'
+import type { EntitlementDetail } from '../lib/extractError'
+import { UpgradeModal } from '../components/ui/UpgradeModal'
 
 interface Task {
   id: string
@@ -71,6 +73,7 @@ export function SprintPlanner() {
   const [statusMessage, setStatusMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [activeView, setActiveView] = useState<ViewTab>('milestones')
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
 
   // Fetch existing plan from DB
   const fetchPlan = useCallback(async () => {
@@ -111,7 +114,19 @@ export function SprintPlanner() {
         },
       })
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        if (response.status === 403) {
+          try {
+            const body = await response.json()
+            const d = body?.detail
+            if (d && (d.code === 'project_limit_reached' || d.code === 'feature_limit_reached')) {
+              setUpgradeDetail(d as EntitlementDetail)
+              return
+            }
+          } catch { /* not JSON */ }
+        }
+        throw new Error(`HTTP ${response.status}`)
+      }
       if (!response.body) throw new Error('No response body')
 
       const reader = response.body.getReader()
@@ -410,6 +425,8 @@ export function SprintPlanner() {
           )}
         </div>
       </div>
+
+      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

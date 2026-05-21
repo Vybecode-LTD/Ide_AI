@@ -10,6 +10,8 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
+import { getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
+import { UpgradeModal } from '../components/ui/UpgradeModal'
 
 interface PromptKitItem {
   id: string
@@ -39,6 +41,7 @@ export function PromptKit() {
   const [rewriting, setRewriting] = useState<string | null>(null)
   const [expandedKit, setExpandedKit] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
 
   const fetchKits = useCallback(async () => {
     if (!projectId) return
@@ -65,7 +68,9 @@ export function PromptKit() {
       })
       await fetchKits()
     } catch (err) {
-      console.error('Generate failed:', err)
+      const ent = getEntitlementDetail(err)
+      if (ent) setUpgradeDetail(ent)
+      else console.error('Generate failed:', err)
     } finally {
       setGenerating(false)
     }
@@ -229,6 +234,8 @@ export function PromptKit() {
           </div>
         </div>
       </div>
+
+      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

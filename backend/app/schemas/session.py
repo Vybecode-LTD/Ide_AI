@@ -32,9 +32,14 @@ class MessagePayload(BaseModel):
 
 
 class ProgressPayload(BaseModel):
-    """Schema for saving discovery session progress (auto-save)."""
-    messages: list = []
-    stage: str
+    """Schema for saving discovery session progress (auto-save).
+
+    The client sends only stage and a message count — never a full messages
+    array — so a stale browser tab cannot overwrite canonical server-side
+    messages.
+    """
+    stage: str | None = None
+    client_message_count: int | None = None
 
 
 class PartnerUpdatePayload(BaseModel):

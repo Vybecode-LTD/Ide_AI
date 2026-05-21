@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# Ide/AI Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript SPA for the Ide/AI pre-builder planning platform.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19.2, TypeScript, Vite 7.3
+- Tailwind CSS v4 (CSS-based config, no `tailwind.config.js`)
+- Framer Motion (animations, page transitions)
+- Zustand (client state) + Axios (API client)
+- Clerk (`@clerk/clerk-react`) for authentication
+- Stripe (checkout redirect, billing portal link)
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Requires a running backend at the URL specified by `VITE_API_BASE_URL`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Environment Variables
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk frontend publishable key | *(required)* |
+| `VITE_API_BASE_URL` | Backend API base URL | `/api/v1` |
+| `VITE_STRIPE_PUBLISHABLE_KEY` | Stripe frontend publishable key | *(required for billing)* |
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start Vite dev server (port 5173) |
+| `npm run build` | Production build (`tsc -b && vite build`) |
+| `npm run preview` | Preview production build locally |
+| `npm run lint` | Run ESLint |
+
+## Project Structure
+
 ```
+src/
+  pages/           # Route-level page components
+  components/      # Reusable UI components (layout, ui, sharing, tutorial, etc.)
+  stores/          # Zustand stores (authStore, pathwayStore, modulePathwayStore, tutorialStore)
+  hooks/           # Custom React hooks (useSSE, useVoiceInput)
+  lib/             # Utilities (apiClient, extractError, categories, exportUtils)
+  types/           # TypeScript interfaces
+  styles/          # Tailwind v4 CSS globals
+```
+
+## Design System
+
+- Dark glassmorphism theme (`#0d0d12` background, `bg-white/5` cards, `backdrop-blur`)
+- Accent: electric cyan `#00E5FF`
+- Typography: Arial (body), JetBrains Mono (code/prompts)
+- Cards: 12px radius, glass border, hover `scale-[1.02]`
+- Responsive: sidebar collapses to bottom nav on <768px
+
+## Deployment
+
+Deployed to Railway as a static site served by Caddy. Auto-deploys on push to `main`.

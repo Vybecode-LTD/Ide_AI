@@ -15,9 +15,11 @@ interface Comment {
 
 interface CommentSectionProps {
   shareToken: string
+  /** JWT for private share access (returned by /verify). Optional for public shares. */
+  shareAccessToken?: string | null
 }
 
-export function CommentSection({ shareToken }: CommentSectionProps) {
+export function CommentSection({ shareToken, shareAccessToken }: CommentSectionProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState('')
@@ -27,7 +29,9 @@ export function CommentSection({ shareToken }: CommentSectionProps) {
 
   const fetchComments = useCallback(async () => {
     try {
-      const resp = await fetch(`${API_BASE}/sharing/public/${shareToken}/comments`)
+      const headers: Record<string, string> = {}
+      if (shareAccessToken) headers['Authorization'] = `Bearer ${shareAccessToken}`
+      const resp = await fetch(`${API_BASE}/sharing/public/${shareToken}/comments`, { headers })
       if (resp.ok) {
         const data = await resp.json()
         setComments(data)
@@ -37,7 +41,7 @@ export function CommentSection({ shareToken }: CommentSectionProps) {
     } finally {
       setLoading(false)
     }
-  }, [shareToken])
+  }, [shareToken, shareAccessToken])
 
   useEffect(() => {
     fetchComments()
@@ -49,9 +53,11 @@ export function CommentSection({ shareToken }: CommentSectionProps) {
     setSubmitting(true)
     setError(null)
     try {
+      const postHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (shareAccessToken) postHeaders['Authorization'] = `Bearer ${shareAccessToken}`
       const resp = await fetch(`${API_BASE}/sharing/public/${shareToken}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: postHeaders,
         body: JSON.stringify({
           author_name: name.trim() || 'Anonymous',
           content: content.trim(),

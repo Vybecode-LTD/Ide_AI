@@ -13,6 +13,8 @@ import { TemplateGrid, type Template } from '../components/home/TemplateGrid'
 import { CategorySelect } from './CategorySelect'
 import type { PartnerStyleMeta } from '../types/project'
 import apiClient from '../lib/apiClient'
+import { getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
+import { UpgradeModal } from '../components/ui/UpgradeModal'
 import { useAuthStore } from '../stores/authStore'
 import { PulseBeacon, Whisper } from '../components/tutorial'
 
@@ -29,32 +31,37 @@ export function Home() {
   const selectedCategory = searchParams.get('category')
 
   const [idea, setIdea] = useState('')
-  const [billingSuccess, setBillingSuccess] = useState(false)
 
-  // Handle billing=success query param
+  // Billing success — initialize from URL param (avoids setState in effect).
+  const [billingSuccess, setBillingSuccess] = useState(
+    () => searchParams.get('billing') === 'success',
+  )
+
+  // Side effects for billing success: refresh user, clean URL, auto-dismiss.
   useEffect(() => {
-    if (searchParams.get('billing') === 'success') {
-      setBillingSuccess(true)
-      fetchUser() // Refresh user to get updated account_type
-      setSearchParams({}, { replace: true }) // Clean URL
-      setTimeout(() => setBillingSuccess(false), 5000)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!billingSuccess) return
+    fetchUser() // Refresh user to get updated account_type
+    setSearchParams({}, { replace: true }) // Clean URL
+    const timer = setTimeout(() => setBillingSuccess(false), 5000)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [loading, setLoading] = useState(false)
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
 
   // Template state
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
 
   // AI Partner state
   const [partnerStyle, setPartnerStyle] = useState('strategist')
-  const [allPartners, setAllPartners] = useState<PartnerStyleMeta[]>(_partnerCache ?? [])
+  const [allPartners, setAllPartners] = useState<PartnerStyleMeta[]>(() => _partnerCache ?? [])
 
   // Display name from auth store (already fetched by Sidebar)
   const displayName = user?.display_name || user?.name || user?.email?.split('@')[0] || null
 
   // Fetch partner styles on mount
   useEffect(() => {
-    if (_partnerCache) { setAllPartners(_partnerCache); return }
+    if (_partnerCache) return
     apiClient.get('/meta/partner-styles')
       .then(({ data }) => { _partnerCache = data; setAllPartners(data) })
       .catch(() => {})
@@ -93,7 +100,9 @@ export function Home() {
     setLoading(true)
     try {
       await createProject()
-    } catch {
+    } catch (err) {
+      const ent = getEntitlementDetail(err)
+      if (ent) setUpgradeDetail(ent)
       setLoading(false)
     }
   }
@@ -287,6 +296,8 @@ export function Home() {
         />
 
       </main>
+
+      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

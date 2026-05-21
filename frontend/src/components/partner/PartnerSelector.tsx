@@ -17,16 +17,20 @@ interface Props {
 
 export function PartnerSelector({ open, currentStyle, onSelect, onClose }: Props) {
   const [styles, setStyles] = useState<PartnerStyleMeta[]>([])
+  // Reset pending to currentStyle whenever the modal opens.
   const [pending, setPending] = useState(currentStyle)
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open && !prevOpen) {
+    setPending(currentStyle)
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
   useEffect(() => {
     if (!open) return
     apiClient.get('/meta/partner-styles').then((r) => setStyles(r.data)).catch(() => {})
   }, [open])
-
-  useEffect(() => {
-    setPending(currentStyle)
-  }, [currentStyle, open])
 
   // Close on Escape
   useEffect(() => {

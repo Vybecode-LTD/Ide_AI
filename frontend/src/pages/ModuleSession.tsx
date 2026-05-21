@@ -118,6 +118,7 @@ export function ModuleSession() {
     }
 
     init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, moduleId])
 
   // Auto-scroll

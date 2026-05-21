@@ -66,7 +66,7 @@ export function Discovery() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStageRef = useRef(stage)
 
-  const { send, isStreaming } = useSSE({
+  const { send, abort, isStreaming } = useSSE({
     onToken: (token) => setStreamingContent((prev) => prev + token),
     onDone: (data) => {
       setStreamingContent((prev) => {
@@ -85,62 +85,74 @@ export function Discovery() {
     onError: (err) => console.error('SSE error:', err),
   })
 
-  // Stable save helper — reused by interval, visibility, and unmount saves
-  const saveProgress = useCallback(async () => {
-    if (!sessionId || messages.length === 0) return
-    await apiClient.patch(`/discovery/${sessionId}/progress`, {
-      messages,
-      stage,
-    })
-  }, [sessionId, messages, stage])
+  // ── Ref-based autosave ────────────────────────────────────────────
+  // Keep a ref with the latest values so save functions never depend on
+  // `messages` or `stage` as effect dependencies (the root cause of the
+  // stale-overwrite bug).
+  const latestRef = useRef({
+    sessionId: null as string | null,
+    stage: 'greeting',
+    messageCount: 0,
+  })
 
-  // Auto-save progress: save every 30s while session is active
   useEffect(() => {
-    if (!sessionId || messages.length === 0) return
+    latestRef.current = {
+      sessionId,
+      stage,
+      messageCount: messages.length,
+    }
+  }, [sessionId, stage, messages.length])
 
+  // Stable save — reads from the ref, so it never goes stale.
+  const saveProgressRef = useCallback(async () => {
+    const latest = latestRef.current
+    if (!latest.sessionId) return
+    await apiClient.patch(`/discovery/${latest.sessionId}/progress`, {
+      stage: latest.stage,
+      client_message_count: latest.messageCount,
+    })
+  }, [])
+
+  // Auto-save interval (every 30 s while session is active)
+  useEffect(() => {
+    if (!sessionId) return
     autoSaveTimerRef.current = setInterval(() => {
-      saveProgress().catch((err) => console.error('Auto-save failed:', err))
+      saveProgressRef().catch((err) => console.error('Auto-save failed:', err))
     }, AUTO_SAVE_INTERVAL_MS)
-
     return () => {
       if (autoSaveTimerRef.current) {
         clearInterval(autoSaveTimerRef.current)
         autoSaveTimerRef.current = null
       }
     }
-  }, [sessionId, messages.length, saveProgress])
+  }, [sessionId, saveProgressRef])
 
   // Save when page becomes hidden (tab switch, minimize)
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handler = () => {
       if (document.visibilityState === 'hidden') {
-        saveProgress().catch((err) => console.error('Visibility save failed:', err))
+        saveProgressRef().catch((err) => console.error('Visibility save failed:', err))
       }
     }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [saveProgressRef])
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [saveProgress])
-
-  // Save on unmount (navigation away)
+  // Save on unmount + abort in-flight SSE stream
   useEffect(() => {
     return () => {
-      saveProgress().catch((err) => console.error('Unmount save failed:', err))
+      abort()
+      void saveProgressRef().catch((err) => console.error('Unmount save failed:', err))
     }
-  }, [saveProgress])
+  }, [saveProgressRef, abort])
 
   // Auto-save on stage change
   useEffect(() => {
-    if (!sessionId || messages.length === 0) return
+    if (!sessionId) return
     if (prevStageRef.current === stage) return
-
     prevStageRef.current = stage
-
-    apiClient.patch(`/discovery/${sessionId}/progress`, {
-      messages,
-      stage,
-    }).catch((err) => console.error('Stage-change save failed:', err))
-  }, [sessionId, stage, messages])
+    saveProgressRef().catch((err) => console.error('Stage-change save failed:', err))
+  }, [sessionId, stage, saveProgressRef])
 
   // Fetch partner style metadata
   useEffect(() => {

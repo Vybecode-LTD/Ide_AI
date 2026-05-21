@@ -5,10 +5,14 @@ Checks whether a user's current plan allows a specific action.
 import uuid
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.market_analysis import MarketAnalysis
 from app.models.project import Project
+from app.models.prompt_kit import PromptKit
+from app.models.sprint_plan import SprintPlan
 from app.models.user import User
 
 
@@ -77,3 +81,96 @@ def check_feature(user: User, feature: str) -> dict[str, Any]:
         "limit": limit,
         "plan": user.account_type or "free",
     }
+
+
+# ── Reusable guards ─────────────────────────────────────────────────
+
+
+async def require_project_slot(user: User, db: AsyncSession) -> None:
+    """Raise 403 if the user has reached their project limit.
+
+    Call this before **every** project-creation code path (blank project,
+    template use, inbox promote, branch, .ideai import).
+    """
+    check = await check_project_limit(user, db)
+    if not check["allowed"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "project_limit_reached",
+                "current": check["current"],
+                "limit": check["limit"],
+                "plan": check["plan"],
+                "message": "Project limit reached. Upgrade your plan to create more projects.",
+            },
+        )
+
+
+async def check_feature_usage(
+    user: User,
+    db: AsyncSession,
+    feature: str,
+) -> dict[str, Any]:
+    """Count-aware feature check.
+
+    Returns ``{"allowed": bool, "current": int, "limit": int | None, "plan": str}``.
+    """
+    limits = get_limits(user)
+    limit = limits.get(feature)
+    plan = user.account_type or "free"
+
+    if limit is None:
+        return {"allowed": True, "current": 0, "limit": None, "plan": plan}
+
+    user_id = user.id
+
+    if feature == "prompt_packages":
+        r = await db.execute(
+            select(sa_func.count(PromptKit.id))
+            .join(Project, PromptKit.project_id == Project.id)
+            .where(Project.user_id == user_id)
+        )
+        current = r.scalar() or 0
+    elif feature == "market_analysis":
+        r = await db.execute(
+            select(sa_func.count(MarketAnalysis.id))
+            .where(
+                MarketAnalysis.user_id == user_id,
+                MarketAnalysis.status.in_(["complete", "generating"]),
+            )
+        )
+        current = r.scalar() or 0
+    elif feature == "sprint_plans":
+        r = await db.execute(
+            select(sa_func.count(SprintPlan.id))
+            .where(
+                SprintPlan.user_id == user_id,
+                SprintPlan.status.in_(["complete", "generating"]),
+            )
+        )
+        current = r.scalar() or 0
+    else:
+        current = 0
+
+    return {"allowed": current < limit, "current": current, "limit": limit, "plan": plan}
+
+
+async def require_feature_usage(
+    user: User,
+    db: AsyncSession,
+    feature: str,
+) -> None:
+    """Raise 403 if the user has exhausted their count-limited feature allowance."""
+    check = await check_feature_usage(user, db, feature)
+    if not check["allowed"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "feature_limit_reached",
+                "feature": feature,
+                "current": check["current"],
+                "limit": check["limit"],
+                "plan": check["plan"],
+                "message": f"{feature.replace('_', ' ').title()} limit reached. Upgrade your plan.",
+            },
+        )

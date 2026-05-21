@@ -1,6 +1,6 @@
 # Ide/AI — Architecture Document
 
-> Last updated: 2026-05-21
+> Last updated: 2026-05-22
 
 ## Directory Structure
 ```
@@ -119,24 +119,23 @@ Ide_AI/
 users               id, email, clerk_user_id, email_verified, account_type, bio, inbox_email, stripe_customer_id, avatar_url, preferences JSONB
 projects            id, user_id, name, description, accent_color, platform, audience, complexity, tone, pathway_id, ai_partner_style, primary_category, secondary_category
 sessions            id, project_id, status (active|complete), stage, messages JSONB, ai_partner_style
-design_sheets       id, project_id (unique), problem, audience, mvp, features JSONB, tone, platform, confidence_score
+design_sheets       id, project_id (unique), problem, audience, mvp, features JSONB, tone, platform, tech_constraints, success_metric, fields_data JSONB, confidence_score
 blocks              id, project_id, name, description, category, priority (mvp|v2), effort (S|M|L), order, is_mvp
 pipeline_nodes      id, project_id, layer, selected_tool, config JSONB
 prompt_kits         id, project_id, platform, content TEXT, version INT
-market_analyses     id, project_id, status, competitors JSONB, swot JSONB, positioning JSONB, trends JSONB
-sprint_plans        id, project_id, status, milestones JSONB, sprints JSONB, timeline JSONB
-project_snapshots   id, project_id, name, description, state JSONB
+market_analyses     id, project_id (unique), user_id, target_market JSONB, competitive_landscape JSONB, market_metrics JSONB, revenue_projections JSONB, marketing_strategies JSONB, status
+sprint_plans        id, project_id, user_id, status, milestones JSONB, sprints JSONB, timeline JSONB
+project_snapshots   id, project_id, user_id, name, description, snapshot_data JSONB, version INT
 project_shares      id, project_id, token, allow_feedback, allow_ratings, expires_at, password_hash
 share_comments      id, share_id, author_name, content
 share_ratings       id, share_id, block_id, score (1-5)
-idea_inbox_items    id, user_id, subject, body, source, partner_style, is_read
+idea_inbox_items    id, user_id, subject, body, source, sender_email, partner_style, provider_event_id
 module_pathways     id, project_id, modules JSONB, lite_deep_settings JSONB, status
-module_responses    id, pathway_id, module_id, responses JSONB, status
-concept_branches    id, parent_project_id, branch_project_id, name
+module_responses    id, project_id, module_id, responses JSONB, status, completed_at
+concept_branches    id, parent_project_id, branch_project_id, branch_name, description, created_by
 user_integrations   id, user_id, provider, encrypted_token, status
 project_templates   id, category, name, description, prefill JSONB
 user_memory         id, user_id, key, value
-versions            id, project_id, snapshot JSONB, label (legacy — replaced by project_snapshots)
 ```
 
 ## Auth & Billing Architecture
@@ -169,6 +168,173 @@ versions            id, project_id, snapshot JSONB, label (legacy — replaced b
 - JWT verification with Clerk JWKS (issuer/audience/authorized-party validation via env vars)
 - Ownership checks on all project-scoped endpoints (sharing, sprints, branching)
 - Share expiry enforcement on comments, ratings, CSV export
-- Inbound email webhook HMAC verification (Resend)
+- Inbound email webhook HMAC verification via Svix (Resend)
+- Private share viewer tokens: JWT (HS256, 6hr) for password-protected share feedback
 - External integration tokens encrypted with Fernet
+- Centralized entitlement guards (`require_project_slot`, `require_feature_usage`) on all creation paths
 - 256KB payload limit on inbound email webhook
+
+---
+
+## System Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Client["Browser (React SPA)"]
+        FE["Frontend<br/>React 19 + Vite 7<br/>Tailwind v4"]
+        Clerk_FE["@clerk/clerk-react"]
+        Stripe_FE["Stripe.js"]
+    end
+
+    subgraph Railway["Railway (2 public services)"]
+        subgraph Backend["Backend Service"]
+            API["FastAPI<br/>Python 3.12"]
+            Auth["Clerk JWT<br/>Verification"]
+            Entitlements["Entitlement<br/>Service"]
+            AI["AI Service<br/>Claude claude-sonnet-4-6"]
+            SSE["SSE Streaming"]
+        end
+        subgraph Frontend_Host["Frontend Service"]
+            Caddy["Caddy<br/>Static Files"]
+        end
+    end
+
+    subgraph External["External Services"]
+        Clerk["Clerk<br/>Auth Provider"]
+        Stripe["Stripe<br/>Billing"]
+        Anthropic["Anthropic<br/>Claude API"]
+        Resend["Resend<br/>Email"]
+        PG["PostgreSQL<br/>Database"]
+    end
+
+    FE -->|HTTPS| API
+    FE -->|SSE| SSE
+    Clerk_FE -->|OAuth| Clerk
+    Stripe_FE -->|Checkout| Stripe
+
+    API -->|JWT verify| Auth
+    Auth -->|JWKS| Clerk
+    API -->|Entitlements| Entitlements
+    AI -->|Stream| Anthropic
+    API -->|SQL| PG
+
+    Clerk -->|Webhook| API
+    Stripe -->|Webhook| API
+    Resend -->|Webhook| API
+```
+
+## Request Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as React Frontend
+    participant CK as Clerk
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL
+    participant CL as Claude API
+
+    U->>FE: Describe idea + pick partner
+    FE->>CK: getToken()
+    CK-->>FE: JWT
+    FE->>API: POST /projects (JWT)
+    API->>API: Verify JWT (JWKS)
+    API->>API: require_project_slot()
+    API->>DB: INSERT project
+    DB-->>API: project_id
+    API-->>FE: { id: project_id }
+
+    FE->>API: POST /discovery/{pid}/start
+    API->>DB: CREATE/RESUME session
+    API-->>FE: { session_id }
+
+    FE->>API: POST /{sid}/greeting (SSE)
+    API->>CL: stream_chat(system_prompt + partner_fragment)
+    loop Token streaming
+        CL-->>API: token
+        API-->>FE: event: token
+    end
+    API->>DB: UPDATE design_sheet
+    API-->>FE: event: sheet_update
+    API-->>FE: event: done
+```
+
+## Discovery State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> greeting
+    greeting --> problem: AI greeting sent
+    problem --> audience: Problem captured
+    audience --> features: Audience captured
+    features --> constraints: Features captured
+    constraints --> confirm: Constraints captured
+    confirm --> complete: User confirms
+    complete --> [*]
+
+    note right of problem: Divergent stage
+    note right of features: Divergent stage
+    note right of constraints: Convergent stage
+    note right of confirm: Convergent stage
+```
+
+## Modular Pathway Flow
+
+```mermaid
+flowchart LR
+    A[Idea Description] --> B[AI Categorization]
+    B --> C[Category Match<br/>16 categories]
+    C --> D[Base Module Stack]
+    D --> E[Enrichment Pass<br/>from concept sheet]
+    E --> F[User Review<br/>reorder/add/remove]
+    F --> G[Lock Pathway]
+    G --> H[Module Sessions<br/>SSE per module]
+    H --> I[Cross-Module<br/>Intelligence]
+    I --> J[Design Kit<br/>Complete]
+```
+
+## Branching & Merge
+
+```mermaid
+flowchart TB
+    P[Parent Project] -->|POST /branch| B[Branch Project<br/>deep copy]
+    P -->|GET /compare| D{Diff Engine}
+    B -->|GET /compare| D
+    D -->|per-section changed flags| R[Compare Response]
+
+    B -->|POST /merge| M{Merge}
+    M -->|auto| S[Pre-merge Snapshot]
+    M -->|sections param| SEL[Selective Merge<br/>or Full Overwrite]
+    SEL --> P
+    S -->|rollback via| LIB[Library Restore]
+```
+
+## Entitlement Gate Flow
+
+```mermaid
+flowchart LR
+    REQ[API Request] --> AUTH[JWT Auth]
+    AUTH --> GUARD{Entitlement<br/>Check}
+    GUARD -->|Allowed| EXEC[Execute Action]
+    GUARD -->|Blocked| ERR[403 + detail JSON]
+    ERR --> FE_MODAL[UpgradeModal<br/>on Frontend]
+    FE_MODAL -->|View Plans| PRICING[/pricing page/]
+
+    subgraph Limits
+        FREE["Free: 3 projects<br/>0 prompts/market/sprint"]
+        BASIC["Basic: 25 projects<br/>10/5/10 features"]
+        PRO["Pro: unlimited"]
+    end
+```
+
+## API Documentation
+
+FastAPI auto-generates interactive API docs:
+
+| Endpoint | Format | URL |
+|----------|--------|-----|
+| Swagger UI | Interactive | `/api/docs` |
+| ReDoc | Reference | `/api/redoc` |
+| OpenAPI JSON | Machine-readable | `/api/docs/openapi.json` |
+
+All routes are prefixed with `/api/v1`. The OpenAPI spec is generated from Pydantic models and route decorators automatically.

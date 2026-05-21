@@ -2,7 +2,7 @@
  * PathwayReview — Full-screen module card stack review page.
  * Users can reorder, add/remove modules, toggle lite/deep, and confirm pathway.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
@@ -65,6 +65,7 @@ export function PathwayReview() {
     }
 
     init()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   // Fetch full module library for add panel
@@ -74,12 +75,15 @@ export function PathwayReview() {
     }).catch(() => {})
   }, [])
 
-  // Use assembled modules when they arrive
-  useEffect(() => {
+  // Use assembled modules when they arrive — sync from store to local state.
+  // Only runs when store data changes (not on every render).
+  const prevAssembledRef = useRef(assembledModules)
+  if (assembledModules !== prevAssembledRef.current) {
+    prevAssembledRef.current = assembledModules
     if (assembledModules.length > 0 && modules.length === 0) {
       setModules(assembledModules)
     }
-  }, [assembledModules])
+  }
 
   const handleToggleMode = useCallback((moduleId: string, mode: 'lite' | 'deep') => {
     setModules(prev =>

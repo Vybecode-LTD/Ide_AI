@@ -60,6 +60,7 @@ export function SharedProject() {
   const [needsPassword, setNeedsPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [pwError, setPwError] = useState<string | null>(null)
+  const [shareAccessToken, setShareAccessToken] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -99,6 +100,7 @@ export function SharedProject() {
       const json = await resp.json()
       if (resp.ok) {
         setData(json)
+        if (json.share_access_token) setShareAccessToken(json.share_access_token)
         setNeedsPassword(false)
       } else {
         setPwError(json.detail || 'Incorrect password.')
@@ -274,6 +276,7 @@ export function SharedProject() {
             shareToken={data.share_token}
             allowFeedback={data.allow_feedback}
             allowRatings={data.allow_ratings}
+            shareAccessToken={shareAccessToken}
           />
         )}
 

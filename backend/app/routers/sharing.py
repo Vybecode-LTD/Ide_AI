@@ -1,11 +1,13 @@
 """
 sharing.py — Project sharing endpoints for public/private link generation.
 """
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import jwt
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func as sa_func
@@ -21,7 +23,56 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.services import sharing_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/sharing", tags=["sharing"])
+
+
+# ── Viewer access token helpers ───────────────────────────────────────
+
+def _share_access_secret() -> str:
+    """Return the signing secret, falling back to CLERK_SECRET_KEY if SHARE_ACCESS_SECRET is unset."""
+    secret = settings.SHARE_ACCESS_SECRET or settings.CLERK_SECRET_KEY
+    if not secret:
+        raise RuntimeError("SHARE_ACCESS_SECRET (or CLERK_SECRET_KEY as fallback) must be set")
+    return secret
+
+
+def _create_share_access_token(share_id: uuid.UUID) -> str:
+    """Mint a short-lived JWT proving the viewer has passed the password gate."""
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "sub": str(share_id),
+            "scope": "share_view",
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(hours=6)).timestamp()),
+        },
+        _share_access_secret(),
+        algorithm="HS256",
+    )
+
+
+def _require_private_share_access(
+    share: ProjectShare,
+    authorization: str | None,
+) -> None:
+    """Verify the caller has viewer access for a password-protected share.
+
+    Public shares (no password) pass through unconditionally.  Private shares
+    require a valid ``Bearer`` token issued by ``_create_share_access_token``.
+    """
+    if share.is_public or not share.password_hash:
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=403, detail="Password verification required")
+    token = authorization.removeprefix("Bearer ").strip()
+    try:
+        payload = jwt.decode(token, _share_access_secret(), algorithms=["HS256"])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=403, detail="Password verification required")
+    if payload.get("sub") != str(share.id) or payload.get("scope") != "share_view":
+        raise HTTPException(status_code=403, detail="Password verification required")
 
 
 async def _verify_project_owner(
@@ -201,12 +252,20 @@ async def verify_shared_password(
     data["allow_feedback"] = bool(share.allow_feedback)
     data["allow_ratings"] = bool(share.allow_ratings)
     data["share_token"] = token
+
+    # Issue a viewer access token so the browser can call feedback endpoints.
+    try:
+        data["share_access_token"] = _create_share_access_token(share.id)
+    except RuntimeError:
+        logger.warning("Cannot issue share_access_token — signing secret is missing")
+
     return data
 
 
 @router.get("/public/{token}/csv")
 async def export_shared_csv(
     token: str,
+    authorization: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Export shared project blocks as Linear-compatible CSV."""
@@ -214,10 +273,7 @@ async def export_shared_csv(
     if not share:
         raise HTTPException(status_code=404, detail="Share link not found")
     _raise_if_expired(share)
-
-    # Block CSV access for password-protected shares (no viewer verification)
-    if not share.is_public and share.password_hash:
-        raise HTTPException(status_code=403, detail="Password verification required")
+    _require_private_share_access(share, authorization)
 
     data = await sharing_service.get_shared_project_data(db, share.project_id)
     project_name = data.get("project", {}).get("name", "project")
@@ -244,12 +300,17 @@ class RatingCreate(BaseModel):
 
 
 @router.get("/public/{token}/comments")
-async def get_comments(token: str, db: AsyncSession = Depends(get_db)):
+async def get_comments(
+    token: str,
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
     """Get all comments on a shared project."""
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     _raise_if_expired(share)
+    _require_private_share_access(share, authorization)
     result = await db.execute(
         select(ShareComment)
         .where(ShareComment.share_id == share.id)
@@ -268,12 +329,18 @@ async def get_comments(token: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/public/{token}/comments", status_code=status.HTTP_201_CREATED)
-async def add_comment(token: str, payload: CommentCreate, db: AsyncSession = Depends(get_db)):
+async def add_comment(
+    token: str,
+    payload: CommentCreate,
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
     """Add a comment to a shared project."""
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     _raise_if_expired(share)
+    _require_private_share_access(share, authorization)
     if not share.allow_feedback:
         raise HTTPException(status_code=403, detail="Comments are disabled for this share")
 
@@ -294,12 +361,17 @@ async def add_comment(token: str, payload: CommentCreate, db: AsyncSession = Dep
 
 
 @router.get("/public/{token}/ratings")
-async def get_ratings(token: str, db: AsyncSession = Depends(get_db)):
+async def get_ratings(
+    token: str,
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
     """Get rating summary for a shared project."""
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     _raise_if_expired(share)
+    _require_private_share_access(share, authorization)
     result = await db.execute(
         select(
             sa_func.count(ShareRating.id).label("count"),
@@ -315,12 +387,18 @@ async def get_ratings(token: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/public/{token}/ratings", status_code=status.HTTP_201_CREATED)
-async def add_rating(token: str, payload: RatingCreate, db: AsyncSession = Depends(get_db)):
+async def add_rating(
+    token: str,
+    payload: RatingCreate,
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
+):
     """Rate a shared project (0-5 stars)."""
     share = await sharing_service.get_share_by_token(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     _raise_if_expired(share)
+    _require_private_share_access(share, authorization)
     if not share.allow_ratings:
         raise HTTPException(status_code=403, detail="Ratings are disabled for this share")
 

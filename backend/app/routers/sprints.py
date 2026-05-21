@@ -14,6 +14,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.services import sprint_service
+from app.services.entitlement_service import require_feature_usage
 
 router = APIRouter(prefix="/sprints", tags=["sprints"])
 
@@ -41,6 +42,8 @@ async def generate_sprint_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a sprint plan from project blocks. Returns SSE stream."""
+    await require_feature_usage(current_user, db, "sprint_plans")
+
     proj_result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
     )

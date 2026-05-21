@@ -2,7 +2,7 @@
 transcript_service.py — Format discovery transcripts for export.
 Supports PDF, TXT, and Markdown formats.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.services.export_service import _sanitize_latin1
 
@@ -19,7 +19,7 @@ def format_as_text(messages: list[dict], project_name: str) -> str:
     """
     lines = [
         f"Discovery Transcript -- {project_name}",
-        f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
         "",
         "=" * 60,
         "",
@@ -61,7 +61,7 @@ def format_as_pdf(messages: list[dict], project_name: str) -> bytes:
     pdf.set_font("Helvetica", "I", 9)
     pdf.cell(
         0, 6,
-        s(f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"),
+        s(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"),
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(8)
@@ -123,7 +123,7 @@ def format_as_markdown(messages: list[dict], project_name: str) -> str:
     """
     lines = [
         f"# Discovery Transcript -- {project_name}",
-        f"_Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}_",
+        f"_Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}_",
         "",
         "---",
         "",

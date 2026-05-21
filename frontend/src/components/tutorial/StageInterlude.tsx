@@ -2,7 +2,7 @@
  * StageInterlude — Glass card overlay shown once per phase.
  * Auto-dismisses after 4 seconds or on click.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTutorialStore } from '../../stores/tutorialStore'
 
@@ -59,16 +59,16 @@ export function StageInterlude({ phase, message, stepIndex, totalSteps }: StageI
     return () => clearTimeout(showTimer)
   }, [phase, seenInterludes])
 
+  const dismiss = useCallback(() => {
+    setVisible(false)
+    markInterludeSeen(phase)
+  }, [phase, markInterludeSeen])
+
   useEffect(() => {
     if (!visible) return
     const timer = setTimeout(() => dismiss(), 4000)
     return () => clearTimeout(timer)
-  }, [visible])
-
-  const dismiss = () => {
-    setVisible(false)
-    markInterludeSeen(phase)
-  }
+  }, [visible, dismiss])
 
   if (seenInterludes[phase]) return null
 

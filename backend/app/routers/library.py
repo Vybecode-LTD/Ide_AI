@@ -20,6 +20,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.project_snapshot import LibraryProjectRead, SnapshotCreate, SnapshotSummary
 from app.services import library_service
+from app.services.entitlement_service import require_project_slot
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -31,11 +32,29 @@ def _compute_resume_path(
     block_count: int,
     pathway_status: str | None,
 ) -> str:
-    """Determine the best page to resume working on a project."""
+    """Determine the best page to resume working on a project.
+
+    Discovery is considered complete when:
+    - ``session_status`` is ``"completed"`` (explicit completion), OR
+    - ``discovery_stage`` is ``"confirm"`` or ``"complete"`` (reached final
+      stage but session may still be marked ``"active"``).
+
+    Without this, projects whose discovery reached the confirm stage but
+    never flipped ``status`` to ``"completed"`` would route back to Discovery
+    forever.
+    """
     pid = str(project_id)
-    # No session or discovery still in progress
-    if not session_status or session_status == "active":
+
+    # Check whether discovery is done (stage-based OR status-based).
+    discovery_done = (
+        discovery_stage in {"confirm", "complete"}
+        or session_status == "completed"
+    )
+
+    # No session at all, or discovery still in progress → send to Discovery.
+    if not discovery_done:
         return f"/discovery/{pid}"
+
     # Discovery complete — check module pathway
     if not pathway_status or pathway_status == "pending":
         return f"/pathway-review/{pid}"
@@ -212,6 +231,8 @@ async def import_ideai_file(
 
     if data.get("format") != "ideai_schema":
         raise HTTPException(status_code=400, detail="Invalid .ideai file: missing or wrong format field")
+
+    await require_project_slot(current_user, db)
 
     try:
         project = await library_service.import_ideai_file(data, current_user.id, db)

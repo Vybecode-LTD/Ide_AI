@@ -32,38 +32,46 @@ The full process: describe an idea -> configure options -> AI-guided discovery c
 
 ## Recent Audit Work (2026-05-21)
 
-A comprehensive codebase audit was completed covering P0 bugs, security hardening, and product completion. Key changes:
+Two audit sessions completed. The first covered P0 bugs, security hardening, and product completion. The second implemented the post-update audit package.
 
-### P0 Fixes (Critical)
-- **Discovery session resume** — `POST /discovery/start` is now idempotent; returns existing active session instead of always creating new ones. Added autosave on visibility change and unmount.
-- **Inbox promotion crash** — Fixed `owner_id` -> `user_id` in project creation from inbox.
-- **Branch creation crash** — Fixed `owner_id` -> `user_id` and added parent metadata copy.
-- **ShareDialog routes** — Fixed 3 mismatched frontend routes (status/create/revoke).
+### Session 2 — Post-Update Audit (latest)
+
+#### P0 Fixes
+- **Discovery autosave rewrite** — Eliminated message-array overwrite; ref-based saves on interval/visibility/unmount/stage-change. Backend progress endpoint validates stale clients via `client_message_count`.
+- **Empty-session recovery** — `get_latest_active_session_for_project` now uses `jsonb_array_length` to prefer non-empty sessions and retires empty orphans as "abandoned".
+- **Library resume routing** — `_compute_resume_path` checks `discovery_stage in {"confirm", "complete"}` before routing past Discovery.
+- **Pathway completion sync** — `_sync_pathway_completion()` runs after module complete/skip, updates `ModulePathway.status` when all modules done.
+
+#### P1 Security & Quality
+- **Svix webhook verification** — Resend inbound email webhook uses `svix.webhooks.Webhook.verify()` with idempotency via `provider_event_id` column (migration 025).
+- **Private share viewer tokens** — JWT-based access tokens (6hr, HS256) for password-protected share feedback endpoints. All 6 feedback routes require Bearer token for private shares.
+- **Frontend share token passthrough** — `shareAccessToken` threaded from SharedProject through FeedbackPanel, CommentSection, StarRating.
+- **Centralized entitlement guards** — `require_project_slot()` and `require_feature_usage()` wired into all project-creation paths (projects, templates, inbox, branching, .ideai import) and feature routes (market, prompts, sprints).
+- **Integration token encryption** — Both `encrypt_secret()` calls wrapped in try/except RuntimeError -> 503.
+- **Frontend lint: zero errors** — Fixed 18 lint issues across 10 files: setState-in-effect (lazy initializers, render-time state sync), refs-during-render (state-based previous-value pattern), Fast Refresh (extracted categories to `lib/categories.ts`), exhaustive-deps, immutability.
+- **Backend test infrastructure** — `conftest.py` with async in-memory SQLite, JSONB/UUID compat shims, `jsonb_array_length` UDF. 37 tests passing (24 partner style + 4 discovery resume + 9 entitlements).
+
+#### P2 Docs
+- **`.env.example` updated** — All env vars documented (Clerk, Stripe, Resend, SHARE_ACCESS_SECRET, INTEGRATION_TOKEN_KEY).
+
+### Session 1 — Codebase Audit (earlier)
+
+#### P0 Fixes
+- **Discovery session resume** — `POST /discovery/start` is idempotent; returns existing active session.
+- **Inbox promotion crash** — Fixed `owner_id` -> `user_id`.
+- **Branch creation crash** — Fixed `owner_id` -> `user_id` + parent metadata copy.
+- **ShareDialog routes** — Fixed 3 mismatched frontend routes.
 - **Module session resume** — Active sessions return existing messages; complete sessions show transcript.
 
-### Security Hardening
-- **Sharing ownership checks** — Added `_verify_project_owner` to status/revoke endpoints.
-- **Sprint ownership checks** — Added ownership verification to get/update/delete.
-- **Sharing expiry enforcement** — Comments, ratings, CSV export now check share expiry.
-- **JWT hardening** — Clerk issuer/audience/authorized-party validation (configurable via env vars).
-- **Webhook HMAC** — Resend inbound email webhook now verifies HMAC signature.
-- **Token encryption** — External integration tokens encrypted with Fernet.
-- **Payload limits** — 256KB limit on inbound email webhook body.
+#### Security Hardening
+- Sharing/sprint ownership checks, expiry enforcement, JWT hardening, HMAC webhook, token encryption, payload limits.
 
-### Product Completion
-- **Library progress metadata** — Library listing now includes discovery_stage, design_confidence, block_count, pathway_status, and recommended_resume_path. Smart resume routing replaces hardcoded `/discovery/` links.
-- **Snapshot unification** — Export page "Save Snapshot" now uses library snapshots API. `_gather_project_state` covers prompt kits, sprint plans, module pathways, and module responses.
-- **Sharing feedback UI** — CommentSection, StarRating, FeedbackPanel components wired into SharedProject.tsx. Share response includes allow_feedback/allow_ratings flags.
-- **Branching deep copy** — Branch creation deep-copies all child records (design sheet, sessions, blocks, pipeline, prompt kits, sprint plan, modules). Compare and merge endpoints added.
-- **Prompt Kit page** — New `/prompts/:projectId` page with platform selector, generate, rewrite, copy, expand/collapse.
-- **Integrations de-scoped** — Unconnected providers return `status: "coming_soon"`.
-- **Billing entitlement** — `entitlement_service.py` with plan limits (free/basic/pro). Gates on project creation, prompt kit generation, and market analysis. `/auth/me/entitlements` endpoint.
-- **Dependency upgrades** — All npm vulnerabilities resolved (Clerk, axios, vite, postcss, picomatch, etc.).
-- **Rebrand** — All 4 pathway personas updated from ideaFORGE to Ide/AI. Settings page branding updated.
+#### Product Completion
+- Library progress metadata + smart resume, snapshot unification, sharing feedback UI, branching deep copy, PromptKit page, entitlement service, dependency upgrades, rebrand.
 
 ---
 
-## Database Migrations (linear chain: 001-023)
+## Database Migrations (linear chain: 001-025)
 
 | # | Description |
 |---|-------------|
@@ -81,74 +89,8 @@ A comprehensive codebase audit was completed covering P0 bugs, security hardenin
 | 021 | Add clerk_user_id to users |
 | 022 | Widen avatar_url column to TEXT |
 | 023 | Deduplicate user rows (webhook cleanup) |
-
----
-
-## Backend Routers
-
-| Router | Purpose |
-|--------|---------|
-| `auth.py` | Clerk-based /me, avatar upload, profile updates, entitlements |
-| `billing.py` | Stripe checkout, billing portal, webhook |
-| `clerk_webhook.py` | Clerk user sync (create/update/delete) |
-| `discovery.py` | SSE chat, greeting, partner switching (idempotent start) |
-| `module_pathway.py` | Categorize, assemble, review, lock pathways |
-| `modules.py` | Module start/respond/skip/summary (resumable) |
-| `projects.py` | Project CRUD (with entitlement gate) |
-| `pathways.py` | GET /pathways, POST /pathways/detect |
-| `meta.py` | GET /meta/partner-styles |
-| `blocks.py` | Feature blocks CRUD + generate |
-| `pipeline.py` | Stack recommendation, UI skeleton |
-| `prompts.py` | Prompt kit generate/rewrite (with entitlement gate) |
-| `exports.py` | MD/PDF/DOCX/ZIP export + prompt packages |
-| `market.py` | Market analysis SSE (with entitlement gate) |
-| `sprints.py` | Sprint plan generation (with ownership checks) |
-| `sharing.py` | Project sharing with ownership checks, expiry, comments + ratings |
-| `library.py` | Library listing with progress metadata, .ideai export/import, snapshots |
-| `inbox.py` | Idea inbox CRUD + build-to-project |
-| `templates.py` | Seed templates |
-| `branching.py` | Concept branching (deep copy, compare, merge) |
-| `integrations.py` | External tool integrations (coming soon) |
-| `webhooks.py` | Inbound email webhook (HMAC verified) |
-
----
-
-## Frontend Pages
-
-| Page | Route | Purpose |
-|------|-------|---------|
-| `Landing.tsx` | `/` (visitors) | Public landing, pricing |
-| `SignInPage.tsx` | `/sign-in` | Clerk sign-in |
-| `SignUpPage.tsx` | `/sign-up` | Clerk sign-up |
-| `CheckoutRedirect.tsx` | `/checkout-redirect` | Stripe post-checkout |
-| `Home.tsx` | `/home` | Idea input, partner grid, templates, project creation |
-| `Discovery.tsx` | `/discovery/:projectId` | SSE chat with AI partner (autosave, resume) |
-| `PathwayReview.tsx` | `/pathway-review/:projectId` | Module pathway review/reorder |
-| `PathwayExecute.tsx` | `/pathway-execute/:projectId` | Module pathway execution |
-| `ModuleSession.tsx` | `/module-session/:projectId/:moduleId` | Per-module AI conversation (resumable) |
-| `Blocks.tsx` | `/blocks/:projectId` | Feature blocks board |
-| `Pipeline.tsx` | `/pipeline/:projectId` | Stack recommendation canvas |
-| `PromptKit.tsx` | `/prompts/:projectId` | Platform-specific prompt generation |
-| `Exports.tsx` | `/exports/:projectId` | Export generation + prompt packages |
-| `MarketAnalysis.tsx` | `/market/:projectId` | Competitive analysis |
-| `SprintPlanner.tsx` | `/sprints/:projectId` | Sprint plan generation |
-| `PitchMode.tsx` | `/pitch/:projectId` | Shareable one-page brief |
-| `Profile.tsx` | `/profile` | Avatar, bio, stats, billing portal |
-| `Inbox.tsx` | `/inbox` | Idea inbox |
-| `Library.tsx` | `/library` | Project library with progress, snapshots, sharing |
-| `Settings.tsx` | `/settings` | App settings, tutorial reset |
-| `SharedProject.tsx` | `/shared/:token` | Public shared view with feedback |
-
----
-
-## Zustand Stores
-
-| Store | Purpose |
-|-------|---------|
-| `authStore.ts` | User state, fetchUser, updateUser, logout, initials |
-| `modulePathwayStore.ts` | Module pathway state, assembled modules, responses |
-| `tutorialStore.ts` | Ambient guidance tutorial dismissals (persisted to localStorage) |
-| `pathwayStore.ts` | Concept pathway selection state |
+| 024 | Replace all system templates with 160 templates across 16 categories |
+| 025 | Add provider_event_id to idea_inbox_items (Svix idempotency) |
 
 ---
 
@@ -156,7 +98,7 @@ A comprehensive codebase audit was completed covering P0 bugs, security hardenin
 
 ### Backend (required)
 - `DATABASE_URL` — PostgreSQL connection string
-- `ANTHROPIC_API_KEY` — Claude API key
+- `ANTHROPIC_KEY` — Claude API key
 - `CLERK_SECRET_KEY` — Clerk backend secret
 - `CLERK_WEBHOOK_SECRET` — Clerk webhook signing secret
 - `STRIPE_SECRET_KEY` — Stripe backend secret
@@ -167,13 +109,84 @@ A comprehensive codebase audit was completed covering P0 bugs, security hardenin
 - `CLERK_ISSUER` — Expected JWT issuer
 - `CLERK_AUDIENCE` — Expected JWT audience
 - `CLERK_AUTHORIZED_PARTIES` — Comma-separated allowed azp values
-- `RESEND_WEBHOOK_SECRET` — HMAC key for Resend inbound email
+- `RESEND_WEBHOOK_SECRET` — Svix signing secret for Resend inbound email
 - `INTEGRATION_TOKEN_KEY` — Fernet key for encrypting integration tokens
+- `SHARE_ACCESS_SECRET` — JWT secret for viewer access tokens (falls back to CLERK_SECRET_KEY)
 
 ### Frontend
 - `VITE_CLERK_PUBLISHABLE_KEY` — Clerk frontend key
 - `VITE_API_BASE_URL` — Backend API base URL (defaults to `/api/v1`)
 - `VITE_STRIPE_PUBLISHABLE_KEY` — Stripe frontend key
+
+---
+
+## Test Suite
+
+Run from `backend/`:
+
+```bash
+# All tests (excluding anthropic-dependent integration tests):
+python -m pytest tests/ -v -k "not PromptComposition"
+
+# Quick partner style tests (no DB needed):
+python -m pytest tests/test_partner_style.py -v -k "not PromptComposition"
+
+# Discovery resume tests (requires async DB fixtures):
+python -m pytest tests/test_discovery_resume.py -v
+
+# Entitlement tests:
+python -m pytest tests/test_entitlements.py -v
+```
+
+Required pip packages: `pytest pytest-asyncio aiosqlite sqlalchemy[asyncio] pydantic-settings python-dotenv fastapi anthropic`
+
+---
+
+## Session 3 — P2 Completion (latest)
+
+#### P2: Branching Completeness
+- **`_gather_project_state`** now serializes `fields_data` (DesignSheet) and `ai_partner_style` (DiscoverySession).
+- **`_copy_child_records`** now restores all previously-missing fields:
+  - `fields_data` on DesignSheet (pathway-specific custom fields)
+  - `ai_partner_style` on DiscoverySession (preserves partner choice)
+  - `completed_at` on ModuleResponse (with safe ISO datetime parsing)
+  - Entire `MarketAnalysis` model (was completely missing — caused data loss on branch + merge)
+- **MarketAnalysis import** moved from inline in `merge_branch` to top-level.
+
+#### P2: Product UX — Entitlement Upgrade Modals
+- **`UpgradeModal`** component (`frontend/src/components/ui/UpgradeModal.tsx`) — glassmorphism modal showing plan name, usage bar, current/limit counts, and "View Plans" CTA.
+- **`extractError.ts`** — Added `EntitlementDetail` type, `getEntitlementDetail()`, and `isEntitlementError()` helpers. `extractError()` now returns the human-readable message for entitlement 403s.
+- **Wired into 5 pages:** Home (project creation), PromptKit (generate), MarketAnalysis (generate SSE), SprintPlanner (generate SSE), Inbox (promote to project). All catch blocks detect 403 entitlement errors and show the modal instead of silent failures.
+- Raw `fetch` SSE endpoints (MarketAnalysis, SprintPlanner) parse the 403 JSON body before throwing.
+
+#### P2: Docs Cleanup
+- **`README.md`** — Fixed `ANTHROPIC_API_KEY` → `ANTHROPIC_KEY` naming inconsistency.
+- **`frontend/README.md`** — Replaced Vite boilerplate with Ide/AI-specific guide (stack, env vars, scripts, project structure, design system).
+
+---
+
+#### Misc
+- **`datetime.utcnow()` deprecation** — Replaced all 7 instances across `discovery_service.py`, `market_export_service.py`, and `transcript_service.py` with `datetime.now(timezone.utc)`. Zero deprecation warnings in tests.
+
+#### P2: Branching Merge Conflict Resolution
+- **Pre-merge auto-snapshot** — Merge endpoint now creates a `ProjectSnapshot` before overwriting, with auto-incremented version. Snapshot name includes branch name and sections.
+- **Selective merge** — New optional `MergeRequest` body with `sections` list (e.g. `["blocks", "pipeline"]`). Only listed sections are deleted + replaced; un-listed sections stay untouched. Omit for full overwrite (backwards compatible).
+- **Diff annotations on compare** — `GET /compare/{branch_id}` now returns a `diff` dict with per-section `changed`, `parent_summary`, and `branch_summary` so the frontend can show which sections diverge.
+- **Section-aware `_copy_child_records`** — Refactored with `include` filter; each section wrapped in an `if "key" in include` guard. `_SECTION_MODELS` maps section keys to ORM models for selective deletion.
+- **Invalid section validation** — Merge endpoint returns 422 with valid section list if unknown sections are passed.
+
+#### P2: Architecture Diagrams
+- **ARCHITECTURE.md** updated with 6 Mermaid diagrams: system architecture, request lifecycle, discovery state machine, modular pathway flow, branching/merge, entitlement gate flow.
+- **Database schema** section corrected (fields_data, completed_at, market_analysis columns, etc.).
+
+#### P2: API Docs
+- FastAPI already auto-generates docs at `/api/docs` (Swagger UI) and `/api/redoc` (ReDoc). Documented in ARCHITECTURE.md.
+
+---
+
+## Remaining Work
+
+All audit items complete. No remaining P0/P1/P2 items from either audit session.
 
 ---
 
@@ -187,7 +200,11 @@ A comprehensive codebase audit was completed covering P0 bugs, security hardenin
 | Seed data (categories) | `backend/app/data/concept_categories.seed.json` |
 | Seed data (modules) | `backend/app/data/module_library.seed.json` |
 | Seed data (templates) | `project_templates.seed.json` |
-| Audit roadmap | `docs/claude-code-package/2026-05-21-codebase-audit/README.md` |
+| Audit package | `docs/claude-code-package/2026-05-21-post-update-audit/` |
 | Clerk auth | `backend/app/core/clerk.py` |
 | Stripe billing | `backend/app/routers/billing.py` |
 | Entitlements | `backend/app/services/entitlement_service.py` |
+| Upgrade modal | `frontend/src/components/ui/UpgradeModal.tsx` |
+| Error helpers | `frontend/src/lib/extractError.ts` |
+| Test fixtures | `backend/tests/conftest.py` |
+| Shared categories | `frontend/src/lib/categories.ts` |

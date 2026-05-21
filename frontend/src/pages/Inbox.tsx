@@ -11,7 +11,8 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
-import { extractError } from '../lib/extractError'
+import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
+import { UpgradeModal } from '../components/ui/UpgradeModal'
 import { useAuthStore } from '../stores/authStore'
 
 interface InboxItem {
@@ -37,6 +38,7 @@ export function Inbox() {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
 
   useEffect(() => {
     fetchItems()
@@ -79,7 +81,9 @@ export function Inbox() {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, project_id: data.project_id } : i))
       navigate(`/discovery/${data.project_id}`)
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to create project.'))
+      const ent = getEntitlementDetail(err)
+      if (ent) setUpgradeDetail(ent)
+      else setError(extractError(err, 'Failed to create project.'))
     }
   }
 
@@ -271,6 +275,8 @@ export function Inbox() {
           </div>
         </div>
       </div>
+
+      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

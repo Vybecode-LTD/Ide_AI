@@ -47,12 +47,14 @@ const LEGACY_MAP: Record<string, string> = {
 let _templateCache: Template[] | null = null
 
 export function TemplateGrid({ onSelect, selectedId, category }: Props) {
-  const [templates, setTemplates] = useState<Template[]>(_templateCache ?? [])
-  const [loading, setLoading] = useState(!_templateCache)
-  const [activeCategory, setActiveCategory] = useState(category || DEFAULT_CATEGORY)
+  const [templates, setTemplates] = useState<Template[]>(() => _templateCache ?? [])
+  const [loading, setLoading] = useState(() => !_templateCache)
+
+  // Derive active category directly from props — no mirroring into state.
+  const activeCategory = category || DEFAULT_CATEGORY
 
   useEffect(() => {
-    if (_templateCache) { setTemplates(_templateCache); setLoading(false); return }
+    if (_templateCache) return
     apiClient.get('/templates').then(({ data }) => {
       _templateCache = data
       setTemplates(data)
@@ -60,11 +62,6 @@ export function TemplateGrid({ onSelect, selectedId, category }: Props) {
       console.error('[TemplateGrid] Failed to fetch templates:', err)
     }).finally(() => setLoading(false))
   }, [])
-
-  // Sync activeCategory when category prop changes
-  useEffect(() => {
-    if (category) setActiveCategory(category)
-  }, [category])
 
   if (loading || templates.length === 0) return null
   const filtered = templates.filter(t => {

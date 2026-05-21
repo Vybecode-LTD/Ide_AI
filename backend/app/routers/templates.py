@@ -15,6 +15,7 @@ from app.models.project import Project
 from app.models.project_template import ProjectTemplate
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.services.entitlement_service import require_project_slot
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -99,6 +100,8 @@ async def use_template(
     template = result.scalar_one_or_none()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    await require_project_slot(current_user, db)
 
     # Build description from template + optional user detail
     description = template.description

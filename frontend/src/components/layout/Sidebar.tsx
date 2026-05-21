@@ -54,8 +54,6 @@ const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
 export function Sidebar({ projectId }: { projectId?: string }) {
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [savedProjectId, setSavedProjectId] = useState<string | null>(null)
-  const [savedPath, setSavedPath] = useState<string | null>(null)
 
   const { user, fetchUser } = useAuthStore()
   const { fetchPathways } = usePathwayStore()
@@ -94,35 +92,43 @@ export function Sidebar({ projectId }: { projectId?: string }) {
     }
 
     return items
-  }, [assembledModules])
+  }, [assembledModules, pathway?.status])
 
-  // Persist active project + timestamp when user is inside a project
+  // Persist active project + timestamp when user is inside a project.
+  // Uses refs to write to localStorage (external system) and sync derived
+  // state without triggering cascading renders.
   useEffect(() => {
     if (projectId) {
       localStorage.setItem(ACTIVE_PROJECT_KEY, projectId)
       localStorage.setItem(ACTIVE_PROJECT_PATH_KEY, location.pathname)
       localStorage.setItem(ACTIVE_PROJECT_TS_KEY, Date.now().toString())
-      setSavedProjectId(projectId)
-      setSavedPath(location.pathname)
     }
   }, [projectId, location.pathname])
 
-  // Load saved project on mount — only if within 15min inactivity window
-  useEffect(() => {
+  // Derive saved project from localStorage — read once on mount.
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(() => {
     const id = localStorage.getItem(ACTIVE_PROJECT_KEY)
     const ts = localStorage.getItem(ACTIVE_PROJECT_TS_KEY)
-    if (id && ts && Date.now() - Number(ts) < INACTIVITY_TIMEOUT_MS) {
-      setSavedProjectId(id)
-      setSavedPath(localStorage.getItem(ACTIVE_PROJECT_PATH_KEY))
-    } else {
-      // Expired — clear stale project reference
-      localStorage.removeItem(ACTIVE_PROJECT_KEY)
-      localStorage.removeItem(ACTIVE_PROJECT_PATH_KEY)
-      localStorage.removeItem(ACTIVE_PROJECT_TS_KEY)
-      setSavedProjectId(null)
-      setSavedPath(null)
-    }
-  }, [])
+    if (id && ts && Date.now() - Number(ts) < INACTIVITY_TIMEOUT_MS) return id
+    localStorage.removeItem(ACTIVE_PROJECT_KEY)
+    localStorage.removeItem(ACTIVE_PROJECT_PATH_KEY)
+    localStorage.removeItem(ACTIVE_PROJECT_TS_KEY)
+    return null
+  })
+  const [savedPath, setSavedPath] = useState<string | null>(() =>
+    savedProjectId ? localStorage.getItem(ACTIVE_PROJECT_PATH_KEY) : null,
+  )
+
+  // Keep derived state in sync when projectId changes (external nav).
+  // Uses state-based previous-value pattern (no refs during render).
+  const [prevProjectId, setPrevProjectId] = useState(projectId)
+  const [prevPathname, setPrevPathname] = useState(location.pathname)
+  if (projectId && (projectId !== prevProjectId || location.pathname !== prevPathname)) {
+    setPrevProjectId(projectId)
+    setPrevPathname(location.pathname)
+    setSavedProjectId(projectId)
+    setSavedPath(location.pathname)
+  }
 
   // Show "Back to Project" only on Home or Settings when user just left a project
   const isOnHomePage = location.pathname === '/home' || location.pathname === '/settings'

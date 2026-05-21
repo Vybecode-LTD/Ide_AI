@@ -15,7 +15,7 @@ from app.models.prompt_kit import PromptKit
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.prompt_kit import PromptKitGenerate, PromptKitRead
-from app.services.entitlement_service import check_feature
+from app.services.entitlement_service import require_feature_usage
 from app.services.prompt_kit_service import generate_prompt_kit
 
 router = APIRouter(prefix="/projects/{project_id}/prompts", tags=["prompts"])
@@ -51,13 +51,7 @@ async def create_prompt_kit(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a platform-specific prompt kit."""
-    # Enforce plan limits
-    feature_check = check_feature(current_user, "prompt_packages")
-    if not feature_check["allowed"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Prompt kit generation requires a paid plan. Upgrade to Basic or Pro.",
-        )
+    await require_feature_usage(current_user, db, "prompt_packages")
 
     # Verify project
     proj_result = await db.execute(

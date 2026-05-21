@@ -43,6 +43,7 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
     if (open && projectId) {
       fetchShareStatus()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId])
 
   // Close on Escape

@@ -40,7 +40,7 @@ npm run dev
 
 See `CONTEXT_HANDOFF.md` for the full list. At minimum:
 - `DATABASE_URL` — PostgreSQL connection string
-- `ANTHROPIC_API_KEY` — Claude API key
+- `ANTHROPIC_KEY` — Claude API key
 - `CLERK_SECRET_KEY` — Clerk backend secret
 - `CLERK_WEBHOOK_SECRET` — Clerk webhook signing secret
 - `STRIPE_SECRET_KEY` — Stripe backend secret

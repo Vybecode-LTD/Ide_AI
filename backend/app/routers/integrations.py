@@ -102,10 +102,15 @@ async def create_integration(
     if existing:
         raise HTTPException(status_code=409, detail="Integration already connected")
 
+    try:
+        encrypted_token = encrypt_secret(payload.access_token)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Integration credential storage is not configured")
+
     integration = ExternalIntegration(
         user_id=current_user.id,
         provider=payload.provider,
-        access_token=encrypt_secret(payload.access_token),
+        access_token=encrypted_token,
         config=payload.config or {},
     )
     db.add(integration)
@@ -137,7 +142,10 @@ async def update_integration(
         raise HTTPException(status_code=404, detail="Integration not found")
 
     if payload.access_token is not None:
-        integration.access_token = encrypt_secret(payload.access_token)
+        try:
+            integration.access_token = encrypt_secret(payload.access_token)
+        except RuntimeError:
+            raise HTTPException(status_code=503, detail="Integration credential storage is not configured")
     if payload.config is not None:
         integration.config = payload.config
     if payload.enabled is not None:

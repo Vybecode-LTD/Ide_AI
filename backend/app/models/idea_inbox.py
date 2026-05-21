@@ -24,4 +24,5 @@ class IdeaInbox(Base):
     source: Mapped[str] = mapped_column(String(50), default="manual")  # "manual" | "email"
     sender_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    provider_event_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

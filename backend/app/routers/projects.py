@@ -12,7 +12,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
-from app.services.entitlement_service import check_project_limit
+from app.services.entitlement_service import require_project_slot
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -38,14 +38,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new project."""
-    # Enforce plan limits
-    limit_check = await check_project_limit(current_user, db)
-    if not limit_check["allowed"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Project limit reached ({limit_check['current']}/{limit_check['limit']}). "
-                   f"Upgrade your plan to create more projects.",
-        )
+    await require_project_slot(current_user, db)
 
     project = Project(
         user_id=current_user.id,

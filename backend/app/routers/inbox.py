@@ -16,6 +16,7 @@ from app.models.idea_inbox import IdeaInbox
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.services.entitlement_service import require_project_slot
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -113,6 +114,8 @@ async def promote_to_project(
         raise HTTPException(status_code=404, detail="Inbox item not found")
     if item.project_id:
         raise HTTPException(status_code=400, detail="Already promoted to a project")
+
+    await require_project_slot(current_user, db)
 
     project = Project(
         name=payload.name or item.subject[:200],

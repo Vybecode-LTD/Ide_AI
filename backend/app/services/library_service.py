@@ -123,6 +123,7 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
             "platform": sheet.platform,
             "tech_constraints": sheet.tech_constraints,
             "success_metric": sheet.success_metric,
+            "fields_data": sheet.fields_data,
             "confidence_score": sheet.confidence_score,
         }
 
@@ -130,6 +131,7 @@ async def _gather_project_state(project: Project, db: AsyncSession) -> dict:
         state["discovery_sessions"].append({
             "status": s.status,
             "stage": s.stage,
+            "ai_partner_style": getattr(s, "ai_partner_style", "strategist"),
             "messages": s.messages,
             "created_at": s.created_at.isoformat() if s.created_at else None,
         })
