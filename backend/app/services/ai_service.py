@@ -358,21 +358,20 @@ async def generate_quick_chips(ai_response: str, stage: str = "greeting") -> lis
     """Parse quick reply chips from AI response text.
 
     Strategy:
-    1. Look for explicit [CHIPS: a | b | c] tag (preferred)
+    1. Look for explicit [CHIPS: a | b | c] tag anywhere in the text (preferred)
     2. Fallback: extract options from the AI's own question (e.g. "X, Y, or Z?")
     3. Last resort: generate answer-starters based on the question
     """
     import re
 
     # ── Strategy 1: Parse explicit [CHIPS:] tag ──
-    for line in reversed(ai_response.split("\n")):
-        stripped = line.strip()
-        match = re.match(r"\[(?:CHIPS|chips|Chips):\s*(.*?)\]\s*[.!]?\s*$", stripped)
-        if match:
-            inner = match.group(1)
-            chips = [c.strip().strip('"').strip("'") for c in inner.split("|") if c.strip()]
-            if chips:
-                return chips
+    # Search anywhere in the text (not just line-start) and case-insensitive
+    chips_match = re.search(r'\[chips:\s*(.+?)\]', ai_response, re.IGNORECASE)
+    if chips_match:
+        inner = chips_match.group(1)
+        chips = [c.strip().strip('"').strip("'") for c in inner.split("|") if c.strip()]
+        if chips:
+            return chips
 
     # ── Strategy 2: Extract options from "X, Y, or Z?" patterns ──
     # Find the last question in the response
@@ -380,31 +379,41 @@ async def generate_quick_chips(ai_response: str, stage: str = "greeting") -> lis
     questions = [s for s in sentences if '?' in s]
     if questions:
         last_q = questions[-1]
-        # Match "A, B, or C" pattern
+        # Match "A, B, or C" pattern (with or without Oxford comma)
         or_match = re.search(r'([\w\s\-\']+),\s+([\w\s\-\']+),?\s+or\s+([\w\s\-\']+)', last_q)
         if or_match:
-            return [g.strip().capitalize() for g in or_match.groups() if g.strip()]
+            chips = [g.strip().capitalize() for g in or_match.groups() if g.strip()]
+            if chips and all(len(c) < 60 for c in chips):
+                return chips
 
     # ── Strategy 3: Generate answer-starters from the question ──
     if questions:
         last_q = questions[-1].strip().rstrip('?').lower()
-        if any(w in last_q for w in ['who', 'audience', 'user', 'customer']):
+        if any(w in last_q for w in ['who', 'audience', 'user', 'customer', 'target', 'people', 'demographic']):
             return ["Individual consumers", "Small businesses", "Enterprise teams"]
-        if any(w in last_q for w in ['what problem', 'pain point', 'challenge', 'struggle']):
+        if any(w in last_q for w in ['what problem', 'pain point', 'challenge', 'struggle', 'frustrat', 'difficult']):
             return ["It's too slow and manual", "Existing tools are too expensive", "Nothing good exists yet"]
-        if any(w in last_q for w in ['how', 'currently', 'today', 'right now']):
+        if any(w in last_q for w in ['how', 'currently', 'today', 'right now', 'existing', 'already']):
             return ["Spreadsheets and manual work", "Cobbled-together free tools", "Expensive enterprise software"]
-        if any(w in last_q for w in ['feature', 'must-have', 'capability', 'function']):
+        if any(w in last_q for w in ['feature', 'must-have', 'capability', 'function', 'need', 'essential']):
             return ["Real-time collaboration", "Automated workflows", "Analytics and reporting"]
-        if any(w in last_q for w in ['budget', 'cost', 'spend', 'price']):
+        if any(w in last_q for w in ['budget', 'cost', 'spend', 'price', 'invest', 'afford']):
             return ["Under $100/month", "$100-500/month", "Whatever it takes to do it right"]
-        if any(w in last_q for w in ['timeline', 'launch', 'deadline', 'when']):
+        if any(w in last_q for w in ['timeline', 'launch', 'deadline', 'when', 'soon', 'time frame', 'hurry']):
             return ["Within 1-2 months", "3-6 months", "No rush — quality first"]
-        if any(w in last_q for w in ['platform', 'device', 'where', 'deploy']):
+        if any(w in last_q for w in ['platform', 'device', 'where', 'deploy', 'host', 'run']):
             return ["Web app (browser)", "Mobile app (iOS/Android)", "Desktop application"]
-        if any(w in last_q for w in ['tone', 'feel', 'vibe', 'style']):
+        if any(w in last_q for w in ['tone', 'feel', 'vibe', 'style', 'brand', 'look']):
             return ["Professional and polished", "Casual and friendly", "Minimal and clean"]
-        # Generic but still useful answer-starters
+        if any(w in last_q for w in ['revenue', 'monetiz', 'money', 'business model', 'charge', 'pay']):
+            return ["Subscription (monthly/yearly)", "One-time purchase", "Freemium with upgrades"]
+        if any(w in last_q for w in ['different', 'unique', 'stand out', 'competitor', 'advantage', 'better']):
+            return ["Simpler UX than competitors", "Lower price point", "Unique feature no one else has"]
+        if any(w in last_q for w in ['scale', 'grow', 'big', 'expand', 'future']):
+            return ["Start small, grow organically", "Aim for rapid growth", "Build for enterprise scale from day one"]
+        if any(w in last_q for w in ['important', 'priorit', 'focus', 'first', 'main', 'core']):
+            return ["Speed and simplicity", "Comprehensive feature set", "Beautiful design and UX"]
+        # Generic but contextual answer-starters
         return ["Yes, exactly", "Not quite — here's what I mean...", "I'm still figuring that out"]
 
     return ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]

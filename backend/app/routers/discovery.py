@@ -2,6 +2,7 @@
 discovery.py — Discovery session router. Handles SSE streaming AI conversations.
 """
 import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,6 +18,8 @@ from app.routers.auth import get_current_user
 from app.schemas.session import MessagePayload, PartnerUpdatePayload, ProgressPayload, SessionCreate, SessionRead
 from app.schemas.design_sheet import DesignSheetRead
 from app.services import discovery_service, ai_service, transcript_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
 
@@ -103,14 +106,15 @@ async def init_greeting(
 
         ai_text = "".join(full_response)
 
-        # Strip chips from stored message
-        clean_text = ai_service.strip_chips_line(ai_text)
+        # Save message — non-fatal if it fails
+        try:
+            clean_text = ai_service.strip_chips_line(ai_text)
+            await discovery_service.add_message(db, session, "assistant", clean_text)
+            await db.commit()
+        except Exception as exc:
+            logger.warning("Failed to save greeting message: %s", exc)
 
-        # Save only the assistant message (no user message visible)
-        await discovery_service.add_message(db, session, "assistant", clean_text)
-        await db.commit()
-
-        # Send completion event with chips
+        # ALWAYS send completion event with chips — this must never be skipped
         chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
         yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
 
@@ -182,31 +186,44 @@ async def send_message(
         # Assemble full response
         ai_text = "".join(full_response)
 
-        # Strip chips annotation before storing
-        clean_text = ai_service.strip_chips_line(ai_text)
-        await discovery_service.add_message(db, session, "assistant", clean_text)
+        # Save message and extract sheet — non-fatal if extraction fails
+        sheet_changed = False
+        updated_sheet = None
+        try:
+            clean_text = ai_service.strip_chips_line(ai_text)
+            await discovery_service.add_message(db, session, "assistant", clean_text)
 
-        # Extract and update design sheet
-        sheet, changed = await discovery_service.update_sheet_from_conversation(db, session, pathway=pw)
+            # Extract and update design sheet (separate AI call — can timeout)
+            updated_sheet, sheet_changed = await discovery_service.update_sheet_from_conversation(
+                db, session, pathway=pw
+            )
+            await db.commit()
+        except Exception as exc:
+            logger.warning("Post-stream processing failed (message/sheet): %s", exc)
+            # Try to at least save the message
+            try:
+                clean_text = ai_service.strip_chips_line(ai_text)
+                await discovery_service.add_message(db, session, "assistant", clean_text)
+                await db.commit()
+            except Exception:
+                pass
 
-        await db.commit()
-
-        # Send completion event
+        # ALWAYS send completion event with chips — this must never be skipped
         chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
         yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
 
         # Send sheet update if changed
-        if changed and sheet:
+        if sheet_changed and updated_sheet:
             sheet_data = {
-                "problem": sheet.problem,
-                "audience": sheet.audience,
-                "mvp": sheet.mvp,
-                "features": sheet.features,
-                "tone": sheet.tone,
-                "platform": sheet.platform,
-                "tech_constraints": sheet.tech_constraints,
-                "success_metric": sheet.success_metric,
-                "confidence_score": sheet.confidence_score,
+                "problem": updated_sheet.problem,
+                "audience": updated_sheet.audience,
+                "mvp": updated_sheet.mvp,
+                "features": updated_sheet.features,
+                "tone": updated_sheet.tone,
+                "platform": updated_sheet.platform,
+                "tech_constraints": updated_sheet.tech_constraints,
+                "success_metric": updated_sheet.success_metric,
+                "confidence_score": updated_sheet.confidence_score,
             }
             yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
 
