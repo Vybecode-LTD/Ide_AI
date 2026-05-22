@@ -60,14 +60,16 @@ export function TranscriptExportMenu({ sessionId, projectName, messages }: Trans
         let text = ''
         try {
           const { data } = await apiClient.get(
-            `/discovery/${sessionId}/transcript?format=md`
+            `/discovery/${sessionId}/transcript?format=md`,
+            { responseType: 'text' }
           )
-          text = typeof data === 'string' ? data : data.content || ''
+          text = typeof data === 'string' ? data : ''
         } catch {
-          // Fallback: format local messages
-          if (messages?.length) {
-            text = messages.map((m) => `**${m.role === 'user' ? 'You' : 'AI'}:** ${m.content}`).join('\n\n')
-          }
+          // API failed — skip, fall through to local fallback
+        }
+        // Fallback: format local messages (both user + AI)
+        if (!text && messages?.length) {
+          text = messages.map((m) => `**${m.role === 'user' ? 'You' : 'AI'}:** ${m.content}`).join('\n\n')
         }
         if (text) {
           await navigator.clipboard.writeText(text)

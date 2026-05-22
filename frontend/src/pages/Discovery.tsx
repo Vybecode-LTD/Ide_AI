@@ -278,6 +278,22 @@ export function Discovery() {
     }
   }, [sessionId, partnerStyle, allPartners])
 
+  // ── Save Place ─────────────────────────────────────────────────
+  const [savePlaceStatus, setSavePlaceStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  const handleSavePlace = useCallback(async () => {
+    if (!sessionId || savePlaceStatus === 'saving') return
+    setSavePlaceStatus('saving')
+    try {
+      await saveProgressRef()
+      setSavePlaceStatus('saved')
+      setTimeout(() => setSavePlaceStatus('idle'), 2500)
+    } catch (err) {
+      console.error('Save place failed:', err)
+      setSavePlaceStatus('idle')
+    }
+  }, [sessionId, savePlaceStatus, saveProgressRef])
+
   const showExport = stage === 'confirm' || messages.length >= 4
 
   return (
@@ -294,6 +310,24 @@ export function Discovery() {
         <TopBar title="Discovery" subtitle={`Stage: ${stage}`}>
           {/* Active partner badge */}
           <ActivePartnerBadge partner={partnerMeta} onClick={() => setShowPartnerPicker(true)} />
+          {/* Save Place button — visible once conversation has started */}
+          {sessionId && messages.length >= 2 && (
+            <button
+              onClick={handleSavePlace}
+              disabled={savePlaceStatus === 'saving'}
+              aria-label="Save your place"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] md:min-h-0 text-xs font-medium rounded-lg bg-white/5 border border-border text-text-muted hover:text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors disabled:opacity-50"
+            >
+              <span aria-hidden="true">{savePlaceStatus === 'saved' ? '✓' : '🔖'}</span>
+              <span>
+                {savePlaceStatus === 'saving'
+                  ? 'Saving...'
+                  : savePlaceStatus === 'saved'
+                    ? 'Place Saved!'
+                    : 'Save Place'}
+              </span>
+            </button>
+          )}
           {/* Transcript export */}
           {showExport && sessionId && (
             <TranscriptExportMenu sessionId={sessionId} messages={messages} />
