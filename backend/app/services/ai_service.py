@@ -202,6 +202,7 @@ async def build_system_prompt(
     *,
     pathway: PathwayConfig | None = None,
     ai_partner_style: str | None = None,
+    message_count: int = 0,
 ) -> str:
     """Build a 3-layer system prompt: base + partner fragment + session context.
 
@@ -220,6 +221,7 @@ async def build_system_prompt(
         memories: Formatted memory context block from memory_service.format_memory_context().
         pathway: PathwayConfig to use. Falls back to software_product if None.
         ai_partner_style: Partner collaboration style (e.g. 'skeptic', 'coach').
+        message_count: Number of messages in the conversation so far (for pacing).
     """
     from app.services.partner_style_service import get_partner_style_fragment, DEFAULT_PARTNER_STYLE
 
@@ -253,6 +255,38 @@ async def build_system_prompt(
         filled = {k: v for k, v in sheet_context.items() if v}
         if filled:
             parts.append(f"\nDesign sheet so far: {json.dumps(filled, indent=2)}")
+            parts.append(
+                "These fields are ALREADY ANSWERED. Do NOT ask about them again. "
+                "Build on them, go deeper on unexplored angles, or move to the next topic."
+            )
+
+    # ── Anti-repetition & Progression Rules ──
+    parts.append(f"""
+CONVERSATION RULES (CRITICAL — violation makes you useless):
+
+Turn count: {message_count} messages so far.
+
+1. NEVER REPEAT YOURSELF. Read the conversation history. If you already asked something
+   or made a point, DO NOT say it again in any form. No rephrasing the same question.
+   No circling back. Each response must cover NEW GROUND.
+
+2. PROGRESS RELENTLESSLY. Every response must move the conversation forward:
+   - If you asked about X and got an answer, acknowledge it briefly and pivot to Y
+   - If the user gave a short answer, dig deeper on THAT answer (don't restart the topic)
+   - If you've covered 2+ questions in this stage, start wrapping up and transitioning
+
+3. VARY YOUR APPROACH. Never open two responses the same way. Mix up your patterns:
+   - Sometimes lead with an insight about what they just said
+   - Sometimes challenge an assumption
+   - Sometimes offer a concrete suggestion then ask for reaction
+   - Sometimes share a relevant analogy or comparison
+   - NEVER start consecutive responses with "Great!" or "That's interesting!"
+
+4. STAY CONCISE. 2-4 sentences max per response (excluding chips). You're a rapid-fire
+   collaborator, not a lecturer. If your response is getting long, you're over-explaining.
+
+5. ONE QUESTION PER TURN. Ask exactly ONE focused question. Never stack multiple questions.
+   The question should be impossible to answer with a single word — force specificity.""")
 
     parts.append("""
 QUICK REPLY CHIPS (MANDATORY — never skip this):

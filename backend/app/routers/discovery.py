@@ -168,6 +168,7 @@ async def send_message(
     system_prompt = await ai_service.build_system_prompt(
         platform, session.stage, sheet_context,
         pathway=pw, ai_partner_style=session.ai_partner_style,
+        message_count=len(session.messages or []),
     )
 
     # Build Claude message history
