@@ -13,7 +13,7 @@ import { TemplateGrid, type Template } from '../components/home/TemplateGrid'
 import { CategorySelect } from './CategorySelect'
 import type { PartnerStyleMeta } from '../types/project'
 import apiClient from '../lib/apiClient'
-import { getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
+import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
 import { UpgradeModal } from '../components/ui/UpgradeModal'
 import { useAuthStore } from '../stores/authStore'
 import { PulseBeacon, Whisper } from '../components/tutorial'
@@ -48,6 +48,7 @@ export function Home() {
   }, [])
   const [loading, setLoading] = useState(false)
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
+  const [createError, setCreateError] = useState('')
 
   // Template state
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
@@ -98,11 +99,13 @@ export function Home() {
   const handleSubmit = async () => {
     if (!idea.trim() && !activeTemplate) return
     setLoading(true)
+    setCreateError('')
     try {
       await createProject()
     } catch (err) {
       const ent = getEntitlementDetail(err)
       if (ent) setUpgradeDetail(ent)
+      else setCreateError(extractError(err, 'Failed to create project. Please try again.'))
       setLoading(false)
     }
   }
@@ -279,6 +282,13 @@ export function Home() {
           )}
 
           <div className="mb-2" />
+
+          {/* Error display */}
+          {createError && (
+            <div className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2 mb-3 max-w-md text-center">
+              {createError}
+            </div>
+          )}
 
           {/* Submit */}
           <PulseBeacon id="home:start">
