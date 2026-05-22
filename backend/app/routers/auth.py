@@ -9,6 +9,7 @@ import secrets
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clerk import verify_clerk_token
@@ -87,16 +88,56 @@ async def get_current_user(
         # On-first-request fallback: create user row if webhook hasn't arrived yet.
         # Fetch real email from Clerk Backend API (session JWTs don't include email).
         email = await _fetch_clerk_email(clerk_user_id)
-        user = User(
-            clerk_user_id=clerk_user_id,
-            email=email or f"{clerk_user_id}@clerk.pending",
-            email_verified=True,
-            inbox_email=f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}",
-            preferences={},
-        )
-        db.add(user)
-        await db.flush()
-        await db.refresh(user)
+
+        # Check if a user with this email already exists (created by webhook)
+        # and link them to this clerk_user_id instead of creating a duplicate.
+        if email:
+            result = await db.execute(select(User).where(User.email == email))
+            existing_by_email = result.scalar_one_or_none()
+            if existing_by_email:
+                existing_by_email.clerk_user_id = clerk_user_id
+                if not existing_by_email.inbox_email:
+                    existing_by_email.inbox_email = f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}"
+                try:
+                    await db.flush()
+                except IntegrityError:
+                    await db.rollback()
+                    # Re-query after rollback
+                    result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
+                    existing_by_email = result.scalar_one_or_none()
+                if existing_by_email:
+                    return existing_by_email
+
+        try:
+            user = User(
+                clerk_user_id=clerk_user_id,
+                email=email or f"{clerk_user_id}@clerk.pending",
+                email_verified=True,
+                inbox_email=f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}",
+                preferences={},
+            )
+            db.add(user)
+            await db.flush()
+            await db.refresh(user)
+        except IntegrityError:
+            # Race condition: webhook created the user between our SELECT and INSERT.
+            # Roll back the failed INSERT and re-query.
+            await db.rollback()
+            result = await db.execute(
+                select(User).where(User.clerk_user_id == clerk_user_id)
+            )
+            user = result.scalar_one_or_none()
+            if user is None:
+                # Try by email as last resort
+                if email:
+                    result = await db.execute(select(User).where(User.email == email))
+                    user = result.scalar_one_or_none()
+                    if user:
+                        user.clerk_user_id = clerk_user_id
+                        await db.flush()
+            if user is None:
+                logger.error("Failed to create or find user for clerk_id=%s", clerk_user_id)
+                raise credentials_exception
 
     dirty = False
 
@@ -104,8 +145,18 @@ async def get_current_user(
     if user.email and ("@clerk.placeholder" in user.email or "@clerk.pending" in user.email):
         real_email = await _fetch_clerk_email(clerk_user_id)
         if real_email:
-            user.email = real_email
-            dirty = True
+            # Check that no other user already has this email before updating
+            result = await db.execute(
+                select(User.id).where(User.email == real_email, User.id != user.id)
+            )
+            if result.scalar_one_or_none() is None:
+                user.email = real_email
+                dirty = True
+            else:
+                logger.warning(
+                    "Cannot backfill email %s for user %s — already taken by another row",
+                    real_email, user.id,
+                )
 
     # Backfill: generate inbox_email if missing
     if not user.inbox_email:
@@ -119,7 +170,17 @@ async def get_current_user(
         dirty = True
 
     if dirty:
-        await db.flush()
+        try:
+            await db.flush()
+        except IntegrityError:
+            # Constraint conflict on backfill — skip it, don't crash the request
+            await db.rollback()
+            logger.warning("Backfill flush failed for user %s due to constraint conflict", user.id)
+            # Re-query the user after rollback so we return a valid ORM instance
+            result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
+            user = result.scalar_one_or_none()
+            if user is None:
+                raise credentials_exception
 
     return user
 

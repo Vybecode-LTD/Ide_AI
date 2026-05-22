@@ -144,8 +144,15 @@ async def _handle_user_updated(user_data: dict, db: AsyncSession) -> None:
         return
 
     email = _extract_primary_email(user_data)
-    if email:
-        user.email = email
+    if email and email != user.email:
+        # Only update email if no other user already has it
+        conflict = await db.execute(
+            select(User.id).where(User.email == email, User.id != user.id)
+        )
+        if conflict.scalar_one_or_none() is None:
+            user.email = email
+        else:
+            logger.warning("Cannot update email to %s for user %s — already taken", email, user.id)
 
     full_name = _build_full_name(user_data)
     if full_name:
