@@ -14,6 +14,7 @@ import apiClient from '../lib/apiClient'
 import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
 import { UpgradeModal } from '../components/ui/UpgradeModal'
 import { useAuthStore } from '../stores/authStore'
+import { useTutorialStore } from '../stores/tutorialStore'
 
 interface InboxItem {
   id: string
@@ -39,6 +40,8 @@ export function Inbox() {
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
+  const showTip = useTutorialStore(s => !s.dismissedWhispers.includes('inbox-how-to'))
+  const dismissTip = useTutorialStore(s => s.dismissWhisper)
 
   useEffect(() => {
     fetchItems()
@@ -135,6 +138,53 @@ export function Inbox() {
                 </div>
               </Card>
             )}
+
+            {/* How-to tip — dismissable */}
+            <AnimatePresence>
+              {showTip && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <Card>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                          <span className="text-accent">How it works</span>
+                        </h3>
+                        <ul className="text-xs text-text-muted space-y-1.5">
+                          <li className="flex items-start gap-2">
+                            <span className="text-accent mt-0.5 shrink-0">1.</span>
+                            <span>Send or forward an email to your unique inbox address above.</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-accent mt-0.5 shrink-0">2.</span>
+                            <span>The <strong className="text-white/80">subject line</strong> becomes the idea title. The <strong className="text-white/80">email body</strong> is captured as additional details.</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-accent mt-0.5 shrink-0">3.</span>
+                            <span>Only the subject is required — body is optional. Keep subjects short and descriptive.</span>
+                          </li>
+                        </ul>
+                        <p className="text-[10px] text-text-muted/60">You can also capture ideas manually with the button below.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => dismissTip('inbox-how-to')}
+                        className="text-text-muted hover:text-white transition-colors p-1 shrink-0"
+                        title="Dismiss"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Quick-add button / form */}
             <AnimatePresence mode="wait">
