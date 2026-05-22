@@ -81,10 +81,14 @@ async def inbound_email(request: Request):
     # ── Idempotency: Svix retries carry the same svix-id header ───────
     event_id = request.headers.get("svix-id")
 
-    to_email = payload.get("to", "")
-    subject = payload.get("subject", "Untitled Idea")
-    body = payload.get("text") or payload.get("html", "")
-    sender = payload.get("from", "")
+    # Resend wraps inbound email fields inside a "data" envelope;
+    # fall back to the raw payload for backwards compatibility.
+    email_data = payload.get("data") or payload
+
+    to_email = email_data.get("to", "")
+    subject = email_data.get("subject", "Untitled Idea")
+    body = email_data.get("text") or email_data.get("html", "")
+    sender = email_data.get("from", "")
 
     if not to_email:
         return {"status": "no recipient"}
