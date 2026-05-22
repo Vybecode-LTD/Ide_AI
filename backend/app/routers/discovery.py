@@ -185,28 +185,30 @@ async def send_message(
 
         # Assemble full response
         ai_text = "".join(full_response)
+        clean_text = ai_service.strip_chips_line(ai_text)
 
-        # Save message and extract sheet — non-fatal if extraction fails
+        # Step 1: Save the assistant message
+        try:
+            await discovery_service.add_message(db, session, "assistant", clean_text)
+            await db.flush()
+        except Exception as exc:
+            logger.error("Failed to save assistant message: %s", exc)
+
+        # Step 2: Extract and update design sheet (separate AI call — can fail independently)
         sheet_changed = False
         updated_sheet = None
         try:
-            clean_text = ai_service.strip_chips_line(ai_text)
-            await discovery_service.add_message(db, session, "assistant", clean_text)
-
-            # Extract and update design sheet (separate AI call — can timeout)
             updated_sheet, sheet_changed = await discovery_service.update_sheet_from_conversation(
                 db, session, pathway=pw
             )
+        except Exception as exc:
+            logger.warning("Sheet extraction failed: %s", exc)
+
+        # Step 3: Commit everything that succeeded
+        try:
             await db.commit()
         except Exception as exc:
-            logger.warning("Post-stream processing failed (message/sheet): %s", exc)
-            # Try to at least save the message
-            try:
-                clean_text = ai_service.strip_chips_line(ai_text)
-                await discovery_service.add_message(db, session, "assistant", clean_text)
-                await db.commit()
-            except Exception:
-                pass
+            logger.error("DB commit failed after stream: %s", exc)
 
         # ALWAYS send completion event with chips — this must never be skipped
         chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")

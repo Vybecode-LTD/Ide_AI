@@ -5,6 +5,7 @@ All AI calls go through this service for centralized prompt management.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import TYPE_CHECKING, AsyncGenerator
 
@@ -14,6 +15,8 @@ from app.core.config import settings
 
 if TYPE_CHECKING:
     from app.pathways.base import PathwayConfig
+
+logger = logging.getLogger(__name__)
 
 client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_KEY)
 
@@ -337,21 +340,74 @@ async def extract_sheet_fields(
         {"role": "user", "content": pw.extraction_prompt}
     ]
 
-    response = await client.messages.create(
-        model=settings.CLAUDE_MODEL,
-        max_tokens=1024,
-        system="You are a data extraction assistant. Return only valid JSON.",
-        messages=extraction_messages,
-    )
+    try:
+        response = await client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=1024,
+            system="You are a data extraction assistant. Return only valid JSON, no explanatory text.",
+            messages=extraction_messages,
+        )
+    except Exception as exc:
+        logger.warning("Sheet extraction API call failed: %s", exc)
+        return {}
 
     try:
         text = response.content[0].text.strip()
-        # Handle possible markdown code blocks
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        return json.loads(text)
-    except (json.JSONDecodeError, IndexError, KeyError):
+    except (IndexError, AttributeError):
+        logger.warning("Sheet extraction returned empty response")
         return {}
+
+    # Try to extract JSON from the response, handling various Claude formats:
+    # 1. Pure JSON: {"key": "value"}
+    # 2. Markdown fenced: ```json\n{...}\n```
+    # 3. Text before/after JSON: "Here's the data:\n{...}"
+    parsed = _parse_json_from_text(text)
+    if parsed is None:
+        logger.warning("Sheet extraction returned unparseable text: %.200s", text)
+        return {}
+
+    if not parsed:
+        logger.debug("Sheet extraction returned empty object (too early in conversation)")
+    else:
+        logger.info("Sheet extraction found fields: %s", list(parsed.keys()))
+
+    return parsed
+
+
+def _parse_json_from_text(text: str) -> dict | None:
+    """Attempt to parse a JSON object from text that may contain markdown or prose.
+
+    Returns the parsed dict, or None if no valid JSON object could be found.
+    """
+    # Strategy 1: Try direct parse (pure JSON response)
+    try:
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Extract from markdown fenced code block
+    fence_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?\s*```', text, re.DOTALL)
+    if fence_match:
+        try:
+            result = json.loads(fence_match.group(1).strip())
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Find the first { ... } block in the text
+    brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if brace_match:
+        try:
+            result = json.loads(brace_match.group(0))
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return None
 
 
 async def generate_quick_chips(ai_response: str, stage: str = "greeting") -> list[str]:

@@ -5,6 +5,7 @@ Stage order, transitions, and confidence weights are driven by the active Pathwa
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -16,6 +17,8 @@ from app.models.session import DiscoverySession
 from app.models.design_sheet import DesignSheet
 from app.models.project import Project
 from app.services.ai_service import extract_sheet_fields
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.pathways.base import PathwayConfig
@@ -254,7 +257,18 @@ async def update_sheet_from_conversation(
     )
     sheet = result.scalar_one_or_none()
     if not sheet:
-        return None, False
+        logger.warning("No design sheet found for project %s — creating one", session.project_id)
+        # Auto-create a design sheet if missing (safety net)
+        from app.models.project import Project as _Proj
+        proj_r = await db.execute(select(_Proj).where(_Proj.id == session.project_id))
+        project = proj_r.scalar_one_or_none()
+        sheet = DesignSheet(
+            project_id=session.project_id,
+            platform=project.platform if project else None,
+            tone=project.tone if project else None,
+        )
+        db.add(sheet)
+        await db.flush()
 
     # Build Claude-compatible messages for extraction
     claude_messages = [
@@ -263,10 +277,13 @@ async def update_sheet_from_conversation(
     ]
 
     if not claude_messages:
+        logger.debug("No messages in session — skipping extraction")
         return sheet, False
 
+    logger.info("Extracting sheet fields from %d messages", len(claude_messages))
     extracted = await extract_sheet_fields(claude_messages, pathway=pw)
     if not extracted:
+        logger.info("Extraction returned no fields (conversation may be too early)")
         return sheet, False
 
     changed = False
