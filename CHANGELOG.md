@@ -8,6 +8,19 @@ _Nothing yet._
 
 ---
 
+## [2026-05-23] — Discovery SSE Robustness
+
+### Fixed
+- **Assistant messages now persist independently from sheet extraction.** Previously, `/discovery/{id}/message` committed the assistant message AND sheet updates in the same transaction at the end of the stream. If the sheet extraction or its commit raised (JSONB serialization, concurrent write, etc.), the entire transaction rolled back — taking the assistant message with it. On resume, users saw only their own messages with the AI side missing. Fix: assistant message gets its own commit immediately after token streaming completes; sheet extraction is a separate transaction with its own rollback.
+- **`done` event is now guaranteed to fire**, even when chip generation or JSON serialization fails. The final `yield` is wrapped in try/except with a hardcoded fallback sentinel. If `generate_quick_chips` raises, a 3-item generic chip list is used. This fixes the "chips appeared sometimes, randomly" symptom where the stream silently ended after the last token without emitting `sheet_update` or `done`.
+- **Empty chip list from `generate_quick_chips`** now falls back to the 3-item default before being sent (was already happening for most code paths but a single-option `[CHIPS: x]` parse could slip through).
+- **Same defensive wrapping applied to `/discovery/{id}/init`** (the greeting endpoint) — rollback on save failure, wrapped chip generation, wrapped final yield.
+
+### Changed
+- `CLAUDE.md` → 2.2.1 (PATCH bump — internal robustness, no documented-feature behavior change)
+
+---
+
 ## [2026-05-23] — Realtime Inbox
 
 ### Added

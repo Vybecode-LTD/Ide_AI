@@ -97,6 +97,8 @@ async def init_greeting(
     # The AI speaks first — no user message in the history
     claude_messages = [{"role": "user", "content": f"I want to build: {project.description or project.name}"}]
 
+    _CHIP_FALLBACK = ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]
+
     async def event_stream():
         full_response = []
 
@@ -106,17 +108,36 @@ async def init_greeting(
 
         ai_text = "".join(full_response)
 
-        # Save message — non-fatal if it fails
+        # Save message — non-fatal if it fails, rollback so subsequent code
+        # doesn't run against an aborted session
         try:
             clean_text = ai_service.strip_chips_line(ai_text)
             await discovery_service.add_message(db, session, "assistant", clean_text)
             await db.commit()
         except Exception as exc:
             logger.warning("Failed to save greeting message: %s", exc)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
-        # ALWAYS send completion event with chips — this must never be skipped
-        chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
-        yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
+        # ALWAYS send completion event with chips — wrapped so any parse or
+        # serialization issue still yields a usable done sentinel
+        try:
+            chips = await ai_service.generate_quick_chips(
+                ai_text, stage=session.stage or "greeting"
+            )
+            if not chips:
+                chips = _CHIP_FALLBACK
+        except Exception as exc:
+            logger.error("generate_quick_chips raised (init): %s", exc)
+            chips = _CHIP_FALLBACK
+
+        try:
+            yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
+        except Exception as exc:
+            logger.error("Failed to emit done event (init): %s", exc)
+            yield 'data: {"type": "done", "stage": "", "chips": ["Yes, exactly", "Not quite", "I have a different angle"]}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -177,6 +198,10 @@ async def send_message(
         for m in (session.messages or [])
     ]
 
+    # Generic 3-item fallback used when chip generation itself fails so the
+    # UI never ends up with an empty chip list.
+    _CHIP_FALLBACK = ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]
+
     async def event_stream():
         full_response = []
 
@@ -188,53 +213,75 @@ async def send_message(
         ai_text = "".join(full_response)
         clean_text = ai_service.strip_chips_line(ai_text)
 
-        # Step 1: Save the assistant message
+        # Step 1: Persist the assistant message in its OWN transaction so it
+        # survives even if the sheet extraction or follow-up commits explode.
+        # Resume relies on this — if we don't commit here, the AI side is lost.
         try:
             await discovery_service.add_message(db, session, "assistant", clean_text)
-            await db.flush()
+            await db.commit()
         except Exception as exc:
-            logger.error("Failed to save assistant message: %s", exc)
+            logger.error("Failed to persist assistant message: %s", exc)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
-        # Step 2: Extract and update design sheet (separate AI call — can fail independently)
-        sheet_changed = False
-        updated_sheet = None
+        # Step 2: Extract and update design sheet (separate AI call + DB
+        # transaction — must not be allowed to break the SSE stream).
+        sheet_data: dict | None = None
         try:
             updated_sheet, sheet_changed = await discovery_service.update_sheet_from_conversation(
                 db, session, pathway=pw
             )
+            if sheet_changed and updated_sheet:
+                sheet_data = {
+                    "problem": updated_sheet.problem,
+                    "audience": updated_sheet.audience,
+                    "mvp": updated_sheet.mvp,
+                    "features": updated_sheet.features,
+                    "tone": updated_sheet.tone,
+                    "platform": updated_sheet.platform,
+                    "tech_constraints": updated_sheet.tech_constraints,
+                    "success_metric": updated_sheet.success_metric,
+                    "confidence_score": updated_sheet.confidence_score,
+                }
+                await db.commit()
         except Exception as exc:
-            logger.warning("Sheet extraction failed: %s", exc)
+            logger.warning("Sheet extraction/commit failed: %s", exc)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            sheet_data = None  # Don't ship a potentially-stale snapshot
 
-        # Snapshot sheet fields BEFORE commit — guards against any future
-        # async lazy-load issues if `expire_on_commit` ever changes from False.
-        sheet_data = None
-        if sheet_changed and updated_sheet:
-            sheet_data = {
-                "problem": updated_sheet.problem,
-                "audience": updated_sheet.audience,
-                "mvp": updated_sheet.mvp,
-                "features": updated_sheet.features,
-                "tone": updated_sheet.tone,
-                "platform": updated_sheet.platform,
-                "tech_constraints": updated_sheet.tech_constraints,
-                "success_metric": updated_sheet.success_metric,
-                "confidence_score": updated_sheet.confidence_score,
-            }
-
-        # Step 3: Commit everything that succeeded
-        try:
-            await db.commit()
-        except Exception as exc:
-            logger.error("DB commit failed after stream: %s", exc)
-
-        # Send sheet update FIRST — clients may close the stream on `done`,
-        # so the sheet_update must arrive before the done sentinel.
+        # Step 3: Emit sheet_update BEFORE done — clients may close the stream
+        # on the done sentinel, so the sheet must arrive first.
         if sheet_data is not None:
-            yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
+            try:
+                yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
+            except Exception as exc:
+                logger.error("Failed to emit sheet_update event: %s", exc)
 
-        # ALWAYS send completion event with chips LAST — this is the end-of-stream sentinel
-        chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
-        yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
+        # Step 4: ALWAYS emit a done event. Two layers of fallback:
+        #   - generate_quick_chips wrapped so a parse error doesn't kill the stream
+        #   - the final yield is itself wrapped so a serialization issue still
+        #     produces a minimal done sentinel for the client
+        try:
+            chips = await ai_service.generate_quick_chips(
+                ai_text, stage=session.stage or "greeting"
+            )
+            if not chips:
+                chips = _CHIP_FALLBACK
+        except Exception as exc:
+            logger.error("generate_quick_chips raised: %s", exc)
+            chips = _CHIP_FALLBACK
+
+        try:
+            yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
+        except Exception as exc:
+            logger.error("Failed to emit done event: %s", exc)
+            # Last-ditch fallback — minimal done sentinel so the client unsticks
+            yield 'data: {"type": "done", "stage": "", "chips": ["Yes, exactly", "Not quite", "I have a different angle"]}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
