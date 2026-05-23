@@ -140,7 +140,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── tutorial/              # StageInterlude, PulseBeacon, Whisper
 │   │   │   ├── nebula/                # Animated background canvas
 │   │   │   └── ui/                    # Button, Modal, Card, Input, Badge, Drawer
-│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore
+│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, inboxStore
 │   │   ├── hooks/                     # useSSE, useVoiceInput
 │   │   ├── lib/apiClient.ts           # Axios instance with auth interceptors
 │   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway)
@@ -491,13 +491,21 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 ## Session Recovery
 
-- On session start, read this CLAUDE.md file first.
-- If a `CONTEXT_HANDOFF.md` exists in the project root, read it for additional session-specific context.
-- The working directory is ALWAYS `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — these paths are obsolete.
+**Read in this order on every session start:**
+1. **`CLAUDE.md`** (this file) — project identity, features, critical rules
+2. **`MEMORY.md`** — conventions, common pitfalls, architecture mental model
+3. **`CONTEXT_HANDOFF.md`** — latest session state, what just shipped, what's open
+4. **`TODO.md`** — concrete next steps prioritized by blocker → high → nice-to-have
+5. **`ROADMAP.md`** — only when discussing forward direction
+
+**Working directory:** ALWAYS `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — those paths are obsolete.
+
+**Platform:** Windows. Use `npm.cmd` not `npm`, `python` not `python3`. Type-check after every frontend change: `npx.cmd tsc -b --noEmit`. Validate Python syntax via `python -c "import ast; ast.parse(open('...').read())"`.
 
 ---
 
 ## Last Completed Task
 
-**Task:** Comprehensive codebase audit (Codex-generated roadmap, 9 items). P0 bug fixes (discovery resume, inbox promotion crash, branch creation, share routes, module session resume). Security hardening (ownership checks on sharing/sprints, JWT hardening, webhook HMAC, token encryption, payload limits). Product completion: library progress metadata + smart resume, snapshot unification, sharing feedback UI (CommentSection/StarRating/FeedbackPanel), deep-copy branching, dedicated PromptKit page, entitlement service (free/basic/pro gates), frontend dependency upgrades (0 vulnerabilities), integrations de-scoped to coming_soon. Docs cleanup: CONTEXT_HANDOFF.md + CLAUDE.md rewritten.
-**Date:** 2026-05-21
+**Task:** Multi-session audit completion + mobile fixes. (1) Critical user reports: transcript copy now includes AI messages (Axios responseType fix), Save Place button in Discovery, mobile viewport conformance across 19 pages (.h-dvh + .pb-mobile-nav utilities, safe-area-inset for iPhone home indicator, horizontally scrollable TopBar actions), Proceed button errors now surface via toast + inline banner instead of infinite spinner. (2) 5 critical audit spec gaps: pathway auto-detection on Home (POST /pathways/detect), VoiceMicButton wired into Discovery, drag-and-drop on Blocks (@dnd-kit), inbox endpoint alignment, Home config selectors (platform/audience/complexity/tone). (3) 8 remaining audit findings: SSE event reorder (sheet_update before done), CLAUDE.md drift corrections (4 endpoint rows + working dir path), react-hot-toast install + global Toaster, Sidebar inbox unread badge (new inboxStore Zustand), Inbox per-item AI partner picker, UpgradeModal rename (ui/UpgradeModal → ui/EntitlementLimitModal), PitchMode React Flow diagram, auth.py race refactor (INSERT ON CONFLICT). Every code change verified by 2 parallel agents (edge-case + integration) before completion. All TypeScript clean, all Python syntax validated.
+**Date:** 2026-05-23
+**Commits:** 9c5ef1c, 5db42eb, 253b30a, fb1f1b8 (all pushed to main)
