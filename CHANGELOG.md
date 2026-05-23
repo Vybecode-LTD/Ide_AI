@@ -8,6 +8,17 @@ _Nothing yet._
 
 ---
 
+## [2026-05-23] — Roadmap Refresh
+
+### Changed
+- `ROADMAP.md` → 2.0.0: full restructure with frontmatter, "Recently Shipped" section listing today's commits, trimmed Short-Term Polish (toast + fetchPathway wraps moved to shipped), added "Up Next" queue (realtime inbox → Notion integration), refreshed Open Product Questions, added admin-metrics dashboard to Medium-Term
+
+### Added
+- Admin-system reference in Medium-Term Features (Billing & admin section) and Tech Debt (orphan user row cleanup)
+- Stop-hook-shaped "Up Next" queue so the next session can pick up without re-derivation
+
+---
+
 ## [2026-05-23] — Doc-Versioning Enforcement
 
 ### Added

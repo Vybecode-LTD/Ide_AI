@@ -1,25 +1,35 @@
 # Ide/AI — Roadmap
 
-> Forward-looking priorities. See `TODO.md` for concrete actionable items.
-> **Last updated:** 2026-05-23
+> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+>
+> Forward-looking priorities. See `TODO.md` for concrete actionable items and `CHANGELOG.md` for what already shipped.
+
+---
+
+## ✅ Recently Shipped (2026-05-23)
+
+- **Admin dashboard** at hidden `/admin` route — user search, plan controls, entitlement overrides, audit log (commit `3747eac`)
+- **Toast migration** — ~40 silent failures surfaced via `react-hot-toast` across 18 components (commit `28ead2d`)
+- **Doc-versioning system** — SemVer per doc, root CHANGELOG, Stop hook, project memory (commits `6599cd1`, `4032cbc`)
+- **Railway production hardening** — `CORS_ORIGINS`, `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` env vars active; sign-in verified end-to-end
+- **Wrap unhandled `fetchPathway()` rejections** in ModuleSession + PathwayExecute
+- **Mobile viewport conformance** across 19 pages (`.h-dvh` + `.pb-mobile-nav`, safe-area-inset)
+- **PitchMode React Flow user-flow diagram** from MVP blocks
+- **Save Place button** in Discovery, voice mic in Discovery, drag-and-drop Blocks board
+
+See `CHANGELOG.md` for the full per-commit breakdown.
 
 ---
 
 ## 🚀 Launch Readiness (Now)
 
-The codebase itself is launch-ready. Only deployment-side configuration remains.
+The codebase is launch-ready. The pre-deploy checklist is essentially done — what remains is post-deploy smoke verification with a real user.
 
-### Pre-launch checklist (Railway dashboard, no code changes)
-- [ ] Set `CORS_ORIGINS=["https://myide.ai","https://www.myide.ai"]` in backend env
-- [ ] Set `CLERK_ISSUER`, `CLERK_AUDIENCE`, `CLERK_AUTHORIZED_PARTIES` for JWT hardening
-- [ ] Verify `STRIPE_WEBHOOK_SECRET` matches the webhook endpoint configured in Stripe dashboard
-- [ ] Verify `RESEND_WEBHOOK_SECRET` matches Resend's inbound parse webhook config
-- [ ] Verify `CLERK_WEBHOOK_SECRET` matches Clerk's webhook config
-- [ ] Verify all 4 `STRIPE_PRICE_*` env vars match live Stripe price IDs
-- [ ] Confirm `INBOX_DOMAIN` MX records point to Resend's inbound parser
-- [ ] Generate + set `INTEGRATION_TOKEN_KEY` if/when integrations get re-enabled (currently `coming_soon`)
+### Optional security hygiene
+- [ ] Rotate the 3 webhook signing secrets (Clerk / Stripe / Resend) — they were pasted in chat during the 2026-05-23 setup session
+- [ ] Generate + set `INTEGRATION_TOKEN_KEY` Fernet key — only needed when integrations exit `coming_soon` (see "Up Next" below)
 
-### Smoke-test checklist (post-deploy)
+### Smoke-test checklist (post-deploy, needs a real user)
 - [ ] Sign up via Clerk → confirm user row created in DB
 - [ ] Create project → verify pathway auto-detected from idea description
 - [ ] Run full discovery → verify chips appear, sheet updates in real-time, no AI repetition
@@ -29,62 +39,78 @@ The codebase itself is launch-ready. Only deployment-side configuration remains.
 - [ ] Mobile: pinch-zoom disabled, viewport fills correctly, TopBar chips scroll, bottom nav doesn't overlap content on iPhone
 - [ ] Hit project limit on free plan → EntitlementLimitModal appears
 - [ ] Click "View Plans" → goes to pricing → Stripe checkout works → webhook updates `account_type`
+- [ ] Admin panel: search a user, change their plan, confirm audit log entry appears
 
 ---
 
-## 🎯 Short-Term Polish (Next 1-2 sessions)
+## 🚧 Up Next (Queue)
 
-### UX consistency
-- **Unify error UX** — ~17 sites still use `setError` or silent `console.error`. Migrate to `toast.error()` for consistency. High-value targets in priority order:
-  1. `Discovery.tsx` (8 silent failures around SSE + auto-save)
-  2. `Blocks.tsx` (5 silent failures around generate/update/delete)
-  3. `Library.tsx`, `Pipeline.tsx`, `Exports.tsx`, `PromptKit.tsx`
-  4. `PitchMode.tsx`, `ModuleSession.tsx`, `MarketAnalysis.tsx`, `PathwayReview.tsx`
-  5. `Profile.tsx`, `SharedProject.tsx`, `SprintPlanner.tsx` (still use `setError` with inline banners)
-- **Wrap unhandled promise rejections** — `ModuleSession.tsx:73` and `PathwayExecute.tsx:43` call `fetchPathway()` without try/catch. Now that the store re-throws, these need protection.
-- **Cross-tab inbox badge sync** — Sidebar polls every 60s but ignores `storage` events / BroadcastChannel. Add a `storage` listener so tab A adding an idea immediately bumps tab B's badge.
+User-prioritized order for the next sessions:
+
+1. **Realtime inbox** — replace 60s Sidebar polling with push-based updates. Reuse FastAPI SSE infra (already proven in Discovery + Modules + Market). See [Medium-Term Features → Discovery experience](#-medium-term-features-next-5-10-sessions).
+2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
+3. _(open — pick from Medium-Term Features below)_
+
+---
+
+## 🎯 Short-Term Polish (Backlog)
+
+The toast migration + fetchPathway wraps are done. Remaining polish items:
+
+### UX
+- **Cross-tab inbox badge sync** — Sidebar polls every 60s but ignores `storage` events / BroadcastChannel. Add a `storage` listener so tab A adding an idea immediately bumps tab B's badge. _(May become moot once realtime inbox ships)_
+- **Empty-state illustrations** on Blocks / Pipeline / PromptKit when no data exists yet
+- **Keyboard shortcuts** — Cmd+K command palette for navigating between project sections
+- **Sidebar inbox badge animation** — pulse on count increase
 
 ### Code organization
-- **Hoist `_partnerCache`** to `frontend/src/lib/partnerCache.ts`. Currently duplicated in `Home.tsx` and `Inbox.tsx`.
-- **Centralize the optimistic-update pattern** used by inboxStore for future stores (toggle adjust + reconcile).
-- **Add backend tests for the auth refactor** — `_idempotent_create_user` + `_link_existing_email_user`. Test the 4 race scenarios end-to-end with the new INSERT ON CONFLICT path.
+- **Hoist `_partnerCache`** to `frontend/src/lib/partnerCache.ts` (currently duplicated in Home.tsx + Inbox.tsx)
+- **Centralize the optimistic-update pattern** used by inboxStore for future stores (toggle adjust + reconcile)
+- **`inbox.py` lazy import** — `validate_partner_style` is imported inside `promote_to_project`. Move to module-level (no circular import risk).
 
 ### Performance
-- **Lazy-load reactflow CSS** alongside the PitchMode bundle (currently included in the lazy chunk; ~150KB total).
-- **Module-pathway store** doesn't memoize selectors — components re-render on every `loading` change even when only `pathway` is needed.
+- **Lazy-load reactflow CSS** alongside the PitchMode bundle (currently included in the lazy chunk; ~150KB total)
+- **Module-pathway store** doesn't memoize selectors — components re-render on every `loading` change even when only `pathway` is needed
+
+### Tests
+- **Backend tests for the auth refactor** — `_idempotent_create_user` + `_link_existing_email_user`. Test the 4 race scenarios end-to-end with the INSERT ON CONFLICT path
+- **Backend tests for admin endpoints** — `require_admin` rejection, `update_user_plan` audit trail, `update_user_admin_flag` self-revoke block, entitlement override merge logic
+- **Frontend test scaffolding** — Vitest + first tests (`extractError`, `inboxStore.adjust(-1)` clamping, `useSSE` safety-net, `adminStore` mutations)
 
 ---
 
 ## 🎁 Medium-Term Features (Next 5-10 sessions)
 
 ### Discovery experience
-- **Realtime inbox via WebSocket or SSE** — replace 60s polling with push notifications. Backend infra is FastAPI + StreamingResponse — straightforward.
-- **Voice transcript export** — capture full voice input as part of transcript metadata.
-- **AI partner mid-session preview** — show what the next AI response would look like in each partner's voice before switching.
-- **Discovery progress bar** — visualize stage progression more prominently than the side stepper.
+- **Realtime inbox via WebSocket or SSE** _(queued next — see Up Next)_
+- **Voice transcript export** — capture full voice input as part of transcript metadata
+- **AI partner mid-session preview** — show what the next AI response would look like in each partner's voice before switching
+- **Discovery progress bar** — visualize stage progression more prominently than the side stepper
 
 ### Modular pathway
-- **Module dependencies / prerequisites** — currently any order is valid. Add optional `requires` field to module definitions.
-- **Cross-module reference UI** — when AI mentions a field already answered, highlight which module/answer it's coming from.
-- **Module library expansion** — currently 47 modules across 7 groups. Expand to 70-100 to cover more pathways.
-- **Pathway templates** — save a custom pathway configuration and reuse for similar future projects.
+- **Module dependencies / prerequisites** — currently any order is valid. Add optional `requires` field to module definitions
+- **Cross-module reference UI** — when AI mentions a field already answered, highlight which module/answer it's coming from
+- **Module library expansion** — currently 47 modules across 7 groups. Expand to 70-100 to cover more pathways
+- **Pathway templates** — save a custom pathway configuration and reuse for similar future projects
+- **Re-runnable categorize/assemble** — currently fires once on PathwayReview mount; let users re-trigger after adding more discovery detail
 
 ### Sharing & collaboration
-- **Realtime collaborative editing on shared projects** — partner reviews while owner iterates.
-- **Email digest of share comments** — daily digest of new comments/ratings.
-- **Public showcase** — opt-in gallery of completed projects (with owner approval).
+- **Realtime collaborative editing on shared projects** — partner reviews while owner iterates
+- **Email digest of share comments** — daily digest of new comments/ratings
+- **Public showcase** — opt-in gallery of completed projects (with owner approval)
 
 ### Integrations (currently de-scoped as `coming_soon`)
-- **Notion** — push design sheet + blocks to a Notion page hierarchy
+- **Notion** _(queued next — see Up Next)_ — push design sheet + blocks to a Notion page hierarchy
 - **Trello / Linear** — convert MVP blocks to cards/issues
 - **Figma** — generate FigJam wireframe from UI skeleton
 - **Google Docs** — export Pitch document
 - **Airtable** — sync block list to a base
 
-### Billing
-- **Usage-based add-ons** — extra projects, AI tokens, market analyses
+### Billing & admin
+- **Usage-based add-ons** — extra projects / AI tokens / market analyses beyond plan limits. Pairs with the entitlement-overrides system shipped today
 - **Team plan** — multi-user workspaces with shared projects
 - **Annual discount surfacing** — currently in code but could be more prominent
+- **Admin metrics dashboard** — extend `/admin` with usage charts (signups, plan distribution, churn)
 
 ---
 
@@ -103,26 +129,24 @@ The codebase itself is launch-ready. Only deployment-side configuration remains.
 ## 🧹 Tech Debt & Refactors
 
 ### Backend
-- **Replace `inbox.py` lazy import of `validate_partner_style`** with module-level import (no circular import risk; was defensive but unnecessary).
-- **Migrate from `datetime.utcnow()`** — already done across 7 files; audit one more pass to catch any new usage.
-- **SQLite test fixtures** — `conftest.py` has JSONB/UUID compat shims. Replace with PostgreSQL testcontainers for higher fidelity.
-- **Anthropic SDK pinning** — currently uses untyped Anthropic calls in some places. Migrate to typed `messages.create()` everywhere.
-- **Reduce N+1 queries** in `library.py` `_compute_resume_path` — currently issues one query per project. Add eager loading.
+- **Migrate from `datetime.utcnow()`** — mostly done; audit one more pass to catch any new usage
+- **SQLite test fixtures** — `conftest.py` has JSONB/UUID compat shims. Replace with PostgreSQL testcontainers for higher fidelity
+- **Anthropic SDK pinning** — currently uses untyped Anthropic calls in some places. Migrate to typed `messages.create()` everywhere
+- **Reduce N+1 queries** in `library.py` `_compute_resume_path` — currently issues one query per project. Add eager loading
+- **Orphan user row cleanup** — one row exists with `is_admin = TRUE` but no `clerk_user_id` from the 2026-05-23 debug. Safe to leave or delete
 
 ### Frontend
-- **Consolidate the 2 `_partnerCache` duplicates** (Home + Inbox).
-- **Replace `react-router-dom` with TanStack Router** — when/if we want type-safe routing.
-- **Migrate ReactFlow to lazy chunk** if PitchMode bundle size becomes an issue.
-- **Add ESLint rule to forbid `console.error`** for user-facing failures — should always be `toast.error()`.
-- **Add ESLint rule to forbid `h-screen` in pages** — should be `.h-dvh` for mobile compatibility.
-- **Storybook** for the design system components (Button, Card, Badge, Modal, etc.).
-- **Vitest + React Testing Library** — currently zero frontend tests. Highest-leverage targets: useSSE hook, inboxStore, extractError, PathwayReview init flow.
+- **Replace `react-router-dom` with TanStack Router** — when/if we want type-safe routing
+- **Migrate ReactFlow to lazy chunk** if PitchMode bundle size becomes an issue
+- **Add ESLint rule to forbid `console.error`** for user-facing failures — should always be `toast.error()`
+- **Add ESLint rule to forbid `h-screen` in pages** — should be `.h-dvh` for mobile compatibility
+- **Storybook** for the design system components (Button, Card, Badge, Modal, etc.)
 
 ### Infrastructure
-- **Sentry / error tracking** — currently relies on Railway logs.
-- **Performance monitoring** — backend latency, AI call duration, p99 response times.
-- **Database query observability** — slow query log.
-- **Backup automation** — Railway has snapshots but no automated weekly export.
+- **Sentry / error tracking** — currently relies on Railway logs
+- **Performance monitoring** — backend latency, AI call duration, p99 response times
+- **Database query observability** — slow query log
+- **Backup automation** — Railway has snapshots but no automated weekly export
 
 ---
 
@@ -137,6 +161,7 @@ The codebase itself is launch-ready. Only deployment-side configuration remains.
 - **Partner style preference distribution**: which of the 10 partners users actually pick
 - **Top template categories**: which of the 16 categories drive most projects
 - **Inbound email engagement**: ratio of inbox items captured vs promoted
+- **Admin actions per week** — frequency of comps + override edits via `/admin/audit-log`
 
 ---
 
@@ -144,6 +169,7 @@ The codebase itself is launch-ready. Only deployment-side configuration remains.
 
 1. **Should the AI partner be visible to viewers on shared projects?** Currently hidden — but partner style affects the design output, so it's relevant context.
 2. **Should we support multiple AI partners per project?** Currently one per session, switchable mid-flow. Could one project have separate partners per module?
-3. **Should categorize/assemble be re-runnable?** Currently fires once on PathwayReview mount. If user adds significant detail after, they can't re-trigger.
+3. **Should categorize/assemble be re-runnable?** Currently fires once on PathwayReview mount. If user adds significant detail after, they can't re-trigger. _(Now listed in Medium-Term Features → Modular pathway)_
 4. **Mobile-first redesign?** Current design is desktop-first with mobile responsive. Worth a full mobile-first pass given voice + email-to-inbox flows are mobile-friendly.
-5. **Free tier limits**: 3 projects feels tight. Should we expand to 5 with a "lite" feature set (e.g. no market analysis on free)?
+5. **Free tier limits**: 3 projects feels tight. Should we expand to 5 with a "lite" feature set (e.g. no market analysis on free)? _(Now potentially answered by entitlement overrides — could expand on a per-user basis instead)_
+6. **Realtime inbox transport** — WebSocket vs SSE? Project already uses SSE for Discovery + Modules + Market, so SSE is the obvious choice. Decision punted to the implementation session.
