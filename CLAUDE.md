@@ -338,7 +338,7 @@ D:\Development\Ide_AI\
 - Manual idea capture also supported
 - Per-item: choose AI partner style, promote to full project ("Build"), or delete
 - Sidebar shows unread inbox count badge
-- Endpoints: `GET /inbox`, `GET /inbox/count`, `PATCH /inbox/{id}`, `POST /inbox/{id}/build`, `DELETE /inbox/{id}`
+- Endpoints: `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}`
 - Webhook: `POST /webhooks/inbound-email`
 - DB: `idea_inbox_items` table, `inbox_email` on users (migration 014)
 
@@ -425,6 +425,9 @@ D:\Development\Ide_AI\
 | 021 | Add clerk_user_id to users |
 | 022 | Widen avatar_url column to TEXT |
 | 023 | Deduplicate user rows (webhook cleanup) |
+| 024 | Expand templates to 160 |
+| 025 | Inbound email idempotency (provider_event_id unique constraint) |
+| 026 | Deduplicate user rows v2 (post-Clerk webhook race cleanup) |
 
 ---
 
@@ -448,7 +451,7 @@ D:\Development\Ide_AI\
 | Library | `GET /library`, `POST /library/{id}/snapshots`, `GET /library/{id}/snapshots`, `POST /library/{id}/snapshots/{sid}/restore`, `GET /library/export/{id}`, `POST /library/import` |
 | Module Pathway | `POST /module-pathway/{id}/categorize`, `POST /module-pathway/{id}/assemble`, `POST /module-pathway/{id}/review`, `POST /module-pathway/{id}/lock` |
 | Modules | `POST /modules/{id}/{module_id}/start` (SSE), `POST /modules/{id}/{module_id}/respond` (SSE), `POST /modules/{id}/{module_id}/skip`, `GET /modules/{id}/{module_id}/summary` |
-| Inbox | `GET /inbox`, `GET /inbox/count`, `PATCH /inbox/{id}`, `POST /inbox/{id}/build`, `DELETE /inbox/{id}` |
+| Inbox | `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}` |
 | Templates | `GET /templates` |
 | Branching | `POST /projects/{id}/branch`, `POST /projects/{id}/merge/{branch_id}`, `GET /projects/{id}/branches`, `GET /projects/{id}/compare/{branch_id}` |
 | Integrations | `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}` |

@@ -4,6 +4,23 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
@@ -24,12 +41,91 @@ interface Block {
 
 type Scope = 'lean' | 'balanced' | 'full'
 
+const effortVariant = (e: string): 'success' | 'warning' | 'default' =>
+  e === 'S' ? 'success' : e === 'M' ? 'warning' : 'default'
+
+/* ── Sortable card ────────────────────────────────────────────── */
+interface SortableBlockCardProps {
+  block: Block
+  onTogglePriority: (block: Block) => void
+  onDelete: (id: string) => void
+}
+
+function SortableBlockCard({ block, onTogglePriority, onDelete }: SortableBlockCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: block.id,
+  })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 'auto',
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {/* Drag handle */}
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              aria-label={`Drag ${block.name}`}
+              className="cursor-grab active:cursor-grabbing text-text-muted hover:text-accent transition-colors p-1 -ml-1 shrink-0 touch-none"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
+              </svg>
+            </button>
+            <h3 className="text-sm font-semibold text-white flex-1 min-w-0">{block.name}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => onDelete(block.id)}
+            aria-label={`Delete ${block.name}`}
+            className="text-text-muted hover:text-red-400 text-xs shrink-0"
+          >
+            &#x2715;
+          </button>
+        </div>
+        <p className="text-xs text-text-muted leading-relaxed">{block.description}</p>
+        <div className="flex items-center gap-2 mt-auto flex-wrap">
+          <button
+            type="button"
+            onClick={() => onTogglePriority(block)}
+            aria-label={`Toggle priority for ${block.name}, currently ${block.priority}`}
+          >
+            <Badge variant={block.priority === 'mvp' ? 'accent' : 'default'}>
+              {block.priority.toUpperCase()}
+            </Badge>
+          </button>
+          <Badge variant={effortVariant(block.effort)}>{block.effort}</Badge>
+          <Badge>{block.category}</Badge>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+/* ── Page ──────────────────────────────────────────────────────── */
 export function Blocks() {
   const { projectId } = useParams<{ projectId: string }>()
   const [blocks, setBlocks] = useState<Block[]>([])
   const [scope, setScope] = useState<Scope>('balanced')
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 }, // Avoid accidental drags on click
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const fetchBlocks = useCallback(async () => {
     if (!projectId) return
@@ -66,7 +162,11 @@ export function Blocks() {
         priority: newPriority,
         is_mvp: newPriority === 'mvp',
       })
-      setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, priority: newPriority, is_mvp: newPriority === 'mvp' } : b))
+      setBlocks((prev) =>
+        prev.map((b) =>
+          b.id === block.id ? { ...b, priority: newPriority, is_mvp: newPriority === 'mvp' } : b,
+        ),
+      )
     } catch (err) {
       console.error('Failed to update block:', err)
     }
@@ -75,19 +175,55 @@ export function Blocks() {
   const deleteBlock = async (blockId: string) => {
     try {
       await apiClient.delete(`/projects/${projectId}/blocks/${blockId}`)
-      setBlocks(prev => prev.filter(b => b.id !== blockId))
+      setBlocks((prev) => prev.filter((b) => b.id !== blockId))
     } catch (err) {
       console.error('Failed to delete block:', err)
     }
   }
 
-  const filteredBlocks = blocks.filter(b => {
+  // Persist new order for any blocks whose position changed.
+  const persistOrder = async (reordered: Block[]) => {
+    if (!projectId) return
+    const updates: Promise<unknown>[] = []
+    reordered.forEach((b, idx) => {
+      if (b.order !== idx) {
+        updates.push(
+          apiClient.patch(`/projects/${projectId}/blocks/${b.id}`, { order: idx }),
+        )
+      }
+    })
+    if (updates.length === 0) return
+    try {
+      await Promise.all(updates)
+    } catch (err) {
+      console.error('Failed to persist block order:', err)
+      // Re-fetch to recover from any partial failures
+      fetchBlocks()
+    }
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setBlocks((prev) => {
+      const oldIndex = prev.findIndex((b) => b.id === active.id)
+      const newIndex = prev.findIndex((b) => b.id === over.id)
+      if (oldIndex === -1 || newIndex === -1) return prev
+      const reordered = arrayMove(prev, oldIndex, newIndex)
+      // Re-index `order` field locally so optimistic UI matches what we'll persist
+      const reindexed = reordered.map((b, idx) => ({ ...b, order: idx }))
+      // Fire-and-forget persistence
+      persistOrder(reordered)
+      return reindexed
+    })
+  }
+
+  const filteredBlocks = blocks.filter((b) => {
     if (scope === 'lean') return b.priority === 'mvp' && b.effort !== 'L'
     if (scope === 'balanced') return b.priority === 'mvp'
     return true // full
   })
-
-  const effortVariant = (e: string) => e === 'S' ? 'success' : e === 'M' ? 'warning' : 'default'
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -103,17 +239,24 @@ export function Blocks() {
           {/* Scope Slider */}
           <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 md:mb-6">
             <span className="text-xs text-text-muted font-medium">Scope:</span>
-            {(['lean', 'balanced', 'full'] as Scope[]).map(s => (
+            {(['lean', 'balanced', 'full'] as Scope[]).map((s) => (
               <button
                 key={s}
                 onClick={() => setScope(s)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  scope === s ? 'bg-accent text-background' : 'bg-white/5 text-text-muted hover:text-white border border-border'
+                  scope === s
+                    ? 'bg-accent text-background'
+                    : 'bg-white/5 text-text-muted hover:text-white border border-border'
                 }`}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
+            {filteredBlocks.length > 1 && (
+              <span className="text-[10px] text-text-muted/60 ml-auto hidden md:inline">
+                Drag the handle to reorder
+              </span>
+            )}
           </div>
 
           {/* Blocks Grid */}
@@ -125,26 +268,27 @@ export function Blocks() {
               <Button onClick={generateBlocks} disabled={generating}>Generate Blocks</Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredBlocks.map(block => (
-                <Card key={block.id} className="flex flex-col gap-3">
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-semibold text-white">{block.name}</h3>
-                    <button onClick={() => deleteBlock(block.id)} className="text-text-muted hover:text-red-400 text-xs">&#x2715;</button>
-                  </div>
-                  <p className="text-xs text-text-muted leading-relaxed">{block.description}</p>
-                  <div className="flex items-center gap-2 mt-auto">
-                    <button onClick={() => togglePriority(block)}>
-                      <Badge variant={block.priority === 'mvp' ? 'accent' : 'default'}>
-                        {block.priority.toUpperCase()}
-                      </Badge>
-                    </button>
-                    <Badge variant={effortVariant(block.effort)}>{block.effort}</Badge>
-                    <Badge>{block.category}</Badge>
-                  </div>
-                </Card>
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={filteredBlocks.map((b) => b.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredBlocks.map((block) => (
+                    <SortableBlockCard
+                      key={block.id}
+                      block={block}
+                      onTogglePriority={togglePriority}
+                      onDelete={deleteBlock}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       </div>

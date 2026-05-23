@@ -13,6 +13,7 @@ import { TranscriptExportMenu } from '../components/discovery/TranscriptExportMe
 import { DesignSheetPanel } from '../components/framework/DesignSheetPanel'
 import { ActivePartnerBadge } from '../components/partner/ActivePartnerBadge'
 import { PartnerSelector } from '../components/partner/PartnerSelector'
+import { VoiceMicButton } from '../components/voice/VoiceMicButton'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StageInterlude, PulseBeacon, Whisper } from '../components/tutorial'
@@ -379,15 +380,19 @@ export function Discovery() {
             )}
 
             {/* Input */}
-            <Whisper id="discovery:input" text="Use the quick replies or type freely">
+            <Whisper id="discovery:input" text="Use the quick replies, speak via the mic, or type freely">
             <div className="border-t border-border p-3 md:p-4 shrink-0">
               <div className="flex gap-2 md:gap-3 items-end">
+                <VoiceMicButton
+                  className="shrink-0"
+                  onTranscript={(text) => setInput(text)}
+                />
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type your response..."
+                  placeholder="Type or speak your response..."
                   aria-label="Enter your response to the AI partner"
                   className="flex-1 bg-surface border border-border rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-sm text-white placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 resize-none h-11 md:h-12 max-h-32"
                   rows={1}

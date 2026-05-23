@@ -57,6 +57,14 @@ export function Home() {
   const [partnerStyle, setPartnerStyle] = useState('strategist')
   const [allPartners, setAllPartners] = useState<PartnerStyleMeta[]>(() => _partnerCache ?? [])
 
+  // ── Configuration selectors ────────────────────────────────────
+  // Per CLAUDE.md spec: platform, audience, complexity, tone.
+  const [platform, setPlatform] = useState<string>('custom')
+  const [audience, setAudience] = useState<string>('consumers')
+  const [complexity, setComplexity] = useState<string>('medium')
+  const [tone, setTone] = useState<string>('casual')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
   // Display name from auth store (already fetched by Sidebar)
   const displayName = user?.display_name || user?.name || user?.email?.split('@')[0] || null
 
@@ -85,12 +93,27 @@ export function Home() {
       return
     }
 
+    // Detect best pathway from the idea description; fall back to software_product.
+    let pathwayId = 'software_product'
+    try {
+      const { data: detected } = await apiClient.post('/pathways/detect', {
+        description: idea,
+      })
+      if (detected?.pathway_id) pathwayId = detected.pathway_id
+    } catch {
+      // Detection is best-effort — keep the default.
+    }
+
     const { data } = await apiClient.post('/projects', {
       name: idea.slice(0, 100),
       description: idea,
-      pathway_id: 'software_product',
+      pathway_id: pathwayId,
       ai_partner_style: partnerStyle,
       primary_category: selectedCategory,
+      platform,
+      audience,
+      complexity,
+      tone,
     })
     navigate(`/discovery/${data.id}`)
   }
@@ -281,7 +304,110 @@ export function Home() {
             </PulseBeacon>
           )}
 
-          <div className="mb-2" />
+          {/* Advanced configuration — collapsed by default */}
+          <div className="w-full max-w-2xl mb-4 md:mb-6">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex items-center gap-1.5 text-[11px] text-text-muted hover:text-accent transition-colors"
+              aria-expanded={showAdvanced}
+            >
+              <span>{showAdvanced ? '▾' : '▸'}</span>
+              <span>Advanced configuration</span>
+              {!showAdvanced && (
+                <span className="text-text-muted/60 ml-1">
+                  ({platform} &middot; {audience} &middot; {complexity} &middot; {tone})
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {showAdvanced && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 bg-white/5 border border-border rounded-xl p-4">
+                    {/* Platform */}
+                    <div>
+                      <label className="text-[10px] text-text-muted font-medium block mb-1.5">
+                        Platform
+                      </label>
+                      <select
+                        value={platform}
+                        onChange={(e) => setPlatform(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent transition-colors"
+                      >
+                        <option value="custom">Custom</option>
+                        <option value="bubble">Bubble</option>
+                        <option value="webflow">Webflow</option>
+                        <option value="flutterflow">FlutterFlow</option>
+                        <option value="bolt">Bolt</option>
+                        <option value="lovable">Lovable</option>
+                        <option value="claude_code">Claude Code</option>
+                        <option value="cursor">Cursor</option>
+                        <option value="replit">Replit</option>
+                        <option value="n8n">n8n</option>
+                      </select>
+                    </div>
+
+                    {/* Audience */}
+                    <div>
+                      <label className="text-[10px] text-text-muted font-medium block mb-1.5">
+                        Audience
+                      </label>
+                      <select
+                        value={audience}
+                        onChange={(e) => setAudience(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent transition-colors"
+                      >
+                        <option value="consumers">Consumers</option>
+                        <option value="businesses">Businesses</option>
+                        <option value="internal_team">Internal Team</option>
+                        <option value="developers">Developers</option>
+                      </select>
+                    </div>
+
+                    {/* Complexity */}
+                    <div>
+                      <label className="text-[10px] text-text-muted font-medium block mb-1.5">
+                        Complexity
+                      </label>
+                      <select
+                        value={complexity}
+                        onChange={(e) => setComplexity(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent transition-colors"
+                      >
+                        <option value="simple">Simple (1–5 screens)</option>
+                        <option value="medium">Medium (5–15)</option>
+                        <option value="complex">Complex (15+)</option>
+                      </select>
+                    </div>
+
+                    {/* Tone */}
+                    <div>
+                      <label className="text-[10px] text-text-muted font-medium block mb-1.5">
+                        Tone
+                      </label>
+                      <select
+                        value={tone}
+                        onChange={(e) => setTone(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent transition-colors"
+                      >
+                        <option value="formal">Formal</option>
+                        <option value="casual">Casual</option>
+                        <option value="technical">Technical</option>
+                        <option value="startup">Startup-style</option>
+                      </select>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Error display */}
           {createError && (
