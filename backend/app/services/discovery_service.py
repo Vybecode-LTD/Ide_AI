@@ -532,9 +532,26 @@ async def apply_extracted_module_fields(
         mid, fkey = compound_key.split(".", 1)
         if mid not in valid_module_ids or not fkey:
             continue
-        ftype = field_types.get((mid, fkey), "text")
+        # Defensive: reject keys not in the module's declared schema. The
+        # ai_service.extract_module_fields filter already does this before we
+        # see the dict, but the second check here guards against direct
+        # service-layer callers (and surfaces extractor drift in tests).
+        if (mid, fkey) not in field_types:
+            logger.warning(
+                "rejected unknown field key %s.%s (not in module schema)",
+                mid, fkey,
+            )
+            continue
+        ftype = field_types[(mid, fkey)]
         coerced = _coerce_field_value(value, ftype)
         if coerced is None:
+            # Audit M7: surface silent drops so we can tell whether the AI is
+            # returning unusable shapes for a given field. Truncate `value`
+            # repr to keep logs sane.
+            logger.warning(
+                "module field dropped after coercion: %s.%s (declared=%s, raw_type=%s, raw_value=%r)",
+                mid, fkey, ftype, type(value).__name__, repr(value)[:120],
+            )
             continue
         by_module.setdefault(mid, {})[fkey] = coerced
 
@@ -566,3 +583,51 @@ async def apply_extracted_module_fields(
 
     summary = await compute_field_summary(db, project_id, modules)
     return updates_list, summary
+
+
+async def load_decorated_pathway_modules(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+) -> list[dict]:
+    """Load a project's ModulePathway and decorate module IDs into full entries.
+
+    Returns a list of dicts shaped like::
+
+        {"module_id": str, "label": str, "description": str, "group": str,
+         "fields": list[dict], "has_output": bool}
+
+    Returns an empty list when the project has no pathway or none of its module
+    IDs resolve in the library. Mirrors the decoration that
+    :func:`discovery.send_message` performs inline for the v2 prompt builder;
+    extracted here so the field-summary endpoint can reuse it without going
+    through the SSE-streaming code path.
+    """
+    from app.models.module_pathway import ModulePathway
+    from app.services import modular_pathway_service
+
+    mp_result = await db.execute(
+        select(ModulePathway).where(ModulePathway.project_id == project_id)
+    )
+    mp = mp_result.scalar_one_or_none()
+    if not mp or not mp.modules:
+        return []
+
+    decorated: list[dict] = []
+    for raw in mp.modules:
+        # Tolerate both list[str] (post-migration-030 shape) and legacy
+        # list[dict] entries — same defensive read the message handler does.
+        mid = raw if isinstance(raw, str) else (raw.get("module_id") if isinstance(raw, dict) else None)
+        if not mid:
+            continue
+        defn = modular_pathway_service.get_module_definition(mid)
+        if not defn:
+            continue
+        decorated.append({
+            "module_id": mid,
+            "label": defn.get("label", mid),
+            "description": defn.get("description", ""),
+            "group": defn.get("group", ""),
+            "fields": list(defn.get("fields") or []),
+            "has_output": bool(defn.get("has_output")),
+        })
+    return decorated

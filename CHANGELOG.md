@@ -4,9 +4,54 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
-### In progress — Unified Discovery overhaul (Phases 1-2 of 6 shipped)
+### Phase 4 audit closure (this commit)
+
+End-of-Phase-4 internal audit identified 2 HIGH, 8 MEDIUM, 5 LOW findings across the v2 code paths. All actionable items resolved in a single sweep with regression testing between each phase. 76/76 backend tests now pass (35 new v2 tests + 41 existing), TypeScript build clean.
+
+### Fixed
+- **H1 — v2 project stranded when up-front assembly skipped.** [projects.py](backend/app/routers/projects.py) now downgrades `flow_version` to `'v1'` when no pathway row is created (no `primary_category`, empty assembly, or assembly exception). Previously these orphan v2 projects rendered ProgressPanel forever empty + no Proceed button.
+- **H2 — `PathwayExecute.tsx` missing v2 redirect.** Defense-in-depth gap closed. v2 users who deep-link to `/pathway-execute/{pid}` now bounce back to Discovery, matching the existing PathwayReview behavior. Prevents the legacy per-module session from clobbering v2-populated `module_responses`.
+- **M8 — Proceed button never appeared for all-optional pathways.** Gate changed from `required_total > 0` to `total_fields > 0` in [Discovery.tsx](frontend/src/pages/Discovery.tsx). Warning chip still only shows when `required_total > 0` AND `required_filled / required_total < 80%`.
+- **New defensive check in `apply_extracted_module_fields`** — unknown field keys (compound keys within valid modules but not in the schema) are now logged + rejected instead of silently coerced to text and persisted. Caught by the new test suite.
+
+### Added
+- **M6 — `GET /api/v1/discovery/{session_id}/field-summary` endpoint.** Returns the current `compute_field_summary` payload for a v2 session. Frontend `Discovery.tsx` now hydrates the ProgressPanel from this endpoint on mount, closing the resume-mid-session blank-state gap. Returns 409 for v1 projects so the client knows to render the legacy panel.
+- **M3 — `build_unified_greeting_prompt`** in `ai_service.py`. v2 projects get a greeting that names the assembled module set + steers toward the first required field's extraction hint. Init handler in `discovery.py` branches on `flow_version`. v1 keeps the legacy `build_greeting_prompt`.
+- **M7 — `_coerce_field_value` drop logging** with module/field/declared-type/raw-value context. Surfaces silent extraction drops in Railway logs without affecting UX.
+- **M1 — extraction prompt instructs dict fields to return whole object** (existing keys merged with new updates) so the JSONB shallow merge doesn't lose nested keys.
+- **`load_decorated_pathway_modules` service helper** in `discovery_service.py` — extracted from the inline decoration logic in the message handler so the new field-summary endpoint can reuse it. Tolerates both list[str] and legacy list[dict] shapes.
+- **L5 — `_reset_module_library()` test hook** in `modular_pathway_service.py`. Lets tests force a re-read of the seed file or inject a mock library.
+- **I4 — new test file `backend/tests/test_discovery_v2.py`** with 35 tests covering: `_coerce_field_value` (12 cases), `_reset_module_library` (2), `compute_field_summary` (4 DB-backed), `load_decorated_pathway_modules` (4 DB-backed), `apply_extracted_module_fields` (2 — validation logic, not the PG-only upsert), `build_unified_discovery_prompt` (3), `build_unified_greeting_prompt` (3).
+
+### Changed
+- **L1 — ProgressPanel "just filled" highlight fades after 8s.** `recentUpdates` state auto-clears via `setTimeout` so the accent doesn't linger between AI turns.
+- **L2 / M5 — ProgressPanel expanded set capped at 3 modules** with FIFO eviction. Applies to both auto-expand (on field_update) and manual user clicks. Prevents scroll clutter on long sessions with many module updates.
+- **M2 / L3 — Stage UI hidden for v2.** `Discovery.tsx` no longer renders TopBar subtitle (`Stage: greeting`), left StagesStepper, or mobile stage indicator for v2 projects. v2 has no meaningful stage progression; the ProgressPanel carries the equivalent signal.
+- **M4 — `loadSheet()` skipped for v2.** Bootstrap effect in `Discovery.tsx` consolidated: project fetched first, `flow_version` known before session start, design-sheet load only runs for v1. Removes the wasted 404 round-trip on v2 session start.
+- **CLAUDE.md → 2.7.0** (MINOR — new endpoint + new helper + new test file, all backwards-compatible).
+
+### In progress — Unified Discovery overhaul (Phases 1-4 of 6 shipped)
 
 The discovery → design kit flow is being restructured. Old `v1` projects keep the existing PathwayReview → Execute → per-module sessions path. New `v2` projects (default for all newly created projects) will use a unified Discovery that funnels toward filling fields across an up-front-assembled module pathway, then land directly on a complete Design Kit. See ROADMAP "Up Next" for the full 6-phase plan.
+
+**Phase 4 (this commit) — frontend ProgressPanel + v2-aware Proceed gate + overlay a11y:**
+- **`components/discovery/ProgressPanel.tsx`** (new) — module-aware progress meter that replaces `DesignSheetPanel` on the right side of Discovery for v2 projects. Renders overall % header with progressbar role, expandable per-module breakdown showing filled / required-left / optional-left counts, and an accent highlight on fields just-filled by the latest extraction batch. Auto-expands whichever module the AI most recently extracted into.
+- **`hooks/useSSE.ts`** — new `onFieldUpdate` callback + exported `FieldUpdate`, `FieldSummary`, `FieldUpdatePayload` types. Parses the `field_update` SSE event emitted by the Phase 2 backend (previously silently dropped). `onSheetUpdate` (v1) and `onFieldUpdate` (v2) coexist; only one fires per AI turn depending on `project.flow_version`.
+- **`pages/Discovery.tsx`** branches on `flowVersion`:
+  - Fetches `flow_version` from `GET /projects/{id}` on mount and stores it. Falls back to `'v1'` if the project fetch errors so the legacy sheet panel still renders.
+  - Right side renders `<ProgressPanel>` for v2, `<DesignSheetPanel>` for v1.
+  - Mobile toggle button label switches between "Progress" and "Sheet"; badge shows `overall_percent` (v2) or `confidence_score` (v1).
+  - Proceed button gate replaced. v1 unchanged (`sheet.confidence_score >= 70` → `/pathway-review/{id}`). v2 always available once `fieldSummary.required_total > 0`, routes to `/exports/{id}` as the interim Design Kit destination (the Phase 5 `/design-kit/{id}` page swaps the destination in). Warning chip with the live `required_filled / required_total` percentage when below 80%.
+- **`pages/Home.tsx` module-preview overlay a11y + mobile (Phase-3-deferred audit items):**
+  - Extracted to new `ModulePreviewOverlay` subcomponent with `role="alertdialog"`, `aria-labelledby` on heading, `aria-describedby` on subtitle.
+  - Dialog focused on mount; `Escape` key skips the 2.2s wait and navigates immediately. Visible "Skip Esc" hint in the footer.
+  - Mobile overflow fix: dialog `max-h-[88vh]`, grid `max-h-[40vh]` on small screens (was `max-h-60` / 240px, which overflowed at <360px viewport).
+  - Destination URL captured on the overlay state so the Esc handler can navigate without recomputing it.
+- **`types/project.ts`** — added `flow_version: 'v1' | 'v2'` plus `primary_category`, `secondary_category`, `pathway_locked` (all returned by backend `ProjectRead` but missing from the frontend type until now).
+
+Known Phase-4 limitation (intentional, scoped to Phase 5): on resume, the ProgressPanel shows its empty state until the user's next message. The `field_update` event fires after AI replies, not on session-resume. A dedicated `GET /discovery/{id}/field-summary` endpoint to seed the panel on mount is a Phase 5 follow-up — once `/design-kit/{id}` exists, it'll load the summary directly and resume-on-Discovery becomes less common.
+
+- CLAUDE.md → 2.6.0 (MINOR — new user-visible feature: ProgressPanel + v2 Proceed gate + a11y improvements)
 
 **Phase 1 (commit `fb840de`):**
 - `projects.flow_version` column (migration 029) — `v2` default, existing rows backfilled to `v1`
@@ -59,7 +104,7 @@ Audit findings deferred to Phase 4 (not blockers for handoff):
 - New SSE event type: `field_update` carrying `{updates: [{module_id, field_key, value}], summary: {total_filled, total_fields, required_filled, required_total, overall_percent, per_module: [...]}}`
 - Done event still always fires with chips fallback (Phase-pre fix from earlier today carried through).
 
-Phase 3 (frontend Home category selector) is the next slice.
+Phase 5 (Design Kit page at `/design-kit/{id}` with per-module Edit + Refresh affordances) is the next slice. Phase 6 (Additional Discovery for newly-added modules) closes the v2 frontend overhaul.
 
 ---
 

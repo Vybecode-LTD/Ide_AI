@@ -11,6 +11,7 @@ import { PathwayProgress } from '../components/pathway/PathwayProgress'
 import { Button } from '../components/ui/Button'
 import { StageInterlude, PulseBeacon } from '../components/tutorial'
 import { useModulePathwayStore } from '../stores/modulePathwayStore'
+import apiClient from '../lib/apiClient'
 import toast from 'react-hot-toast'
 import type { PathwayModuleEntry } from '../types/modulePathway'
 
@@ -41,6 +42,25 @@ export function PathwayExecute() {
     let cancelled = false
 
     const init = async () => {
+      // v2 projects don't use PathwayExecute — they go straight from
+      // creation → Discovery → Design Kit (Phase 5). Redirect any v2
+      // project that lands here back to Discovery. Audit H2: defense-
+      // in-depth — Library + PathwayReview already redirect v2 away,
+      // but a manual URL (/pathway-execute/{v2-pid}) would otherwise
+      // open a legacy per-module session that clobbers the v2-populated
+      // module_responses.
+      try {
+        const { data: proj } = await apiClient.get(`/projects/${projectId}`)
+        if (proj?.flow_version === 'v2') {
+          navigate(`/discovery/${projectId}`, { replace: true })
+          return
+        }
+      } catch {
+        // If project fetch fails, fall through to the legacy path —
+        // recoverable; user can re-navigate.
+      }
+      if (cancelled) return
+
       try {
         await fetchPathway(projectId)
       } catch (err) {

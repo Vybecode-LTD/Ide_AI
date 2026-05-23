@@ -57,6 +57,17 @@ def _load_modules() -> list[dict]:
     return _module_library
 
 
+def _reset_module_library() -> None:
+    """Clear the cached module library. Test-only — closes audit finding L5.
+
+    Tests that mock the seed file or override library contents call this to
+    force the next ``_load_modules()`` invocation to re-read from disk (or
+    pick up an injected library set directly via ``_module_library``).
+    """
+    global _module_library
+    _module_library = None
+
+
 def get_all_modules() -> list[dict]:
     """Return all module definitions from the library."""
     new_modules = _load_modules()

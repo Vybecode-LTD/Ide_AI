@@ -468,6 +468,86 @@ Each chip must be a DIRECT, COMPLETE answer to the question you just asked.
     return "\n".join(parts)
 
 
+async def build_unified_greeting_prompt(
+    *,
+    project_name: str,
+    project_description: str | None,
+    primary_category: str | None,
+    platform: str | None,
+    modules: list[dict],
+    ai_partner_style: str | None = None,
+) -> str:
+    """Build a v2-aware greeting prompt.
+
+    Like ``build_greeting_prompt`` but references the assembled module set so
+    the AI's opener foreshadows what's coming. Closes audit finding M3.
+
+    Falls back to the legacy greeting if ``modules`` is empty so callers don't
+    need to branch upstream.
+    """
+    from app.services.partner_style_service import get_partner_style_fragment, DEFAULT_PARTNER_STYLE
+
+    if not modules:
+        # Defensive — let the caller still get a usable prompt
+        return await build_greeting_prompt(
+            project_description=project_description,
+            platform=platform or "custom",
+            ai_partner_style=ai_partner_style,
+        )
+
+    parts = [
+        "You are a discovery partner kicking off a structured design-kit "
+        "session. The project's module pathway has already been assembled, "
+        "so you know the shape of what you're going to fill in together over "
+        "the next several turns. Your job in THIS opening turn is to greet "
+        "warmly, briefly frame what's coming, and ask ONE specific opening "
+        "question that starts filling the first module's required fields."
+    ]
+
+    style = ai_partner_style or DEFAULT_PARTNER_STYLE
+    parts.append(f"\n{get_partner_style_fragment(style)}")
+
+    parts.append(f"""
+PROJECT
+- Name: {project_name}
+- Description: {project_description or '(none yet — your opener should ask the user to describe it)'}
+- Category: {primary_category or 'general'}
+- Platform: {platform or 'custom'}""")
+
+    # List the first few module labels so the greeting can name them naturally
+    preview = ", ".join(m.get("label", m.get("module_id", "")) for m in modules[:5] if m.get("label") or m.get("module_id"))
+    more = max(0, len(modules) - 5)
+    summary_line = preview + (f", plus {more} more" if more else "")
+    parts.append(f"\nMODULES IN THIS DESIGN KIT ({len(modules)} total): {summary_line}.")
+
+    # First module hints at what to ask about
+    first = modules[0]
+    first_label = first.get("label", first.get("module_id", "the first topic"))
+    first_required = [f for f in (first.get("fields") or []) if f.get("required")]
+    if first_required:
+        # Use the first required field's extraction hint as a steer (not a prompt)
+        first_hint = first_required[0].get("extraction_hint", "")
+        parts.append(
+            f"\nYour opening question should start filling the first module ({first_label}). "
+            f"Steer toward: {first_hint}"
+        )
+
+    parts.append("""
+OPENING TURN RULES
+- 2-4 short sentences max. Be warm, not gushy.
+- Briefly name what the design kit will cover (you can mention 2-3 module names by category).
+- End with EXACTLY ONE focused question that starts filling the first module's required fields.
+- Never list every module — that's overwhelming. Just hint at the shape.""")
+
+    parts.append("""
+QUICK REPLY CHIPS (MANDATORY — never skip this)
+End your response with 2-3 specific answer options on the very last line.
+Format: [CHIPS: answer1 | answer2 | answer3]
+Each chip must directly answer the question you asked. Never use vague options like "Tell me more".""")
+
+    return "\n".join(parts)
+
+
 async def extract_module_fields(
     messages: list,
     modules: list[dict],
@@ -510,7 +590,7 @@ Already filled (do NOT repeat unless the user explicitly updated them in the lat
 
 Rules:
 - For "list" fields, return a JSON array of strings
-- For "dict" fields, return a JSON object
+- For "dict" fields, return a JSON object — IMPORTANT: include the FULL object (all existing keys merged with any new ones from the conversation). The storage layer replaces dict values wholesale, so a partial dict would erase keys you don't include.
 - For "text" / "longtext" fields, return a JSON string
 - ONLY include fields where you have NEW information from the latest user messages
 - If unsure, OMIT the field entirely (do not return null or empty strings)

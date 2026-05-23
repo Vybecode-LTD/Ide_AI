@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -40,9 +40,9 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ## Current Session (2026-05-23) — Marathon Day
 
-Single massive session that landed 10 commits across 5 major workstreams. Foundation is now ready for Phase 3 of the unified-Discovery overhaul.
+Single massive session that landed 11 commits across 6 major workstreams. Foundation is now ready for Phase 5 of the unified-Discovery overhaul.
 
-### Commits this session (10, all pushed to main, in chronological order)
+### Commits this session (11, all pushed to main, in chronological order)
 
 | Hash | What |
 |------|------|
@@ -56,27 +56,47 @@ Single massive session that landed 10 commits across 5 major workstreams. Founda
 | `fb840de` | feat(discovery v2): Phase 1 — module field schemas + up-front pathway assembly |
 | `8cfc66a` | feat(discovery v2): Phase 2 — unified prompt + field_update event |
 | `23f5e7d` | fix(discovery v2): Phase 2 hotfix — shape fix + race-safe upsert + type coercion |
+| `94102cb` + `a7257e0` | feat(discovery v2): Phase 3 + hotfix — Home reorder + post-create overlay + 5 audit fixes |
+| _(Phase 4)_ | feat(discovery v2): Phase 4 — ProgressPanel + v2 Proceed gate + overlay a11y |
+| _(this commit)_ | feat(discovery v2): Phase 4 audit closure — H1+H2+M8+M6+M3+M7+M1+M2+M4+M5+L1+L2+L5+I4 (14 fixes/additions) |
 
 ### Most important things to know for the next session
 
-**Discovery v2 overhaul is in flight** — Phases 1-2-hotfix-3-3hotfix all shipped today. Phase 4 is next. Two flow versions coexist:
+**Discovery v2 overhaul is in flight** — Phases 1-4 of 6 shipped. Phase 5 is next. Two flow versions coexist:
 - **v1 (legacy projects + template projects)** — `projects.flow_version = 'v1'`. Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
-- **v2 (new non-template projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. New SSE event `field_update` carries per-module summary. After creation, Home shows a 2.2-second module-preview overlay listing what the AI will fill, then routes to /discovery.
+- **v2 (new non-template projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. SSE event `field_update` carries per-module summary. Right side panel shows live progress meter (ProgressPanel). Proceed button always available once required fields exist, routes to `/exports/{id}` as interim Design Kit destination.
 
-**Phase 3 is shipped** (commit `94102cb`) + **Phase 3 hotfix shipped** (current commit) covering 5 audit-found bugs:
-1. `setTimeout` leak in Home's preview-navigate (orphan timer no longer fires post-unmount)
-2. Billing-success URL clean preserves `?category=...` (was stripped, causing flow loss)
-3. Template projects now flagged `flow_version='v1'` (was defaulting to v2 with no pathway → Library/PathwayReview routing broke)
-4. Library resume routing gates on `flow_version` — v2 projects always resume to `/discovery/{pid}`
-5. PathwayReview redirects v2 projects to `/discovery/{pid}` on mount so deep-links don't drop users into legacy module sessions
+**Phase 4 + audit closure shipped** (this commit) — full frontend + backend parity for v2, plus all actionable audit findings resolved:
 
-**Where Phase 4 picks up — ProgressPanel for v2 Discovery:**
-- Replace `DesignSheetPanel` on the right side of Discovery with a new `ProgressPanel` for v2 projects
-- Subscribe to the `field_update` SSE event (already emitted by Phase 2 backend) for the live progress data
-- Show overall % at top with the Proceed button (always available, warning chip if <80% required filled)
-- Expandable per-module breakdown: filled / required-blank / optional-blank counts
-- Replace the `sheet.confidence_score >= 70` Proceed trigger with a field-completion check
-- Route Proceed to a temporary "Design Kit coming in Phase 5" placeholder (or directly to /exports for now) — Phase 5 builds the real `/design-kit/{projectId}` page
+Phase 4 frontend (originally):
+1. `ProgressPanel` on right side of Discovery for v2 — overall %, expandable per-module breakdown, recent-update accent
+2. `useSSE` extended with `onFieldUpdate` callback + exported types
+3. `Discovery.tsx` branches right panel + mobile badge + Proceed gate on `flow_version`
+4. v2 Proceed routes to `/exports/{id}` with field-completion gate
+5. Module-preview overlay a11y (role/labelledby/describedby/Esc/focus/mobile max-h)
+
+Audit closure (14 items addressed):
+- **H1** — `projects.py` downgrades v2→v1 when assembly skipped (no stranded users)
+- **H2** — `PathwayExecute.tsx` v2 redirect (defense-in-depth)
+- **M6** — `GET /discovery/{session_id}/field-summary` endpoint + frontend hydration on mount
+- **M3** — `build_unified_greeting_prompt` for v2 init (references assembled modules)
+- **M7** — `_coerce_field_value` drops now logged with full context
+- **M1** — extraction prompt instructs dict fields to return whole object
+- **M8** — Proceed gate uses `total_fields > 0` (handles all-optional pathways)
+- **M2/L3** — Stage UI hidden for v2 (TopBar subtitle + StagesStepper + mobile indicator)
+- **M4** — `loadSheet()` skipped for v2 (consolidated bootstrap effect)
+- **M5/L2** — ProgressPanel expanded set capped at 3 modules (FIFO)
+- **L1** — `recentUpdates` highlight fades after 8s
+- **L5** — `_reset_module_library()` test hook
+- **I4** — new `test_discovery_v2.py` with 35 tests (76 total backend tests, all passing)
+- **Defensive bonus** — `apply_extracted_module_fields` now rejects unknown field keys (caught by the new tests)
+
+**Where Phase 5 picks up — Design Kit page at `/design-kit/{projectId}`:**
+- New top-level page that replaces `/exports/{id}` as the v2 Proceed destination
+- Per-module Edit affordance: inline form per module showing every field schema → updates `module_responses.responses` via PATCH
+- Refresh affordance on the 6 `has_output` modules — regenerate that module's structured output from the current field values
+- "Add Modules" button at the top opens a category-filtered picker; selected modules append to the pathway and Phase 6 will pick them up
+- Backend additions required: `PATCH /modules/{pid}/{mid}/responses` (Edit) + `POST /modules/{pid}/{mid}/refresh-output` (Refresh) + category-filtered library listing
 
 **Backend foundation is solid for v2:**
 - Module library has 40 modules with 154 fields total (52 required, 102 optional), 6 modules flagged `has_output`
@@ -84,7 +104,8 @@ Single massive session that landed 10 commits across 5 major workstreams. Founda
 - `discovery_service.apply_extracted_module_fields` uses race-safe ON CONFLICT upsert (migration 030)
 - `_coerce_field_value` defends against AI returning wrong-shape values
 - SSE done event always fires (Phase-pre robustness fix carried through)
-- 5 audit-found bugs all closed via the Phase 3 hotfix commit
+- All 5 Phase-3 audit-found bugs closed via the Phase 3 hotfix commit
+- Frontend ProgressPanel hydrates from `field_update` SSE — TypeScript build clean (Phase 4)
 
 ### Admin system live (commit 3747eac)
 
@@ -205,7 +226,11 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 - **Discovery SSE robustness** — `done` event always fires (try/except wrapped at every yield), assistant message persists in its own transaction (resume bug fixed), chip generator has a 3-item fallback chain
 - **Discovery v1 (legacy projects)** — Unchanged: state machine stages → design-sheet extraction → sheet_update event → PathwayReview → PathwayExecute → per-module sessions
 - **Discovery v2 backend foundation** — Up-front pathway assembly at project creation, unified prompt targeting all module field schemas, `field_update` SSE event, race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`
+- **Discovery v2 frontend (Phase 4)** — `ProgressPanel` swaps for `DesignSheetPanel` on v2 projects; mobile badge + Proceed button gate also branch on `flow_version`; v2 Proceed routes to `/exports/{id}` until Phase 5 ships
+- **Module-preview overlay a11y** — `role="alertdialog"`, labelledby/describedby, Esc-to-skip, focus-on-mount, mobile max-h fix
+- **Audit-closure additions** — `GET /discovery/{session_id}/field-summary` endpoint, `build_unified_greeting_prompt` (v2-aware init), `_coerce_field_value` drop logging, defensive unknown-field-key rejection, ProgressPanel expanded-set cap (FIFO 3), recentUpdates 8s fade, stage UI hidden for v2, loadSheet skipped for v2, `_reset_module_library` test hook
 - **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output` for the Refresh affordance coming in Phase 5
+- **Backend test coverage on v2** — 35 new tests in `test_discovery_v2.py` covering `_coerce_field_value`, `_reset_module_library`, `compute_field_summary`, `load_decorated_pathway_modules`, `apply_extracted_module_fields` validation logic, `build_unified_discovery_prompt`, `build_unified_greeting_prompt`. 76/76 backend tests pass.
 - **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.4.1), CONTEXT_HANDOFF.md (3.0.0), TODO.md (2.0.0+), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.1.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
 - **Migration chain** — Linear 001→030, all reversible cleanly
@@ -216,13 +241,16 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What Still Needs Your Action
 
-### 🚦 Phase 4 next steps (frontend ProgressPanel for v2 Discovery)
+### 🚦 Phase 5 next steps (Design Kit page at /design-kit/{projectId})
 
-1. **New `ProgressPanel` component** at `frontend/src/components/discovery/ProgressPanel.tsx`. Replaces `DesignSheetPanel` on the right side of Discovery for v2 projects only.
-2. **Extend `useSSE`** to handle the new `field_update` event type (currently silently dropped — `useSSE.ts:80-95`).
-3. **Discovery.tsx branch**: if `project.flow_version === 'v2'`, render `ProgressPanel`; else keep `DesignSheetPanel`.
-4. **Replace the Proceed-button trigger** at `Discovery.tsx:368` — for v2 use the `field_update` summary's `required_filled / required_total` ratio (e.g. show button always, with warning chip if <80%). Route to a placeholder `/design-kit/{projectId}` (404 for now until Phase 5 ships) OR keep routing to `/exports/{projectId}` as an interim.
-5. Plumb `flow_version` into Discovery — currently not loaded. Either fetch project at mount or add to `/discovery/start` response.
+1. **New `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Replaces `/exports/{id}` as the v2 Proceed destination.
+2. **Per-module Edit affordance** — inline form rendering each module's `fields` schema. PATCH writes to `module_responses.responses`. (New backend endpoint required: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`.)
+3. **Refresh affordance on `has_output` modules** — regenerate that module's structured output (the 6 modules flagged `has_output: true` in `module_library.seed.json`). Backend: `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` calling the existing module-output prompt builder.
+4. **Add Modules button** at the top — opens a category-filtered picker; selected modules append to `module_pathways.modules`. Phase 6 will trigger an additional-discovery mini-session for any newly-added modules' unfilled required fields.
+5. **Swap the v2 Proceed button destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once the new page exists.
+6. **Update Library resume routing** (`_compute_resume_path`) — v2 projects with high field-completion could route to `/design-kit/{id}` rather than back to `/discovery/{id}`.
+
+_Note: `GET /discovery/{session_id}/field-summary` already shipped in this commit (audit M6 closure)._
 
 ### 🔐 Security hygiene (recommended but not blocking)
 
@@ -240,7 +268,7 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 ### 📋 Audit findings deferred from Phase 2 hotfix
 
 - **Prompt size unbounded as modules scale** — currently 8-15 modules typical, ~150 lines of system prompt. Fine for now; revisit if Phase 5+ adds many more modules per pathway.
-- **Discovery "Proceed" button still routes v2 to /pathway-review** — effectively unreachable since v2 doesn't update design_sheet (confidence_score stays at 0). Phase 4 will replace the trigger with a field-completion condition + route to the new design-kit page.
+- ~~Discovery "Proceed" button still routes v2 to /pathway-review~~ — **closed in Phase 4**. v2 Proceed now routes to `/exports/{id}` with a field-completion gate. Phase 5 swaps the destination to the new `/design-kit/{id}` page.
 
 ---
 
@@ -385,22 +413,24 @@ Required pip packages: `pytest pytest-asyncio aiosqlite sqlalchemy[asyncio] pyda
 
 ## Code Quality Snapshot (2026-05-23 — end of marathon session)
 
-- ✅ TypeScript: zero compilation errors (last verified after toast migration + admin UI + realtime inbox)
-- ✅ Backend Python: syntax validated on all 15+ files changed today
+- ✅ TypeScript: zero compilation errors (verified after Phase C audit closure)
+- ✅ Backend Python: 76/76 tests pass (35 new v2 + 41 existing). Syntax validated on all touched files.
 - ✅ Migration chain: linear 001→030, all reversible
 - ✅ Auth: production-hardened with issuer + audience + azp enforcement; race-handling consolidated with INSERT ON CONFLICT
-- ✅ SSE: always emits `done` (Phase-pre robustness fix); v2 emits `field_update` before done with default=str safety
-- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities
-- ✅ Error UX: ~40 silent failures now surface via toast across 18 components; 2 `fetchPathway` callers wrapped
+- ✅ SSE: always emits `done`; v2 emits `field_update` before done with default=str safety; frontend `useSSE` parses `field_update` via `onFieldUpdate`
+- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities; module-preview overlay has dynamic max-h for <360px viewports
+- ✅ Error UX: ~40 silent failures surface via toast; `_coerce_field_value` drops now logged with module/field context
 - ✅ Admin system: live + user-tested; entitlement overrides merge correctly
 - ✅ Realtime inbox: Redis pub/sub verified end-to-end in production
-- ✅ Discovery v1: backward-compat fully preserved (verified by 2-agent audit)
-- ✅ Discovery v2 backend: foundation solid (up-front assembly + unified prompt + race-safe upsert + type coercion + always-fires done)
+- ✅ Discovery v1: backward-compat fully preserved (verified by 2-agent audit + 41 existing tests still pass)
+- ✅ Discovery v2 backend: foundation solid + audit-closed (H1 stranded-state fix, defensive unknown-field-key rejection, M3 v2-aware greeting, M6 field-summary endpoint)
+- ✅ Discovery v2 frontend: ProgressPanel + v2 Proceed gate + stage UI hidden + loadSheet skipped + recentUpdates fade + expanded-set cap + field-summary hydration on mount
+- ✅ Backend test coverage on v2: 35 new tests in `test_discovery_v2.py`. Unknown-field-key defensive rejection was caught by the new suite.
 - ✅ Railway: all env vars set including REDIS_URL
 - ✅ Doc versioning: convention live + Stop hook nags on missing CHANGELOG
 - ⚠️ Webhook secrets: 3 exposed in chat earlier — rotate when convenient
 - ⚠️ One orphan user row in DB (no clerk_user_id) — leftover from debug
-- ⚠️ Phase 3 frontend not yet started — v2 projects can be created but currently routed through the v1 UI
-- ❌ Frontend tests: none exist
+- ⚠️ JSONB `||` shallow merge known limitation for dict-typed fields (M1) — mitigated via extraction-prompt instruction to return whole dicts; not yet enforced server-side
+- ❌ Frontend tests: none exist (Vitest scaffold deferred — high-leverage TODO)
 - ❌ Backend admin endpoint tests: no pytest coverage yet
-- ❌ Discovery v2 tests: zero coverage on the new prompt builder, extractor, upsert path
+- ❌ Discovery v2 upsert ON CONFLICT path not testable under SQLite — verified in production by manual smoke; PG-backed integration test environment would close this

@@ -87,13 +87,36 @@ async def init_greeting(
     # Resolve the project's pathway
     pw = PathwayRegistry.get_or_default(project.pathway_id)
 
-    # Build greeting prompt with project context + partner style
-    system_prompt = await ai_service.build_greeting_prompt(
-        project_description=project.description,
-        platform=project.platform or "custom",
-        pathway=pw,
-        ai_partner_style=session.ai_partner_style,
-    )
+    # Branch on flow_version: v2 projects get a unified-aware greeting that
+    # references the assembled module set; v1 keeps the legacy stage-based
+    # greeting. Closes audit finding M3. Falls back to the legacy greeting
+    # if the v2 pathway happens to be empty (defensive — should not happen
+    # post-H1 fix in projects.py which downgrades empty v2 projects to v1).
+    if getattr(project, "flow_version", "v1") == "v2":
+        decorated = await discovery_service.load_decorated_pathway_modules(db, project.id)
+        if decorated:
+            system_prompt = await ai_service.build_unified_greeting_prompt(
+                project_name=project.name,
+                project_description=project.description,
+                primary_category=project.primary_category,
+                platform=project.platform or "custom",
+                modules=decorated,
+                ai_partner_style=session.ai_partner_style,
+            )
+        else:
+            system_prompt = await ai_service.build_greeting_prompt(
+                project_description=project.description,
+                platform=project.platform or "custom",
+                pathway=pw,
+                ai_partner_style=session.ai_partner_style,
+            )
+    else:
+        system_prompt = await ai_service.build_greeting_prompt(
+            project_description=project.description,
+            platform=project.platform or "custom",
+            pathway=pw,
+            ai_partner_style=session.ai_partner_style,
+        )
 
     # The AI speaks first — no user message in the history
     claude_messages = [{"role": "user", "content": f"I want to build: {project.description or project.name}"}]
@@ -374,6 +397,45 @@ async def send_message(
             yield 'data: {"type": "done", "stage": "", "chips": ["Yes, exactly", "Not quite", "I have a different angle"]}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/{session_id}/field-summary")
+async def get_field_summary(
+    session_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current field-completion summary for a v2 discovery session.
+
+    Used by the frontend ProgressPanel to hydrate on mount / resume — without
+    this endpoint the panel sits empty until the user's next message triggers
+    a ``field_update`` SSE event. Closes audit finding M6.
+
+    Returns ``404`` if the session doesn't exist or the user doesn't own its
+    project. Returns ``409`` if the project is v1 (no module pathway to
+    summarize) so the client knows to render the legacy DesignSheetPanel
+    instead.
+    """
+    session = await discovery_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    proj_result = await db.execute(
+        select(Project).where(Project.id == session.project_id, Project.user_id == current_user.id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    if getattr(project, "flow_version", "v1") != "v2":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Project is on the v1 discovery flow; no field summary available",
+        )
+
+    decorated = await discovery_service.load_decorated_pathway_modules(db, project.id)
+    summary = await discovery_service.compute_field_summary(db, project.id, decorated)
+    return summary
 
 
 @router.patch("/{session_id}/progress")

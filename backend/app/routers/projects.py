@@ -70,6 +70,15 @@ async def create_project(
     # PathwayRead schema and the existing modules.py/PathwayExecute consumers.
     # The unified-discovery prompt builder decorates these IDs into full
     # module entries (with fields/labels) on read.
+    #
+    # Critical: if assembly is skipped (no primary_category) or yields zero
+    # modules (unknown category, library missing) or throws, we MUST downgrade
+    # `flow_version` to "v1". Otherwise the frontend reads "v2" from
+    # `GET /projects/{id}`, renders ProgressPanel, never receives a
+    # field_update (the v2 discovery branch requires a pathway row), and the
+    # Proceed button never appears — leaving the user stranded. This is audit
+    # finding H1.
+    pathway_created = False
     if project.flow_version == "v2" and project.primary_category:
         try:
             assembled = modular_pathway_service.assemble_pathway_from_creation_inputs(
@@ -91,21 +100,24 @@ async def create_project(
                 )
                 db.add(pathway)
                 await db.flush()
+                pathway_created = True
             else:
-                # Empty assembly (unknown category, library missing, etc.) —
-                # skip creating an orphan pathway row. The discovery branch
-                # gracefully falls through to the v1 path when no pathway exists.
                 logger.warning(
-                    "Up-front pathway assembly returned 0 modules for project %s; pathway not created",
+                    "Up-front pathway assembly returned 0 modules for project %s; falling back to v1",
                     project.id,
                 )
         except Exception as exc:
-            # Don't fail project creation if pathway assembly hiccups — the
-            # discovery branch falls back to v1 design-sheet behavior cleanly.
             logger.warning(
-                "Up-front pathway assembly failed for project %s: %s",
+                "Up-front pathway assembly failed for project %s: %s; falling back to v1",
                 project.id, exc,
             )
+
+    # H1 fix: downgrade orphan v2 projects to v1 so the frontend renders the
+    # legacy DesignSheetPanel + confidence-gated Proceed button instead of an
+    # empty ProgressPanel.
+    if project.flow_version == "v2" and not pathway_created:
+        project.flow_version = "v1"
+        await db.flush()
 
     return project
 

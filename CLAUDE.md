@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.5.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.7.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -260,11 +260,20 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - SSE streaming via FastAPI StreamingResponse + EventSource on frontend
 - **Branches on `project.flow_version`**:
   - **v1 (legacy projects)**: State machine stages (greeting → problem → audience → features → constraints → confirm). After each AI response the backend extracts design-sheet fields, writes to `design_sheets`, emits `sheet_update` event. This is the original behavior — untouched.
-  - **v2 (new projects)**: Unified prompt that targets ALL module field schemas at once. The AI sees every assembled module + its fields + what's already filled, and funnels toward the first unfilled REQUIRED field each turn. After each response the backend runs `extract_module_fields` and writes per-module field values into `module_responses.responses`. Emits a NEW `field_update` SSE event containing per-field updates + an aggregate summary (overall %, required %, per-module breakdown).
+  - **v2 (new projects)**: Unified prompt that targets ALL module field schemas at once. The AI sees every assembled module + its fields + what's already filled, and funnels toward the first unfilled REQUIRED field each turn. After each response the backend runs `extract_module_fields` and writes per-module field values into `module_responses.responses`. Emits a `field_update` SSE event containing per-field updates + an aggregate summary (overall %, required %, per-module breakdown).
 - Event types: `token` (streaming text), `sheet_update` (v1 only), `field_update` (v2 only), `done` (response complete; always emitted, hardened with try/except + fallback chips)
 - Quick reply chips: AI-generated suggested replies per turn (`[CHIPS: a | b | c]` extracted with 3-stage fallback chain)
 - Voice input: Web Speech API mic button next to chat input (browser-only, zero backend cost)
-- UI: left stage stepper, center chat thread, right live design sheet panel (v1) — for v2 the right panel will become a module-aware progress meter in Phase 4
+- UI: left stage stepper, center chat thread, right side panel branches on `flow_version`:
+  - **v1**: `DesignSheetPanel` (`components/framework/DesignSheetPanel.tsx`) showing extracted design-sheet fields + confidence ring
+  - **v2**: `ProgressPanel` (`components/discovery/ProgressPanel.tsx`) showing overall %, expandable per-module breakdown with filled/required-left/optional-left counts, accent highlight on just-filled fields
+- Proceed button gate also branches:
+  - **v1**: appears when `sheet.confidence_score >= 70`, routes to `/pathway-review/{id}`
+  - **v2**: always available once `summary.required_total > 0`, routes to `/exports/{id}` (interim Design Kit destination — Phase 5 swaps to `/design-kit/{id}`). Warning chip shows live `required_filled / required_total` percentage when below 80%.
+- `useSSE` hook accepts `onFieldUpdate` callback alongside `onSheetUpdate` — exports `FieldUpdate`, `FieldSummary`, `FieldUpdatePayload` types
+- v2 greeting uses a dedicated `build_unified_greeting_prompt` that references the assembled modules + steers toward the first required field's extraction hint. v1 keeps the legacy `build_greeting_prompt`.
+- v2 ProgressPanel hydrates on mount via `GET /discovery/{session_id}/field-summary` so resume mid-session shows accurate progress without waiting for the next message.
+- v2 Discovery hides the stage UI (TopBar subtitle, left StagesStepper, mobile stage indicator) — the unified flow has no stage progression.
 - AI model: Anthropic Claude (claude-sonnet-4-6), configurable via CLAUDE_MODEL env var
 - Designed for 15–30 minute sessions from idea to completed design kit
 
@@ -504,7 +513,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | Projects | `POST /projects`, `GET /projects/{id}`, `PATCH /projects/{id}` |
 | Pathways | `GET /pathways`, `POST /pathways/detect` |
 | Meta | `GET /meta/partner-styles` |
-| Discovery | `POST /discovery/start` (body: project_id), `POST /discovery/{session_id}/init` (SSE), `POST /discovery/{session_id}/message` (SSE), `PATCH /discovery/{session_id}/partner`, `PATCH /discovery/{session_id}/progress`, `GET /discovery/{session_id}`, `GET /discovery/{session_id}/sheet`, `GET /discovery/{session_id}/transcript?format=md\|pdf\|txt` |
+| Discovery | `POST /discovery/start` (body: project_id), `POST /discovery/{session_id}/init` (SSE), `POST /discovery/{session_id}/message` (SSE), `PATCH /discovery/{session_id}/partner`, `PATCH /discovery/{session_id}/progress`, `GET /discovery/{session_id}`, `GET /discovery/{session_id}/sheet`, `GET /discovery/{session_id}/field-summary` (v2 only — returns 409 for v1), `GET /discovery/{session_id}/transcript?format=md\|pdf\|txt` |
 | Blocks | `GET /projects/{project_id}/blocks`, `POST /projects/{project_id}/blocks`, `POST /projects/{project_id}/blocks/generate`, `PATCH /projects/{project_id}/blocks/{block_id}`, `DELETE /projects/{project_id}/blocks/{block_id}` |
 | Pipeline | `GET /projects/{id}/pipeline`, `POST /projects/{id}/pipeline/recommend`, `PATCH /projects/{id}/pipeline/{layer}`, `POST /projects/{id}/pipeline/ui-skeleton` |
 | Exports | `GET /projects/{id}/export?format=md\|pdf\|docx\|zip` |
