@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.4.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.4.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -490,6 +490,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 027 | Add `users.is_admin` (bool) + `users.entitlement_overrides` (JSONB) |
 | 028 | Create `admin_audit_log` table (append-only admin action log) |
 | 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
+| 030 | Phase-2 hotfix — backfill `module_pathways.modules` shape, dedup `module_responses`, add UNIQUE(project_id, module_id) |
 
 ---
 

@@ -14,7 +14,19 @@ The discovery → design kit flow is being restructured. Old `v1` projects keep 
 - Up-front pathway assembly at project creation
 - New helpers: `get_module_fields`, `get_pathway_field_summary`, `assemble_pathway_from_creation_inputs`
 
-**Phase 2 (this commit):**
+**Phase 2 hotfix (this commit, post 2-agent audit):**
+- **Migration 030** — three forward-only data fixes:
+  1. Backfill `module_pathways.modules` from list[dict] → list[str] for any rows already created on the broken Phase-1 shape
+  2. Dedup `module_responses` by (project_id, module_id) keeping the newest row per pair
+  3. Add `UNIQUE(project_id, module_id)` on `module_responses` so the race-safe ON CONFLICT upsert can apply field updates without duplicate-row pile-ups
+- **`projects.py`** now stores module-id strings only on `module_pathways.modules` (matches `PathwayRead.modules: list[str]` and `modules.py`/PathwayExecute consumers). Empty assembly results no longer create an orphan pathway row.
+- **`discovery.py`** now decorates `mp.modules` (strings) into full module entries (with `label`, `description`, `group`, `fields`, `has_output`) at read time by looking up the library definition. Tolerates legacy list[dict] shape too in case migration 030 hasn't run for a given DB.
+- **`discovery_service.apply_extracted_module_fields`** rewritten to use PostgreSQL `INSERT ... ON CONFLICT (project_id, module_id) DO UPDATE` with JSONB `||` merge. Concurrent calls from the same project (multi-tab, retry) no longer race.
+- **Type coercion** via new `_coerce_field_value(value, field_type)` helper — if the AI returns a string for a list-typed field, it's wrapped; a dict for a list field is values-extracted; a scalar for a dict field is rejected (returns None). Defends against schema-shape drift.
+- **SSE serialization safety**: `json.dumps(..., default=str)` on all event payloads in discovery.py — guards against datetime / UUID / Decimal values sneaking in from JSONB columns.
+- **CLAUDE.md** → 2.4.1 (PATCH bump — internal robustness, no documented-feature change)
+
+**Phase 2 (commit `8cfc66a`):**
 - `ai_service.build_unified_discovery_prompt(...)` — new system prompt builder that exposes ALL assembled modules + their field schemas + already-filled state, and instructs the AI to funnel toward the first unfilled REQUIRED field each turn. Layered with the existing partner-style fragments. Includes the standard CHIPS rules.
 - `ai_service.extract_module_fields(messages, modules, current_fields)` — new extractor that returns a JSON dict keyed by `"module_id.field_key"`. Validates returned keys against the schema and drops anything not recognized. Handles markdown-fence-wrapped JSON.
 - `discovery_service.get_filled_fields_for_project(...)` — loads current state of `module_responses.responses` grouped by module_id.

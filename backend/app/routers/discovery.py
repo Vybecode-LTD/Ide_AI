@@ -18,7 +18,7 @@ from app.pathways import PathwayRegistry
 from app.routers.auth import get_current_user
 from app.schemas.session import MessagePayload, PartnerUpdatePayload, ProgressPayload, SessionCreate, SessionRead
 from app.schemas.design_sheet import DesignSheetRead
-from app.services import discovery_service, ai_service, transcript_service
+from app.services import discovery_service, ai_service, modular_pathway_service, transcript_service
 
 logger = logging.getLogger(__name__)
 
@@ -189,11 +189,35 @@ async def send_message(
         )
         mp = mp_result.scalar_one_or_none()
         if mp and mp.modules:
-            use_v2_flow = True
-            pathway_modules = list(mp.modules)
-            current_fields = await discovery_service.get_filled_fields_for_project(
-                db, project.id
-            )
+            # mp.modules stores module-id strings (per PathwayRead schema).
+            # Decorate each ID into a full module entry with label + fields +
+            # has_output by looking up the library definition. Skips unknown
+            # IDs gracefully. Tolerates legacy list[dict] shape too in case
+            # migration 030 hasn't run yet for a given DB.
+            raw_entries = list(mp.modules)
+            decorated: list[dict] = []
+            for raw in raw_entries:
+                mid = raw if isinstance(raw, str) else (raw.get("module_id") if isinstance(raw, dict) else None)
+                if not mid:
+                    continue
+                defn = modular_pathway_service.get_module_definition(mid)
+                if not defn:
+                    continue
+                decorated.append({
+                    "module_id": mid,
+                    "label": defn.get("label", mid),
+                    "description": defn.get("description", ""),
+                    "group": defn.get("group", ""),
+                    "fields": list(defn.get("fields") or []),
+                    "has_output": bool(defn.get("has_output")),
+                })
+
+            if decorated:
+                use_v2_flow = True
+                pathway_modules = decorated
+                current_fields = await discovery_service.get_filled_fields_for_project(
+                    db, project.id
+                )
 
     if use_v2_flow:
         system_prompt = await ai_service.build_unified_discovery_prompt(
@@ -315,14 +339,16 @@ async def send_message(
 
         # Step 3: Emit extraction-derived event BEFORE done so clients that
         # close the stream on the done sentinel still receive the payload.
+        # ``default=str`` defends against any stray non-JSON-native types that
+        # might sneak in via JSONB columns (datetimes, Decimals, UUIDs, etc.).
         if v2_payload is not None:
             try:
-                yield f"data: {json.dumps({'type': 'field_update', **v2_payload})}\n\n"
+                yield f"data: {json.dumps({'type': 'field_update', **v2_payload}, default=str)}\n\n"
             except Exception as exc:
                 logger.error("Failed to emit field_update event: %s", exc)
         elif sheet_data is not None:
             try:
-                yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
+                yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data}, default=str)}\n\n"
             except Exception as exc:
                 logger.error("Failed to emit sheet_update event: %s", exc)
 

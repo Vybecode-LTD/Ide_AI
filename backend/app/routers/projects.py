@@ -65,6 +65,11 @@ async def create_project(
     # v2 flow: assemble the module pathway UP FRONT so discovery can target
     # all module fields from the first turn. Skipped for legacy v1 projects
     # (no pre-assembly — they still use Discovery → PathwayReview → Execute).
+    #
+    # Note: module_pathways.modules stores ONLY module-id strings to match the
+    # PathwayRead schema and the existing modules.py/PathwayExecute consumers.
+    # The unified-discovery prompt builder decorates these IDs into full
+    # module entries (with fields/labels) on read.
     if project.flow_version == "v2" and project.primary_category:
         try:
             assembled = modular_pathway_service.assemble_pathway_from_creation_inputs(
@@ -75,19 +80,28 @@ async def create_project(
                 audience=project.audience,
                 tone=project.tone,
             )
-            pathway = ModulePathway(
-                project_id=project.id,
-                modules=assembled["modules"],
-                lite_deep_settings=modular_pathway_service.get_lite_deep_defaults(
-                    [m["module_id"] for m in assembled["modules"]]
-                ),
-                status="active",
-            )
-            db.add(pathway)
-            await db.flush()
+            module_entries = assembled.get("modules") or []
+            module_ids = [m["module_id"] for m in module_entries if m.get("module_id")]
+            if module_ids:
+                pathway = ModulePathway(
+                    project_id=project.id,
+                    modules=module_ids,
+                    lite_deep_settings=modular_pathway_service.get_lite_deep_defaults(module_ids),
+                    status="active",
+                )
+                db.add(pathway)
+                await db.flush()
+            else:
+                # Empty assembly (unknown category, library missing, etc.) —
+                # skip creating an orphan pathway row. The discovery branch
+                # gracefully falls through to the v1 path when no pathway exists.
+                logger.warning(
+                    "Up-front pathway assembly returned 0 modules for project %s; pathway not created",
+                    project.id,
+                )
         except Exception as exc:
             # Don't fail project creation if pathway assembly hiccups — the
-            # frontend can fall back to the legacy on-demand assemble endpoint.
+            # discovery branch falls back to v1 design-sheet behavior cleanly.
             logger.warning(
                 "Up-front pathway assembly failed for project %s: %s",
                 project.id, exc,

@@ -436,6 +436,51 @@ async def compute_field_summary(
     }
 
 
+def _coerce_field_value(value, field_type: str):
+    """Coerce an extracted value to the declared field schema type.
+
+    Returns the coerced value, or ``None`` to indicate the value should be
+    dropped (uncoerceable, empty, or wrong-shape for the declared type).
+    Defends against the AI returning a string where a list was expected,
+    a dict where a string was expected, etc.
+    """
+    import json as _json
+
+    if value is None:
+        return None
+
+    if field_type in ("text", "longtext"):
+        if isinstance(value, str):
+            cleaned = value.strip()
+            return cleaned or None
+        if isinstance(value, (list, dict)):
+            if not value:
+                return None
+            return _json.dumps(value)
+        return str(value).strip() or None
+
+    if field_type == "list":
+        if isinstance(value, list):
+            cleaned = [str(v).strip() for v in value if v not in (None, "", [], {})]
+            return cleaned or None
+        if isinstance(value, str):
+            stripped = value.strip()
+            return [stripped] if stripped else None
+        if isinstance(value, dict):
+            vals = [str(v).strip() for v in value.values() if v]
+            return vals or None
+        return [str(value)] if value else None
+
+    if field_type == "dict":
+        if isinstance(value, dict):
+            return value or None
+        # Don't accept scalars for dict-typed fields — wrong shape.
+        return None
+
+    # Unknown field type — pass through unchanged.
+    return value
+
+
 async def apply_extracted_module_fields(
     db: AsyncSession,
     project_id: uuid.UUID,
@@ -444,63 +489,78 @@ async def apply_extracted_module_fields(
 ) -> tuple[list[dict], dict]:
     """Write extracted "module_id.field_key" updates into module_responses.
 
+    Uses PostgreSQL ``INSERT ... ON CONFLICT (project_id, module_id) DO UPDATE``
+    so concurrent calls from the same project (multi-tab, retry, etc.) don't
+    create duplicate rows or lose updates. The unique constraint required by
+    this is added in migration 030.
+
     Args:
         extracted: dict mapping "module_id.field_key" -> value (from
             :func:`ai_service.extract_module_fields`).
-        modules: assembled module list — used for the summary computation
-            and to know which module_ids are valid.
+        modules: assembled module list (with embedded ``fields`` schemas) —
+            used for type coercion + summary computation + valid-key filter.
 
     Returns:
         ``(updates_list, summary)`` where:
-        - ``updates_list`` is the per-field update payload for the SSE
+        - ``updates_list``: per-field update payload for the SSE
           ``field_update`` event (list of {module_id, field_key, value})
-        - ``summary`` is the aggregate completion summary from
+        - ``summary``: aggregate completion stats from
           :func:`compute_field_summary`
     """
+    from sqlalchemy import text
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
     from app.models.module_response import ModuleResponse
 
-    # Group extracted keys by module_id
+    # Build (module_id, field_key) -> field_type lookup for coercion + key validation
+    field_types: dict[tuple[str, str], str] = {}
+    valid_module_ids: set[str] = set()
+    for mod in modules:
+        mid = mod.get("module_id") or mod.get("id")
+        if not mid:
+            continue
+        valid_module_ids.add(mid)
+        for f in mod.get("fields") or []:
+            fkey = f.get("key")
+            if fkey:
+                field_types[(mid, fkey)] = f.get("type", "text")
+
+    # Group extracted keys by module_id, applying type coercion
     by_module: dict[str, dict] = {}
-    valid_module_ids = {
-        (mod.get("module_id") or mod.get("id")) for mod in modules
-    }
     for compound_key, value in extracted.items():
         if "." not in compound_key:
             continue
         mid, fkey = compound_key.split(".", 1)
         if mid not in valid_module_ids or not fkey:
             continue
-        by_module.setdefault(mid, {})[fkey] = value
+        ftype = field_types.get((mid, fkey), "text")
+        coerced = _coerce_field_value(value, ftype)
+        if coerced is None:
+            continue
+        by_module.setdefault(mid, {})[fkey] = coerced
 
     updates_list: list[dict] = []
 
     if by_module:
-        # Load existing module_response rows for this project, grouped by module_id
-        existing_result = await db.execute(
-            select(ModuleResponse).where(ModuleResponse.project_id == project_id)
-        )
-        existing_by_mid = {r.module_id: r for r in existing_result.scalars().all()}
-
+        # Race-safe upsert per module. The JSONB ``||`` operator merges the
+        # incoming field_updates into the existing ``responses`` dict — keys
+        # in EXCLUDED win, untouched keys are preserved.
         for mid, field_updates in by_module.items():
-            row = existing_by_mid.get(mid)
-            if row is not None:
-                merged = dict(row.responses or {})
-                for fk, v in field_updates.items():
-                    merged[fk] = v
-                    updates_list.append({"module_id": mid, "field_key": fk, "value": v})
-                row.responses = merged
-                if row.status == "pending":
-                    row.status = "active"
-            else:
-                row = ModuleResponse(
-                    project_id=project_id,
-                    module_id=mid,
-                    responses=field_updates,
-                    status="active",
-                )
-                db.add(row)
-                for fk, v in field_updates.items():
-                    updates_list.append({"module_id": mid, "field_key": fk, "value": v})
+            stmt = pg_insert(ModuleResponse).values(
+                project_id=project_id,
+                module_id=mid,
+                responses=field_updates,
+                status="active",
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["project_id", "module_id"],
+                set_={
+                    "responses": text("module_responses.responses || EXCLUDED.responses"),
+                    "status": text("'active'"),
+                },
+            )
+            await db.execute(stmt)
+            for fk, v in field_updates.items():
+                updates_list.append({"module_id": mid, "field_key": fk, "value": v})
 
         await db.flush()
 
