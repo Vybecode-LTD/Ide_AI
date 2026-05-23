@@ -136,7 +136,7 @@ export function Inbox() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <div className="ml-0 md:ml-[232px] pb-14 md:pb-0 flex-1 flex flex-col h-screen">
+      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col h-dvh">
         <TopBar title="Idea Inbox" subtitle="Capture ideas, promote them to projects" />
 
         <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">

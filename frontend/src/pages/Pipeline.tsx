@@ -92,7 +92,7 @@ export function Pipeline() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar projectId={projectId} />
-      <div className="ml-0 md:ml-[232px] pb-14 md:pb-0 flex-1 flex flex-col h-screen">
+      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col h-dvh">
         <TopBar title="Pipeline Builder" subtitle="Select your tech stack">
           <Button variant="secondary" onClick={recommendPipeline} disabled={recommending}>
             {recommending ? 'Analyzing...' : 'AI Recommend'}

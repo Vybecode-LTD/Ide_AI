@@ -298,7 +298,7 @@ export function Discovery() {
   const showExport = stage === 'confirm' || messages.length >= 4
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-dvh bg-background flex overflow-hidden">
       <StageInterlude
         phase="discovery"
         message="Tell your AI partner about your idea. They'll extract the building blocks as you talk."
@@ -307,7 +307,7 @@ export function Discovery() {
       />
       <Sidebar projectId={projectId} />
 
-      <div className="ml-0 md:ml-[232px] pb-14 md:pb-0 flex-1 flex flex-col min-h-0">
+      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col min-h-0">
         <TopBar title="Discovery" subtitle={`Stage: ${stage}`}>
           {/* Active partner badge */}
           <ActivePartnerBadge partner={partnerMeta} onClick={() => setShowPartnerPicker(true)} />

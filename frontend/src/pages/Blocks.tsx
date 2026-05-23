@@ -228,7 +228,7 @@ export function Blocks() {
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar projectId={projectId} />
-      <div className="ml-0 md:ml-[232px] pb-14 md:pb-0 flex-1 flex flex-col h-screen">
+      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col h-dvh">
         <TopBar title="Design Blocks" subtitle={`${filteredBlocks.length} blocks shown`}>
           <Button variant="secondary" onClick={generateBlocks} disabled={generating}>
             {generating ? 'Generating...' : 'AI Generate'}

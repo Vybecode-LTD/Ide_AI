@@ -28,7 +28,29 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-weight: 400;
-  min-height: 100vh;
+  /* Use dynamic viewport height so iOS Safari URL bar doesn't push content off-screen */
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
+}
+
+/* Utility: full dynamic viewport height (mobile-friendly) */
+.h-dvh {
+  height: 100vh; /* fallback */
+  height: 100dvh;
+}
+
+/* Utility: safe-area aware bottom padding for fixed nav + iPhone home indicator */
+.pb-mobile-nav {
+  padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Hide scrollbar but keep scroll behaviour (for horizontally scrollable chip rows) */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
 
 h1, h2, h3, h4, h5, h6 {

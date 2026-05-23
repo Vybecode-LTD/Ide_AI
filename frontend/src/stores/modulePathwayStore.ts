@@ -94,11 +94,21 @@ export const useModulePathwayStore = create<ModulePathwayStoreState>()((set, get
       set({ pathway: data, loading: false })
       get().checkCompletion()
     } catch (err) {
-      set({ loading: false, error: (err as Error).message })
+      // 404 is the EXPECTED state when no pathway exists yet — don't surface
+      // it as an error, and don't pollute the store error slot. Re-throw so
+      // the caller can branch on it.
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404) {
+        set({ loading: false, pathway: null })
+      } else {
+        set({ loading: false, error: (err as Error).message })
+      }
+      throw err
     }
   },
 
   updatePathway: async (projectId, modules, settings) => {
+    set({ error: null })
     try {
       const { data } = await apiClient.patch<PathwayState>(
         `/projects/${projectId}/pathway`,
@@ -107,11 +117,12 @@ export const useModulePathwayStore = create<ModulePathwayStoreState>()((set, get
       set({ pathway: data })
     } catch (err) {
       set({ error: (err as Error).message })
+      throw err
     }
   },
 
   lockPathway: async (projectId: string) => {
-    set({ loading: true })
+    set({ loading: true, error: null })
     try {
       const { data } = await apiClient.post<PathwayState>(
         `/projects/${projectId}/pathway/lock`
@@ -120,6 +131,7 @@ export const useModulePathwayStore = create<ModulePathwayStoreState>()((set, get
       get().checkCompletion()
     } catch (err) {
       set({ loading: false, error: (err as Error).message })
+      throw err
     }
   },
 

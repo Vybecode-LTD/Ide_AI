@@ -79,7 +79,7 @@ export function PathwayExecute() {
   const firstIncomplete = moduleEntries.find(m => m.status === 'pending')
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-dvh bg-background flex overflow-hidden">
       <StageInterlude
         phase="pathway-execute"
         message="Work through each module to build your design kit. Click any module to start."
@@ -128,7 +128,7 @@ export function PathwayExecute() {
               )}
 
               {/* Module list */}
-              <div className="space-y-3 pb-14 md:pb-0">
+              <div className="space-y-3 pb-mobile-nav md:pb-0">
                 {moduleEntries.map((mod, i) => (
                   <ModuleCard
                     key={mod.module_id}

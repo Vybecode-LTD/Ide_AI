@@ -277,7 +277,15 @@ export function Sidebar({ projectId }: { projectId?: string }) {
       </aside>
 
       {/* ── Mobile bottom nav ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-surface border-t border-border z-50 flex items-center justify-around px-2" aria-label="Mobile navigation">
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-50 flex items-center justify-around px-2"
+        style={{
+          /* h-14 + safe-area inset so iPhone home indicator doesn't overlap nav */
+          height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
+        aria-label="Mobile navigation"
+      >
         {showBackToProject && (
           <Link
             to={savedPath || `/discovery/${savedProjectId}`}
@@ -346,7 +354,8 @@ export function Sidebar({ projectId }: { projectId?: string }) {
           <div
             id="mobile-overflow-menu"
             role="menu"
-            className="md:hidden fixed bottom-14 left-0 right-0 bg-surface border-t border-border z-50 py-2"
+            className="md:hidden fixed left-0 right-0 bg-surface border-t border-border z-50 py-2"
+            style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}
             onKeyDown={(e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }}
           >
             <div className="px-4 py-2 flex items-center border-b border-border mb-2">

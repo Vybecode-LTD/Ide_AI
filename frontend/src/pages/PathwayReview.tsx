@@ -4,12 +4,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
 import { ModuleCard } from '../components/pathway/ModuleCard'
 import { Button } from '../components/ui/Button'
 import { useModulePathwayStore } from '../stores/modulePathwayStore'
 import apiClient from '../lib/apiClient'
+import { extractError } from '../lib/extractError'
 import { StageInterlude, PulseBeacon, Whisper } from '../components/tutorial'
 import type { ModuleDefinition, PathwayModuleEntry } from '../types/modulePathway'
 
@@ -38,7 +40,7 @@ export function PathwayReview() {
 
     const init = async () => {
       try {
-        // Check if pathway already exists
+        // Check if pathway already exists (404 is expected for fresh projects)
         try {
           await fetchPathway(projectId)
           const { pathway: pw } = useModulePathwayStore.getState()
@@ -47,8 +49,15 @@ export function PathwayReview() {
             navigate(`/pathway-execute/${projectId}`)
             return
           }
-        } catch {
-          // No pathway yet, proceed with assembly
+        } catch (err) {
+          // 404 = no pathway yet, proceed with assembly. EVERYTHING ELSE surfaces
+          // (including network errors where status is undefined).
+          const status = (err as { response?: { status?: number } })?.response?.status
+          if (status !== 404) {
+            throw err
+          }
+          // Clear any stale error the store may have set during the 404 path
+          useModulePathwayStore.setState({ error: null })
         }
 
         setStep('categorizing')
@@ -61,6 +70,12 @@ export function PathwayReview() {
         setStep('review')
       } catch (err) {
         console.error('[PathwayReview] init failed:', err)
+        const msg = extractError(err, 'Failed to build your pathway. Please try again.')
+        // Surface to user via toast AND store error banner
+        toast.error(msg)
+        useModulePathwayStore.setState({ error: msg })
+        // Advance to review step so the error banner renders + user can retry
+        setStep('review')
       }
     }
 
@@ -139,10 +154,22 @@ export function PathwayReview() {
       settings[m.module_id] = m.mode
     }
 
-    await updatePathway(projectId, moduleIds, settings)
-    await lockPathway(projectId)
-
-    navigate(`/pathway-execute/${projectId}`)
+    try {
+      await updatePathway(projectId, moduleIds, settings)
+      await lockPathway(projectId)
+      // Verify the lock actually succeeded — store sets `error` on failure
+      const { error: lockErr, pathway } = useModulePathwayStore.getState()
+      if (lockErr || !pathway || pathway.status === 'pending') {
+        throw new Error(lockErr || 'Pathway did not lock — please try again.')
+      }
+      navigate(`/pathway-execute/${projectId}`)
+    } catch (err) {
+      console.error('[PathwayReview] lock failed:', err)
+      const msg = extractError(err, 'Could not lock the pathway. Please try again.')
+      toast.error(msg)
+      useModulePathwayStore.setState({ error: msg })
+      setStep('review')
+    }
   }
 
   // Available modules not yet in pathway
@@ -158,7 +185,7 @@ export function PathwayReview() {
   }, {})
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-dvh bg-background flex overflow-hidden">
       <StageInterlude
         phase="pathway-review"
         message="Your custom module pathway is ready. Reorder, toggle depth, or add modules before locking in."

@@ -49,7 +49,19 @@ export function isEntitlementError(err: unknown): boolean {
 
 export function extractError(err: unknown, fallback: string): string {
   const resp = (err as { response?: { data?: { detail?: unknown }; status?: number } })?.response
-  if (!resp) return fallback
+
+  // No axios response: it's a network error or a manually-thrown Error.
+  // Prefer the Error.message when present, otherwise the fallback.
+  if (!resp) {
+    const message = (err as { message?: unknown })?.message
+    if (typeof message === 'string' && message.trim() && message !== 'Network Error') {
+      return message
+    }
+    if (message === 'Network Error') {
+      return 'Network error — please check your connection and try again.'
+    }
+    return fallback
+  }
 
   const detail = resp.data?.detail
 

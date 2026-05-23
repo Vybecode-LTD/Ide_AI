@@ -166,7 +166,7 @@ export function ModuleSession() {
   const currentModule = assembledModules.find(m => m.module_id === moduleId)
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-dvh bg-background flex overflow-hidden">
       <StageInterlude
         phase="module-session"
         message="Answer your AI partner's questions. They'll extract structured data from your answers."
