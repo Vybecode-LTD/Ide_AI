@@ -1,56 +1,42 @@
 # Ide/AI — TODO
 
+> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+>
 > Concrete actionable items. See `ROADMAP.md` for strategic direction.
-> **Last updated:** 2026-05-23
 
 ---
 
-## 🔴 BLOCKING (Must do before launch)
+## 🔴 BLOCKING
 
-### Railway deployment configuration
-> These need to be set in Railway's backend service env-var panel. No code changes — just paste values.
-
-- [ ] **`CORS_ORIGINS`** = `["https://myide.ai","https://www.myide.ai"]`
-  - Without this, ALL authenticated requests fail because browser blocks CORS.
-  - Default in `config.py` is only `localhost:5173`.
-
-- [ ] **`CLERK_ISSUER`** = your Clerk instance URL (e.g. `https://clean-fox-89.clerk.accounts.dev`)
-- [ ] **`CLERK_AUDIENCE`** = your app's audience claim (check Clerk dashboard → JWT templates)
-- [ ] **`CLERK_AUTHORIZED_PARTIES`** = `https://myide.ai,https://www.myide.ai`
-  - Without these 3, any RS256 JWT from any Clerk instance validates against your backend.
-
-- [ ] **Verify webhook secrets are set:**
-  - `CLERK_WEBHOOK_SECRET` (from Clerk → Webhooks → endpoint signing secret)
-  - `STRIPE_WEBHOOK_SECRET` (from Stripe → Developers → Webhooks)
-  - `RESEND_WEBHOOK_SECRET` (from Resend → Inbound → Webhook signing secret)
+_Nothing currently blocking. Railway env vars are set, sign-in works end-to-end, admin system ships with bootstrap path._
 
 ---
 
-## 🟡 HIGH PRIORITY (Polish before broad announcement)
+## 🛡 Security hygiene (recommended)
 
-### Unhandled promise rejections (2 sites)
-- [ ] **`frontend/src/pages/ModuleSession.tsx:73`** — calls `fetchPathway(projectId)` without try/catch. Store now re-throws on all errors including 404. Wrap:
-  ```ts
-  try { await fetchPathway(projectId) } catch (err) {
-    const status = (err as any)?.response?.status
-    if (status !== 404) toast.error('Failed to load pathway')
-  }
+- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Each can be rolled in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), then updated in Railway. Test after rotation: send a "Send example" webhook → backend log returns 200, not 401.
+
+---
+
+## 🟡 HIGH PRIORITY
+
+### Remaining toast migrations (light)
+Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
+
+- [ ] **`Home.tsx`** — `createError` state on project creation (line 51) still uses inline. Convert to toast for consistency.
+- [ ] **`SprintPlanner.tsx`** — has `errorMessage` state kept alongside toast for sticky display during 60s+ generation. Consider whether to remove the sticky state now that toast is in place.
+- [ ] **`pathwayStore.ts`** and **`ErrorBoundary.tsx`** intentionally left as `console.error` — both are framework-level, not user-facing. No change needed.
+
+### Test coverage
+- [ ] **Frontend tests** — Vitest setup + first tests for `extractError`, `inboxStore.adjust(-1)` clamping, `adminStore` mutation behaviour, `useSSE` safety-net `onDone`.
+- [ ] **Backend admin endpoint tests** — `require_admin` rejection on non-admin user; `update_user_plan` audit log entry; `update_user_admin_flag` self-revoke block; entitlement override merge logic.
+
+### DB cleanup
+- [ ] **Orphan user row** — one row exists with `is_admin = TRUE` but no `clerk_user_id`, from the dedupe debug. Safe to leave or `DELETE FROM users WHERE id = '<orphan_id>'`. Verify no FKs reference it first:
+  ```sql
+  SELECT id, email, is_admin, clerk_user_id FROM users WHERE email ILIKE '%your_email%';
+  -- Then check FK tables before delete (projects.user_id, idea_inbox.user_id, etc.)
   ```
-- [ ] **`frontend/src/pages/PathwayExecute.tsx:43`** — same fix.
-
-### Silent failures with no user feedback (5 high-value pages)
-- [ ] **`Discovery.tsx`** — 8 `console.error` sites: SSE error, auto-save, visibility save, unmount save, stage-change save, session start, partner switch, Save Place. Replace with `toast.error()` for user-facing ones (auto-saves can stay silent).
-- [ ] **`Blocks.tsx`** — 5 `console.error` sites: fetch, generate, update, delete, persist order. All user-initiated — surface via toast.
-- [ ] **`Library.tsx`, `Pipeline.tsx`, `Exports.tsx`, `PromptKit.tsx`** — convert their `console.error` patterns.
-- [ ] **`MarketAnalysis.tsx`, `SprintPlanner.tsx`** — SSE error paths.
-
-### Setstate → toast migration
-- [ ] **`Profile.tsx`** — 4 `setError` calls (save, avatar upload, billing portal).
-- [ ] **`SharedProject.tsx`** — 4 `setError` calls (expired, not-found, load errors).
-- [ ] **`Home.tsx`** — `createError` state on project creation (line 51).
-- [ ] **`components/sharing/CommentSection.tsx`** — 3 `setError`.
-- [ ] **`components/sharing/StarRating.tsx`** — 3 `setError`.
-- [ ] **`components/billing/UpgradeModal.tsx`** — checkout failure.
 
 ---
 
@@ -135,10 +121,37 @@ Last audited: 2026-05-23
 
 ## ✅ Recently Done (2026-05-23)
 
-See `CONTEXT_HANDOFF.md` for full session summary. Highlights:
+See `CHANGELOG.md` and `CONTEXT_HANDOFF.md` for full session details. Highlights:
+
+### Admin system (commit `3747eac`)
+- Hidden `/admin` route gated by `users.is_admin`
+- Migrations 027 + 028 (is_admin, entitlement_overrides, admin_audit_log)
+- Full CRUD on user plans / overrides / admin flag via UI drawer
+- Append-only audit log of every admin action
+- `entitlement_service.get_limits()` merges overrides over plan defaults
+- Bootstrap path documented in [admin-system memory](.claude/memory/admin-system.md)
+
+### Toast migration (commit `28ead2d`)
+- ~40 silent failures surfaced via `toast.error(extractError(err, fallback))` across 18 components
+- `fetchPathway()` unhandled rejections wrapped in `ModuleSession` + `PathwayExecute`
+- Inline error banners removed from Profile, CommentSection, StarRating, billing/UpgradeModal
+- `toast.success()` on import / snapshot / share-link / comment milestones
+
+### Railway production hardening
+- `CORS_ORIGINS` set (JSON array for both apex + www)
+- `CLERK_ISSUER` set (`https://clerk.myide.ai`, custom-domain Clerk)
+- `CLERK_AUTHORIZED_PARTIES` set (JSON array, blocks token replay)
+- All 3 webhook secrets verified (sign-in confirmed working post-hardening)
+
+### Doc versioning (this commit)
+- `DOC_VERSIONING.md` — SemVer per doc convention + bump rules + CHANGELOG entry checklist
+- `CHANGELOG.md` — Keep-a-Changelog format, backfilled with recent history
+- Frontmatter (Version + Last updated + CHANGELOG link) on CLAUDE.md, CONTEXT_HANDOFF.md, TODO.md, DOC_VERSIONING.md
+
+### Earlier 2026-05-23 (pre-admin)
 - All 15 audit tasks closed with 2-agent verification per fix
 - Mobile viewport conformance across 19 pages
 - Proceed button errors now surface to user
-- auth.py race handling consolidated with INSERT ON CONFLICT
+- `auth.py` race handling consolidated with INSERT ON CONFLICT
 - react-hot-toast wired globally
-- Drag-and-drop Blocks, voice mic, PitchMode flow diagram, inbox per-item partner picker — all shipped
+- Drag-and-drop Blocks, voice mic, PitchMode flow diagram, inbox per-item partner picker

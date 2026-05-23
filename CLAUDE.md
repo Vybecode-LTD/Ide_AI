@@ -1,5 +1,7 @@
 # CLAUDE.md — Ide/AI
 
+> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+>
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
 
@@ -381,6 +383,21 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - Endpoints: `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}`
 - DB: `user_integrations` table (migration 016)
 
+### 25. Admin Dashboard
+- Hidden `/admin` route gated by `users.is_admin`; non-admins see a polite access-denied panel
+- Sidebar shows "Admin" link with 🛡 shield icon only when `user.is_admin === true`
+- Two tabs: **Users** (paginated, searchable user table) and **Audit Log**
+- User drawer (opens on row click): identity + Stripe/Clerk IDs, plan selector (free/basic/pro), usage counts, entitlement overrides editor (Inherit / Unlimited / Custom per limit key), grant/revoke admin toggle
+- **Entitlement overrides** live in `users.entitlement_overrides` (JSONB); `entitlement_service.get_limits()` merges them over plan defaults — any key present in overrides wins, `null` means unlimited for that key
+- **Audit log** (`admin_audit_log` table) is append-only — records `admin_user_id`, `action`, `target_user_id`, `details` (before/after JSON), `created_at`
+- Audit-logged actions: `plan_changed`, `plan_unchanged`, `overrides_updated`, `admin_granted`, `admin_revoked`
+- Self-revoke of admin status blocked at the API layer to prevent lockout
+- Backend: `app/routers/admin.py` (with `require_admin` dep), `app/services/audit_service.py`, `app/schemas/admin.py`
+- Frontend: `pages/Admin.tsx`, `components/admin/AdminUserTable.tsx`, `components/admin/AdminUserDrawer.tsx`, `components/admin/AdminAuditList.tsx`, `stores/adminStore.ts`
+- Endpoints: `GET /admin/users`, `GET /admin/users/{id}`, `PATCH /admin/users/{id}/plan`, `PATCH /admin/users/{id}/overrides`, `PATCH /admin/users/{id}/admin`, `GET /admin/audit-log`
+- **First admin bootstrap:** `UPDATE users SET is_admin = TRUE WHERE id = '<id from /auth/me>';` — always use the `id` returned by `/auth/me` (orphan duplicate user rows from old Clerk webhook races can exist; the `/auth/me` id is the canonical row)
+- DB: migrations 027 (`is_admin` + `entitlement_overrides`), 028 (`admin_audit_log`)
+
 ---
 
 ## Design System
@@ -428,6 +445,8 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 024 | Expand templates to 160 |
 | 025 | Inbound email idempotency (provider_event_id unique constraint) |
 | 026 | Deduplicate user rows v2 (post-Clerk webhook race cleanup) |
+| 027 | Add `users.is_admin` (bool) + `users.entitlement_overrides` (JSONB) |
+| 028 | Create `admin_audit_log` table (append-only admin action log) |
 
 ---
 
@@ -456,6 +475,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | Branching | `POST /branching/{project_id}/branch`, `POST /branching/{project_id}/merge/{branch_id}`, `GET /branching/{project_id}/branches`, `GET /branching/{project_id}/compare/{branch_id}` |
 | Integrations | `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}` |
 | Webhooks | `POST /webhooks/inbound-email` |
+| Admin | `GET /admin/users`, `GET /admin/users/{id}`, `PATCH /admin/users/{id}/plan`, `PATCH /admin/users/{id}/overrides`, `PATCH /admin/users/{id}/admin`, `GET /admin/audit-log` |
 
 ---
 
@@ -504,8 +524,19 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 ---
 
+## Documentation
+
+This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — SemVer per doc, root [CHANGELOG.md](CHANGELOG.md), manual discipline. When you ship code that changes a documented feature, bump the affected doc's version + last-updated date and add a CHANGELOG entry. See `DOC_VERSIONING.md` for the full checklist.
+
+---
+
 ## Last Completed Task
 
-**Task:** Multi-session audit completion + mobile fixes. (1) Critical user reports: transcript copy now includes AI messages (Axios responseType fix), Save Place button in Discovery, mobile viewport conformance across 19 pages (.h-dvh + .pb-mobile-nav utilities, safe-area-inset for iPhone home indicator, horizontally scrollable TopBar actions), Proceed button errors now surface via toast + inline banner instead of infinite spinner. (2) 5 critical audit spec gaps: pathway auto-detection on Home (POST /pathways/detect), VoiceMicButton wired into Discovery, drag-and-drop on Blocks (@dnd-kit), inbox endpoint alignment, Home config selectors (platform/audience/complexity/tone). (3) 8 remaining audit findings: SSE event reorder (sheet_update before done), CLAUDE.md drift corrections (4 endpoint rows + working dir path), react-hot-toast install + global Toaster, Sidebar inbox unread badge (new inboxStore Zustand), Inbox per-item AI partner picker, UpgradeModal rename (ui/UpgradeModal → ui/EntitlementLimitModal), PitchMode React Flow diagram, auth.py race refactor (INSERT ON CONFLICT). Every code change verified by 2 parallel agents (edge-case + integration) before completion. All TypeScript clean, all Python syntax validated.
+**Task:** Admin system + error UX polish + doc versioning.
+1. **Admin dashboard** at hidden `/admin` route — Users tab with search + plan filter + drawer (plan toggle, entitlement override editor with Inherit/Unlimited/Custom modes per limit key, grant-admin toggle), Audit Log tab with paginated history. Backend `app/routers/admin.py` (require_admin dep), `app/services/audit_service.py`, migrations 027 + 028. Frontend `pages/Admin.tsx`, 3 components under `components/admin/`, `stores/adminStore.ts`. `entitlement_service.get_limits()` now merges per-user overrides over plan defaults.
+2. **react-hot-toast surfacing across 18 components** (~40 silent error sites converted), including 2 unhandled `fetchPathway()` rejection wraps. Inline error banners removed from Profile, CommentSection, StarRating, billing/UpgradeModal. SharedProject inline retained (full-page blocking errors).
+3. **Doc versioning system**: new DOC_VERSIONING.md convention, root CHANGELOG.md (Keep-a-Changelog format), frontmatter on all versioned docs.
+4. **Railway production hardening**: CORS_ORIGINS, CLERK_ISSUER, CLERK_AUTHORIZED_PARTIES env vars set; sign-in confirmed working post-hardening.
+
 **Date:** 2026-05-23
-**Commits:** 9c5ef1c, 5db42eb, 253b30a, fb1f1b8 (all pushed to main)
+**Commits:** `28ead2d` (toast migration), `3747eac` (admin system) — both pushed to main
