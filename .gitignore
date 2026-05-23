@@ -33,5 +33,8 @@ desktop.ini
 *.log
 .vite/
 
-# Claude local config
-.claude/
+# Claude local config — keep user-specific settings local, share project hooks + settings
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/.session-start-head

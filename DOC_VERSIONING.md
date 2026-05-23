@@ -1,6 +1,6 @@
 # Doc Versioning Convention
 
-> **Version:** 1.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 1.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 
 Single source of truth for how Ide/AI documentation is versioned and kept consistent with the codebase. Read this once; refer back when you commit anything that touches a versioned doc.
 
@@ -131,12 +131,31 @@ When you finish work that touches **only** code (and the docs are still accurate
 
 ---
 
+## Enforcement
+
+Three layers, in order of force:
+
+### Layer 1 — CLAUDE.md prominence (mandatory)
+
+Every Claude Code session reads [CLAUDE.md](CLAUDE.md) first. CLAUDE.md has a "Documentation Discipline" section with the end-of-session checklist, and Critical Rule #9 binds every code-touching task to running that checklist. **This is the primary enforcement mechanism for Claude Code sessions.**
+
+### Layer 2 — Project memory (mandatory)
+
+A project memory entry (`.claude/projects/.../memory/doc-versioning.md`) carries this convention across all Claude conversations on this project — survives `/clear`, new chat windows, future sessions. Memory loads automatically on session start.
+
+### Layer 3 — Stop hook (active)
+
+`.claude/hooks/check-doc-versioning.sh` runs when a Claude Code session ends. It inspects the latest commit on the current branch. If the commit touched files under `frontend/src/` or `backend/app/` but did NOT touch `CHANGELOG.md`, it prints a warning. **Non-blocking** — always exits 0. The hook is registered in `.claude/settings.json` under `hooks.Stop`.
+
+False positives are possible (internal refactors that legitimately don't need a CHANGELOG entry). The hook errs on the side of nagging — if you decide a CHANGELOG entry isn't warranted for a given commit, ignore the warning and move on.
+
 ## Why this convention
 
-We chose SemVer-per-doc + a root CHANGELOG + manual discipline (no CI enforcement) because:
+We chose SemVer-per-doc + a root CHANGELOG + nag-only hook because:
 
 1. **Per-doc versions** let readers see at a glance which docs are stale (mismatched dates vs. recent commits).
 2. **Root CHANGELOG** gives a single skimmable "what happened this month" view that survives even if individual docs are restructured.
-3. **Manual discipline** is the right starting point — automation can come later if drift becomes a problem. Pre-commit hooks or PR-checks would add friction for a one-developer codebase.
+3. **Nag-only hook** catches drift early without blocking work. If you legitimately don't need a CHANGELOG entry, the warning is just a reminder you can dismiss by closing the terminal.
+4. **No PR-level CI check** because this is a one-developer codebase and the Stop hook + CLAUDE.md prominence catch the same cases earlier.
 
-If at any point doc drift becomes routine, revisit and add a lightweight pre-commit hook that checks for CHANGELOG updates on `.md` file changes.
+If drift becomes routine despite these layers, revisit and consider adding a stricter pre-commit hook or PR check.

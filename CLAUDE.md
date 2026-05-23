@@ -1,9 +1,11 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
+>
+> 📋 **Documentation discipline is mandatory on this project.** Before declaring any code-touching task complete, run the checklist in the [Documentation Discipline](#documentation-discipline) section below. A Stop hook (`.claude/hooks/check-doc-versioning.sh`) will nag if you commit code without a CHANGELOG entry.
 
 ---
 
@@ -14,6 +16,44 @@
 - **Working directory:** `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` — this is the ONLY working directory for this codebase. Any references in older docs to `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` are obsolete.
 - **Branch:** `main`
 - **Deployment:** Railway (2 public services: backend + frontend, no reverse proxy)
+
+---
+
+## Documentation Discipline
+
+**This project versions its documentation.** Read [DOC_VERSIONING.md](DOC_VERSIONING.md) for the full convention. The TL;DR for every code-touching session:
+
+### End-of-session checklist (required)
+
+Before declaring a task complete or committing, walk through this:
+
+1. **Touched a feature listed in CLAUDE.md?** → Update that feature's description here, bump CLAUDE.md version.
+2. **Touched a backend route, model, migration, or service?** → Reflect in CLAUDE.md Database Migrations / API Routes tables.
+3. **User-visible behavior changed?** → Add a CHANGELOG.md entry under `[Unreleased]` (or today's date) with Added/Changed/Fixed/Security category.
+4. **Resolved a TODO item?** → Move it to "Recently Done" in TODO.md.
+5. **Session-defining work shipped?** → Update CONTEXT_HANDOFF.md "Current Session" with the commit refs.
+6. **Bumped any versioned doc?** → Update its `Last updated` field to today's date.
+
+### Versioned docs (frontmatter required)
+
+These carry a `> **Version:** X.Y.Z · **Last updated:** YYYY-MM-DD · See [CHANGELOG.md](CHANGELOG.md)` line immediately after their H1:
+
+- CLAUDE.md (this file)
+- CONTEXT_HANDOFF.md
+- TODO.md
+- DOC_VERSIONING.md
+- (CHANGELOG.md is append-only — no version on itself)
+
+When you bump:
+- **MAJOR** (X.0.0): restructure, new top-level section, content that contradicts previous version
+- **MINOR** (X.Y.0): new content in existing section, new row in a table, new feature
+- **PATCH** (X.Y.Z): typo, link fix, clarification
+
+### Enforcement
+
+- **Stop hook** at `.claude/hooks/check-doc-versioning.sh` fires when a session ends. If the latest commit touched `frontend/src/` or `backend/app/` files but didn't touch CHANGELOG.md, it prints a warning. **Non-blocking** — just a reminder.
+- If you legitimately don't need a CHANGELOG entry (pure internal refactor, no doc impact), it's fine to ignore the nag. The hook errs on the side of reminding.
+- The hook lives in `.claude/settings.json` under `hooks.Stop`. Don't disable it without proposing a replacement.
 
 ---
 
@@ -489,6 +529,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 6. **Railway deployment: both services auto-deploy on push to `main`. No reverse proxy — backend and frontend are exposed publicly.**
 7. **Partner style default is `"strategist"` everywhere (model defaults, schema defaults, frontend state init).**
 8. **No preview verification required.** Do not start dev servers or take screenshots to verify code changes. The user handles testing manually.
+9. **Before declaring a code-touching task complete, run the [Documentation Discipline](#documentation-discipline) checklist.** Bump affected versioned docs and add a CHANGELOG.md entry. The Stop hook will nag if you skip CHANGELOG.
 
 ---
 
@@ -513,10 +554,12 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 **Read in this order on every session start:**
 1. **`CLAUDE.md`** (this file) — project identity, features, critical rules
-2. **`MEMORY.md`** — conventions, common pitfalls, architecture mental model
-3. **`CONTEXT_HANDOFF.md`** — latest session state, what just shipped, what's open
-4. **`TODO.md`** — concrete next steps prioritized by blocker → high → nice-to-have
-5. **`ROADMAP.md`** — only when discussing forward direction
+2. **`DOC_VERSIONING.md`** — doc-versioning convention (read once, refer back when committing doc-touching work)
+3. **`MEMORY.md`** — conventions, common pitfalls, architecture mental model
+4. **`CONTEXT_HANDOFF.md`** — latest session state, what just shipped, what's open
+5. **`TODO.md`** — concrete next steps prioritized by blocker → high → nice-to-have
+6. **`CHANGELOG.md`** — what changed recently (skim the most recent dated entry to see the project's current arc)
+7. **`ROADMAP.md`** — only when discussing forward direction
 
 **Working directory:** ALWAYS `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — those paths are obsolete.
 

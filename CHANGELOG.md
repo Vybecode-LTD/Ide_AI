@@ -8,6 +8,22 @@ _Nothing yet._
 
 ---
 
+## [2026-05-23] — Doc-Versioning Enforcement
+
+### Added
+- **CLAUDE.md "Documentation Discipline" section** with end-of-session checklist (6 steps), list of versioned docs + frontmatter format, bump rules, enforcement layers
+- **Critical Rule #9** in CLAUDE.md binding every code-touching task to the discipline checklist
+- **DOC_VERSIONING.md and CHANGELOG.md** added to Session Recovery's read-on-start list
+- **Stop hook** at `.claude/hooks/check-doc-versioning.sh` that fires when a Claude Code session ends. Inspects the latest commit — if it touched `frontend/src/` or `backend/app/` files without touching CHANGELOG.md, prints a non-blocking reminder.
+- **`.claude/settings.json`** registers the Stop hook under `hooks.Stop` (project-level config, committed to git)
+- **`.claude/projects/.../memory/doc-versioning.md`** — project memory entry so the convention persists across all Claude conversations
+
+### Changed
+- `CLAUDE.md` → 2.1.0 (was 2.0.0): added Documentation Discipline section, Critical Rule #9, updated Session Recovery list
+- `DOC_VERSIONING.md` → 1.1.0 (was 1.0.0): added Enforcement section describing the three layers (CLAUDE.md prominence, project memory, Stop hook)
+
+---
+
 ## [2026-05-23] — Admin System, Error UX, Doc Versioning
 
 ### Added
