@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import apiClient from '../../lib/apiClient'
+import toast from 'react-hot-toast'
 import { PLANS, type Cycle } from '../../lib/plans'
 
 interface UpgradeModalProps {
@@ -20,7 +21,6 @@ const PLAN_RANK: Record<string, number> = { free: 0, basic: 1, pro: 2 }
 export function UpgradeModal({ open, onClose, currentPlan = 'free' }: UpgradeModalProps) {
   const [cycle, setCycle] = useState<Cycle>('yearly')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-  const [error, setError] = useState('')
 
   // Close on Escape
   useEffect(() => {
@@ -33,7 +33,6 @@ export function UpgradeModal({ open, onClose, currentPlan = 'free' }: UpgradeMod
   // Reset state when opened
   useEffect(() => {
     if (open) {
-      setError('')
       setCheckoutLoading(null)
     }
   }, [open])
@@ -47,7 +46,6 @@ export function UpgradeModal({ open, onClose, currentPlan = 'free' }: UpgradeMod
     if (!priceId) return
 
     setCheckoutLoading(planId)
-    setError('')
     try {
       const { data } = await apiClient.post('/billing/checkout', {
         price_id: priceId,
@@ -55,7 +53,7 @@ export function UpgradeModal({ open, onClose, currentPlan = 'free' }: UpgradeMod
       })
       window.location.href = data.checkout_url
     } catch {
-      setError('Failed to start checkout. Please try again.')
+      toast.error('Failed to start checkout. Please try again.')
     } finally {
       setCheckoutLoading(null)
     }
@@ -108,12 +106,6 @@ export function UpgradeModal({ open, onClose, currentPlan = 'free' }: UpgradeMod
               </button>
             </div>
           </div>
-
-          {error && (
-            <div className="mb-4 text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2 text-center">
-              {error}
-            </div>
-          )}
 
           {/* Plan grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -11,6 +11,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { ShareDialog } from '../components/sharing/ShareDialog'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 import { downloadBlob } from '../lib/exportUtils'
 
 interface LibraryProject {
@@ -94,6 +96,7 @@ export function Library() {
       setProjects(data)
     } catch (err) {
       console.error('Failed to fetch library projects:', err)
+      toast.error(extractError(err, "Couldn't load your projects."))
     } finally {
       setLoading(false)
     }
@@ -106,6 +109,7 @@ export function Library() {
       setSnapshots(data)
     } catch (err) {
       console.error('Failed to fetch snapshots:', err)
+      toast.error(extractError(err, "Couldn't load snapshots."))
     } finally {
       setSnapshotsLoading(false)
     }
@@ -121,6 +125,7 @@ export function Library() {
       downloadBlob(response.data, `${slug}.ideai`)
     } catch (err) {
       console.error('Export failed:', err)
+      toast.error(extractError(err, "Couldn't export project."))
     } finally {
       setExporting(null)
     }
@@ -136,9 +141,11 @@ export function Library() {
       await apiClient.post('/library/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
+      toast.success('Project imported.')
       await fetchProjects()
     } catch (err) {
       console.error('Import failed:', err)
+      toast.error(extractError(err, "Couldn't import that file."))
     } finally {
       setImporting(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -156,10 +163,12 @@ export function Library() {
       setSnapshotName('')
       setSnapshotDesc('')
       setShowSnapshotForm(false)
+      toast.success('Snapshot saved.')
       await fetchSnapshots(selectedProjectId)
       await fetchProjects()
     } catch (err) {
       console.error('Snapshot creation failed:', err)
+      toast.error(extractError(err, "Couldn't save snapshot."))
     } finally {
       setCreatingSnapshot(false)
     }
@@ -169,9 +178,11 @@ export function Library() {
     setRestoring(snapshotId)
     try {
       await apiClient.post(`/library/snapshots/${snapshotId}/restore`)
+      toast.success('Snapshot restored.')
       await fetchProjects()
     } catch (err) {
       console.error('Restore failed:', err)
+      toast.error(extractError(err, "Couldn't restore snapshot."))
     } finally {
       setRestoring(null)
     }

@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { UpgradeModal } from '../components/billing/UpgradeModal'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
 import { useAuthStore, type AuthUser } from '../stores/authStore'
 import { extractError } from '../lib/extractError'
 
@@ -25,7 +26,6 @@ export function Profile() {
   const [bio, setBio] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
 
   // Avatar
   const fileRef = useRef<HTMLInputElement>(null)
@@ -62,7 +62,6 @@ export function Profile() {
   const handleSave = async () => {
     setSaving(true)
     setSaved(false)
-    setError('')
     try {
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ')
       const { data } = await apiClient.patch('/auth/me', {
@@ -74,7 +73,7 @@ export function Profile() {
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to save profile.'))
+      toast.error(extractError(err, 'Failed to save profile.'))
     } finally {
       setSaving(false)
     }
@@ -84,7 +83,6 @@ export function Profile() {
     const file = e.target.files?.[0]
     if (!file) return
     setAvatarUploading(true)
-    setError('')
     try {
       const form = new FormData()
       form.append('file', file)
@@ -98,7 +96,7 @@ export function Profile() {
         } catch { /* non-blocking — Clerk sync is best-effort */ }
       }
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to upload avatar.'))
+      toast.error(extractError(err, 'Failed to upload avatar.'))
     } finally {
       setAvatarUploading(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -113,7 +111,7 @@ export function Profile() {
       })
       window.location.href = data.portal_url
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to open billing portal.'))
+      toast.error(extractError(err, 'Failed to open billing portal.'))
     } finally {
       setBillingLoading(false)
     }
@@ -235,11 +233,6 @@ export function Profile() {
                 {/* ── Edit Profile ── */}
                 <Card>
                   <h3 className="text-sm font-semibold text-white mb-4">Edit Profile</h3>
-                  {error && (
-                    <div className="mb-4 text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
-                      {error}
-                    </div>
-                  )}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div>
                       <label className="block text-xs text-text-muted font-medium mb-1.5">First Name</label>

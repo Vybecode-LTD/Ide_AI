@@ -3,6 +3,7 @@
  * Uses the public sharing API (no auth required).
  */
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -25,7 +26,6 @@ export function CommentSection({ shareToken, shareAccessToken }: CommentSectionP
   const [name, setName] = useState('')
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const fetchComments = useCallback(async () => {
     try {
@@ -51,7 +51,6 @@ export function CommentSection({ shareToken, shareAccessToken }: CommentSectionP
     e.preventDefault()
     if (!content.trim()) return
     setSubmitting(true)
-    setError(null)
     try {
       const postHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
       if (shareAccessToken) postHeaders['Authorization'] = `Bearer ${shareAccessToken}`
@@ -66,13 +65,14 @@ export function CommentSection({ shareToken, shareAccessToken }: CommentSectionP
       if (resp.ok) {
         setContent('')
         setName('')
+        toast.success('Comment posted.')
         await fetchComments()
       } else {
         const data = await resp.json()
-        setError(data.detail || 'Failed to post comment.')
+        toast.error(data.detail || 'Failed to post comment.')
       }
     } catch {
-      setError('Failed to connect to server.')
+      toast.error('Failed to connect to server.')
     } finally {
       setSubmitting(false)
     }
@@ -120,7 +120,6 @@ export function CommentSection({ shareToken, shareAccessToken }: CommentSectionP
             {submitting ? '...' : 'Post'}
           </button>
         </div>
-        {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
       </form>
 
       {/* Comment list */}

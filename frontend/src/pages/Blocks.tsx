@@ -27,6 +27,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 
 interface Block {
   id: string
@@ -135,6 +137,7 @@ export function Blocks() {
       setBlocks(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to fetch blocks:', err)
+      toast.error(extractError(err, "Couldn't load blocks."))
     } finally {
       setLoading(false)
     }
@@ -150,6 +153,7 @@ export function Blocks() {
       setBlocks(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to generate blocks:', err)
+      toast.error(extractError(err, "Couldn't generate blocks."))
     } finally {
       setGenerating(false)
     }
@@ -169,6 +173,7 @@ export function Blocks() {
       )
     } catch (err) {
       console.error('Failed to update block:', err)
+      toast.error(extractError(err, "Couldn't update block."))
     }
   }
 
@@ -178,6 +183,7 @@ export function Blocks() {
       setBlocks((prev) => prev.filter((b) => b.id !== blockId))
     } catch (err) {
       console.error('Failed to delete block:', err)
+      toast.error(extractError(err, "Couldn't delete block."))
     }
   }
 
@@ -197,6 +203,7 @@ export function Blocks() {
       await Promise.all(updates)
     } catch (err) {
       console.error('Failed to persist block order:', err)
+      toast.error("Couldn't save the new order — refreshing.")
       // Re-fetch to recover from any partial failures
       fetchBlocks()
     }

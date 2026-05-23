@@ -3,6 +3,7 @@
  * Uses the public sharing API (no auth required).
  */
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -27,13 +28,11 @@ export function StarRating({
   const [selected, setSelected] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const handleRate = async (score: number) => {
     if (submitted || submitting) return
     setSelected(score)
     setSubmitting(true)
-    setError(null)
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (shareAccessToken) headers['Authorization'] = `Bearer ${shareAccessToken}`
@@ -50,11 +49,11 @@ export function StarRating({
         onRated?.()
       } else {
         const data = await resp.json()
-        setError(data.detail || 'Rating failed.')
+        toast.error(data.detail || 'Rating failed.')
         setSelected(0)
       }
     } catch {
-      setError('Failed to submit rating.')
+      toast.error('Failed to submit rating.')
       setSelected(0)
     } finally {
       setSubmitting(false)
@@ -102,7 +101,6 @@ export function StarRating({
       {submitted && (
         <p className="text-xs text-green-400">Thanks for rating!</p>
       )}
-      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   )
 }

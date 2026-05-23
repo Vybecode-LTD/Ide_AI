@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import apiClient from '../../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../../lib/extractError'
 
 interface ShareDialogProps {
   projectId: string
@@ -82,8 +84,10 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
       })
       setShareData(data)
       setPassword('')
+      toast.success('Share link created.')
     } catch (err) {
       console.error('Failed to create share link:', err)
+      toast.error(extractError(err, "Couldn't create share link."))
     } finally {
       setCreating(false)
     }
@@ -102,8 +106,10 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
     try {
       await apiClient.delete(`/sharing/${projectId}`)
       setShareData(null)
+      toast.success('Share link revoked.')
     } catch (err) {
       console.error('Failed to revoke share link:', err)
+      toast.error(extractError(err, "Couldn't revoke share link."))
     } finally {
       setRevoking(false)
     }
@@ -125,6 +131,7 @@ export function ShareDialog({ projectId, projectName, open, onClose }: ShareDial
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('CSV export failed:', err)
+      toast.error(extractError(err, "Couldn't export CSV."))
     }
   }
 

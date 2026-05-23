@@ -9,8 +9,9 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient, { getAuthToken } from '../lib/apiClient'
+import toast from 'react-hot-toast'
 import { downloadBlob } from '../lib/exportUtils'
-import type { EntitlementDetail } from '../lib/extractError'
+import { extractError, type EntitlementDetail } from '../lib/extractError'
 import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 
 interface Task {
@@ -179,6 +180,7 @@ export function SprintPlanner() {
     } catch (err) {
       console.error('Sprint generation error:', err)
       setErrorMessage('Generation failed. Please try again.')
+      toast.error(extractError(err, "Couldn't generate sprint plan."))
     } finally {
       setGenerating(false)
     }
@@ -191,6 +193,7 @@ export function SprintPlanner() {
       downloadBlob(response.data, `sprint-plan-${projectId}.csv`)
     } catch (err) {
       console.error('Export failed:', err)
+      toast.error(extractError(err, "Couldn't export sprint plan."))
     }
   }
 

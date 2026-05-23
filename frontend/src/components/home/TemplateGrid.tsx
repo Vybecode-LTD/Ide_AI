@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Card } from '../ui/Card'
 import apiClient from '../../lib/apiClient'
+import toast from 'react-hot-toast'
 
 export interface Template {
   id: string
@@ -60,6 +61,7 @@ export function TemplateGrid({ onSelect, selectedId, category }: Props) {
       setTemplates(data)
     }).catch((err) => {
       console.error('[TemplateGrid] Failed to fetch templates:', err)
+      toast.error("Couldn't load project templates.")
     }).finally(() => setLoading(false))
   }, [])
 

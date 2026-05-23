@@ -14,6 +14,7 @@ import { StageInterlude, Whisper } from '../components/tutorial'
 import { useSSE } from '../hooks/useSSE'
 import { useModulePathwayStore } from '../stores/modulePathwayStore'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
 import type { ModuleStartResponse } from '../types/modulePathway'
 
 interface Message {
@@ -62,6 +63,7 @@ export function ModuleSession() {
     },
     onError(err) {
       console.error('[ModuleSession] SSE error:', err)
+      toast.error('Connection issue. Please retry.')
     },
   })
 
@@ -70,7 +72,12 @@ export function ModuleSession() {
     if (!projectId || !moduleId) return
 
     const init = async () => {
-      await fetchPathway(projectId)
+      try {
+        await fetchPathway(projectId)
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status !== 404) toast.error('Failed to load pathway')
+      }
       await fetchResponses(projectId)
       setActiveModule(moduleId)
 
@@ -114,6 +121,8 @@ export function ModuleSession() {
         }
       } catch (err) {
         console.error('[ModuleSession] start failed:', err)
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status !== 404) toast.error("Couldn't start this module.")
       }
     }
 

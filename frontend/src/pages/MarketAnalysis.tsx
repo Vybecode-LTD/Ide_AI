@@ -10,8 +10,9 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient, { getAuthToken } from '../lib/apiClient'
+import toast from 'react-hot-toast'
 import { downloadBlob } from '../lib/exportUtils'
-import type { EntitlementDetail } from '../lib/extractError'
+import { extractError, type EntitlementDetail } from '../lib/extractError'
 import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 
 // ---------------------------------------------------------------------------
@@ -938,6 +939,7 @@ export function MarketAnalysis() {
             } else if (data.type === 'error') {
               console.error('Generation error:', data.message)
               setAnalysis(prev => prev ? { ...prev, status: 'error', error_message: data.message } : prev)
+              toast.error(data.message || 'Market analysis failed.')
             }
           } catch { /* skip malformed lines */ }
         }
@@ -946,6 +948,7 @@ export function MarketAnalysis() {
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('SSE error:', err)
+        toast.error('Connection issue during market analysis.')
       }
     } finally {
       setGenerating(false)
@@ -985,6 +988,7 @@ export function MarketAnalysis() {
       downloadBlob(response.data, `${slug}.${ext}`)
     } catch (err) {
       console.error('Export failed:', err)
+      toast.error(extractError(err, "Couldn't export market analysis."))
     } finally {
       setExporting(false)
     }

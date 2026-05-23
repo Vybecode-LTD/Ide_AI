@@ -17,6 +17,8 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 
 interface SheetData {
   problem?: string
@@ -134,6 +136,7 @@ export function PitchMode() {
       setBlocks(blocksArr.filter((b: { priority: string }) => b.priority === 'mvp').slice(0, 6))
     } catch (err) {
       console.error('Failed to load pitch data:', err)
+      toast.error(extractError(err, "Couldn't load pitch data."))
     } finally {
       setLoading(false)
     }

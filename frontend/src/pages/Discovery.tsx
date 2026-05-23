@@ -20,6 +20,8 @@ import { StageInterlude, PulseBeacon, Whisper } from '../components/tutorial'
 import { useSSE } from '../hooks/useSSE'
 import { usePathwayStore } from '../stores/pathwayStore'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 import type { PartnerStyleMeta } from '../types/project'
 
 interface Message {
@@ -83,7 +85,10 @@ export function Discovery() {
     onSheetUpdate: (sheetData) => {
       setSheet((prev) => ({ ...prev, ...sheetData } as SheetData))
     },
-    onError: (err) => console.error('SSE error:', err),
+    onError: (err) => {
+      console.error('SSE error:', err)
+      toast.error('Connection issue. Please retry.')
+    },
   })
 
   // ── Ref-based autosave ────────────────────────────────────────────
@@ -236,6 +241,7 @@ export function Discovery() {
         }
       } catch (err) {
         console.error('Failed to start session:', err)
+        toast.error(extractError(err, "Couldn't start your discovery session."))
       }
     }
 
@@ -276,6 +282,7 @@ export function Discovery() {
       ])
     } catch (err) {
       console.error('Failed to switch partner:', err)
+      toast.error(extractError(err, "Couldn't switch AI partner."))
     }
   }, [sessionId, partnerStyle, allPartners])
 
@@ -291,6 +298,7 @@ export function Discovery() {
       setTimeout(() => setSavePlaceStatus('idle'), 2500)
     } catch (err) {
       console.error('Save place failed:', err)
+      toast.error(extractError(err, "Couldn't save your place."))
       setSavePlaceStatus('idle')
     }
   }, [sessionId, savePlaceStatus, saveProgressRef])

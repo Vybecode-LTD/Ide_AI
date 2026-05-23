@@ -9,6 +9,8 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 
 interface PipelineNode {
   id: string
@@ -44,6 +46,7 @@ export function Pipeline() {
       setAvailableLayers(data.available_layers || {})
     } catch (err) {
       console.error('Failed to fetch pipeline:', err)
+      toast.error(extractError(err, "Couldn't load pipeline."))
     } finally {
       setLoading(false)
     }
@@ -63,6 +66,7 @@ export function Pipeline() {
       setAvailableLayers(data.available_layers || {})
     } catch (err) {
       console.error('Failed to recommend pipeline:', err)
+      toast.error(extractError(err, "Couldn't generate stack recommendation."))
     } finally {
       setRecommending(false)
     }
@@ -79,6 +83,7 @@ export function Pipeline() {
       setNodes(prev => prev.map(n => n.layer === layer ? { ...n, selected_tool: data.selected_tool } : n))
     } catch (err) {
       console.error('Failed to update layer:', err)
+      toast.error(extractError(err, "Couldn't update layer."))
       // Revert on failure by re-fetching
       fetchPipeline()
     }

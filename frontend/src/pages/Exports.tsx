@@ -10,6 +10,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { StageInterlude, Whisper } from '../components/tutorial'
 import apiClient from '../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../lib/extractError'
 import { downloadBlob, formatFilename } from '../lib/exportUtils'
 
 const FORMATS = [
@@ -38,7 +40,6 @@ export function Exports() {
   // Prompt package state
   const [selectedPlatform, setSelectedPlatform] = useState('cursor')
   const [generatingPackage, setGeneratingPackage] = useState(false)
-  const [packageError, setPackageError] = useState<string | null>(null)
 
   const handleExport = async () => {
     if (!projectId) return
@@ -52,6 +53,7 @@ export function Exports() {
       downloadBlob(response.data, filename)
     } catch (err) {
       console.error('Export failed:', err)
+      toast.error(extractError(err, "Couldn't export design kit."))
     } finally {
       setDownloading(false)
     }
@@ -64,15 +66,16 @@ export function Exports() {
         name: `Auto snapshot ${new Date().toLocaleString()}`,
         description: 'Saved from Export page',
       })
+      toast.success('Snapshot saved.')
     } catch (err) {
       console.error('Snapshot failed:', err)
+      toast.error(extractError(err, "Couldn't save snapshot."))
     }
   }
 
   const handlePromptPackage = async () => {
     if (!projectId) return
     setGeneratingPackage(true)
-    setPackageError(null)
     try {
       const response = await apiClient.post(
         `/projects/${projectId}/export/prompt-package`,
@@ -84,17 +87,19 @@ export function Exports() {
     } catch (err: unknown) {
       console.error('Prompt package generation failed:', err)
       const axiosErr = err as { response?: { data?: Blob } }
+      let message = 'Generation failed. Please try again.'
       if (axiosErr.response?.data instanceof Blob) {
         try {
           const text = await axiosErr.response.data.text()
           const json = JSON.parse(text)
-          setPackageError(json.detail || 'Generation failed. Please try again.')
+          if (json.detail) message = json.detail
         } catch {
-          setPackageError('Generation failed. Please try again.')
+          // Fall through to default message
         }
       } else {
-        setPackageError('Generation failed. Please try again.')
+        message = extractError(err, message)
       }
+      toast.error(message)
     } finally {
       setGeneratingPackage(false)
     }
@@ -191,12 +196,6 @@ export function Exports() {
                 ))}
               </div>
             </Card>
-
-            {packageError && (
-              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
-                {packageError}
-              </div>
-            )}
 
             <div className="flex justify-center">
               <Button size="lg" onClick={handlePromptPackage} disabled={generatingPackage}>

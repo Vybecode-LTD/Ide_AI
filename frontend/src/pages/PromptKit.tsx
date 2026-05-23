@@ -10,7 +10,8 @@ import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
-import { getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
+import toast from 'react-hot-toast'
+import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
 import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 
 interface PromptKitItem {
@@ -50,6 +51,7 @@ export function PromptKit() {
       setKits(data)
     } catch (err) {
       console.error('Failed to fetch prompt kits:', err)
+      toast.error(extractError(err, "Couldn't load prompt kits."))
     } finally {
       setLoading(false)
     }
@@ -70,7 +72,10 @@ export function PromptKit() {
     } catch (err) {
       const ent = getEntitlementDetail(err)
       if (ent) setUpgradeDetail(ent)
-      else console.error('Generate failed:', err)
+      else {
+        console.error('Generate failed:', err)
+        toast.error(extractError(err, "Couldn't generate prompt kit."))
+      }
     } finally {
       setGenerating(false)
     }
@@ -84,6 +89,7 @@ export function PromptKit() {
       await fetchKits()
     } catch (err) {
       console.error('Rewrite failed:', err)
+      toast.error(extractError(err, "Couldn't rewrite prompt kit."))
     } finally {
       setRewriting(null)
     }

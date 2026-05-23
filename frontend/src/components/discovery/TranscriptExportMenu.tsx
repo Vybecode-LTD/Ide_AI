@@ -5,6 +5,8 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import apiClient from '../../lib/apiClient'
+import toast from 'react-hot-toast'
+import { extractError } from '../../lib/extractError'
 import { downloadBlob } from '../../lib/exportUtils'
 
 interface Message {
@@ -91,6 +93,7 @@ export function TranscriptExportMenu({ sessionId, projectName, messages }: Trans
       }
     } catch (err) {
       console.error('Transcript export failed:', err)
+      toast.error(extractError(err, "Couldn't export transcript."))
     } finally {
       setBusy(null)
       setOpen(false)

@@ -11,6 +11,7 @@ import { PathwayProgress } from '../components/pathway/PathwayProgress'
 import { Button } from '../components/ui/Button'
 import { StageInterlude, PulseBeacon } from '../components/tutorial'
 import { useModulePathwayStore } from '../stores/modulePathwayStore'
+import toast from 'react-hot-toast'
 import type { PathwayModuleEntry } from '../types/modulePathway'
 
 function getModuleStatus(
@@ -40,7 +41,12 @@ export function PathwayExecute() {
     let cancelled = false
 
     const init = async () => {
-      await fetchPathway(projectId)
+      try {
+        await fetchPathway(projectId)
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status !== 404) toast.error('Failed to load pathway')
+      }
       await fetchResponses(projectId)
       // If we don't have assembled modules with full metadata, re-fetch.
       // Read the store directly — the `assembledModules` closure may be stale.
