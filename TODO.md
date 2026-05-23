@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See `ROADMAP.md` for strategic direction.
 
@@ -8,7 +8,20 @@
 
 ## 🔴 BLOCKING
 
-_Nothing currently blocking. Railway env vars are set, sign-in works end-to-end, admin system ships with bootstrap path._
+_Nothing currently blocking. v2 backend foundation is solid; Phase 3 frontend is the next development slice, not a blocker._
+
+---
+
+## 🚦 Phase 3 — frontend Home category + project creation (next active work)
+
+The Discovery v2 backend is ready but project creation doesn't currently pass `primary_category`, which means assembly skips and v2 projects fall back to v1 behavior. Phase 3 wires this.
+
+- [ ] Add a **category selector grid** at the top of Home.tsx — 16 categories grouped by group (software, food, film, fashion, etc.). 4×4 glassmorphism card grid.
+- [ ] Default category to user's previous pick (localStorage) for fast iteration.
+- [ ] **Pass `primary_category` in the POST /projects payload** — currently nullable, causes v2 assembly to no-op.
+- [ ] Optionally pass `secondary_category` based on AI inference from idea description (audit minor — enrichment rule unreachable otherwise).
+- [ ] Filter template grid to category-relevant templates when a category is picked.
+- [ ] **Brief module preview after project creation** — fetch `/projects/{id}/pathway`, show "Modules we picked: [list]" for 2-3 seconds, then route to Discovery. Optional polish.
 
 ---
 
@@ -119,39 +132,54 @@ Last audited: 2026-05-23
 
 ---
 
-## ✅ Recently Done (2026-05-23)
+## 🧭 Phase 4+ (Discovery v2 remaining frontend)
 
-See `CHANGELOG.md` and `CONTEXT_HANDOFF.md` for full session details. Highlights:
+After Phase 3 lands, the frontend still needs:
 
-### Admin system (commit `3747eac`)
+- [ ] **Phase 4 — ProgressPanel** on the right side of Discovery. Replace DesignSheetPanel for v2 projects. Subscribe to `field_update` SSE events. Show overall % + expandable per-module breakdown. Proceed button always available (with warning chip when <80%).
+- [ ] **Phase 5 — Design Kit view** at `/design-kit/{projectId}`. Replaces `/exports` as the final destination for v2 projects. Each module: Edit button (inline form per field schema) + Refresh button (only for `has_output` modules). Add Modules button at top → category-filtered picker.
+- [ ] **Phase 6 — Additional discovery** for newly-added modules. Mini-Discovery scoped to just the new modules' fields. Integrates back into the design kit on completion.
+
+---
+
+## ✅ Recently Done (2026-05-23 marathon session)
+
+10 commits shipped today. See `CHANGELOG.md` for the full per-commit breakdown.
+
+### Discovery v2 overhaul (Phases 1-2-hotfix shipped)
+- **Phase 1** (`fb840de`) — module field schemas (40 modules × 154 fields), `projects.flow_version` migration 029, up-front pathway assembly at project creation
+- **Phase 2** (`8cfc66a`) — unified discovery prompt + `extract_module_fields` extractor + `field_update` SSE event + service helpers
+- **Phase 2 hotfix** (`23f5e7d`) — migration 030 (shape backfill + UNIQUE constraint), race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`, SSE serialization safety, empty-pathway guard
+- **2-agent audit** ran between Phase 2 and the hotfix — caught the modules-shape blocker plus 4 defensive bugs
+- Backend ready for Phase 3 frontend work
+
+### Discovery SSE robustness (`e33c7a6`)
+- Assistant message now persists in its own transaction (resume bug fixed)
+- `done` event always fires with chip fallback (intermittent dropouts fixed)
+- Same defensive treatment applied to `/discovery/{id}/init`
+
+### Realtime inbox (`64a87bf`, verified)
+- Redis pub/sub backed SSE stream at `/inbox/stream`
+- Auto-reconnect with exponential backoff (1s → 30s)
+- Graceful 503 fallback when `REDIS_URL` is empty
+- Multi-tab realtime confirmed working in production
+
+### Admin system (`3747eac`, user-tested)
 - Hidden `/admin` route gated by `users.is_admin`
 - Migrations 027 + 028 (is_admin, entitlement_overrides, admin_audit_log)
 - Full CRUD on user plans / overrides / admin flag via UI drawer
-- Append-only audit log of every admin action
-- `entitlement_service.get_limits()` merges overrides over plan defaults
-- Bootstrap path documented in [admin-system memory](.claude/memory/admin-system.md)
+- Audit log of every action
+- Bootstrap via SQL `UPDATE users SET is_admin = TRUE WHERE id = '<id from /auth/me>'`
 
-### Toast migration (commit `28ead2d`)
+### Doc versioning (`6599cd1` + `4032cbc`)
+- DOC_VERSIONING.md convention + CHANGELOG.md + frontmatter on all versioned docs
+- Stop hook at `.claude/hooks/check-doc-versioning.sh` nags on missing CHANGELOG
+- Project memory entries for `admin-system`, `doc-versioning`, `duplicate-user-rows`
+
+### Roadmap refresh (`ec1e0a2`)
+- Recently Shipped section, Up Next queue formalized
+
+### Toast migration (`28ead2d`)
 - ~40 silent failures surfaced via `toast.error(extractError(err, fallback))` across 18 components
-- `fetchPathway()` unhandled rejections wrapped in `ModuleSession` + `PathwayExecute`
+- `fetchPathway()` unhandled rejections wrapped in ModuleSession + PathwayExecute
 - Inline error banners removed from Profile, CommentSection, StarRating, billing/UpgradeModal
-- `toast.success()` on import / snapshot / share-link / comment milestones
-
-### Railway production hardening
-- `CORS_ORIGINS` set (JSON array for both apex + www)
-- `CLERK_ISSUER` set (`https://clerk.myide.ai`, custom-domain Clerk)
-- `CLERK_AUTHORIZED_PARTIES` set (JSON array, blocks token replay)
-- All 3 webhook secrets verified (sign-in confirmed working post-hardening)
-
-### Doc versioning (this commit)
-- `DOC_VERSIONING.md` — SemVer per doc convention + bump rules + CHANGELOG entry checklist
-- `CHANGELOG.md` — Keep-a-Changelog format, backfilled with recent history
-- Frontmatter (Version + Last updated + CHANGELOG link) on CLAUDE.md, CONTEXT_HANDOFF.md, TODO.md, DOC_VERSIONING.md
-
-### Earlier 2026-05-23 (pre-admin)
-- All 15 audit tasks closed with 2-agent verification per fix
-- Mobile viewport conformance across 19 pages
-- Proceed button errors now surface to user
-- `auth.py` race handling consolidated with INSERT ON CONFLICT
-- react-hot-toast wired globally
-- Drag-and-drop Blocks, voice mic, PitchMode flow diagram, inbox per-item partner picker

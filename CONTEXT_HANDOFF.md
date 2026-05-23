@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,68 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-23) — Admin System + Error UX + Doc Versioning
+## Current Session (2026-05-23) — Marathon Day
+
+Single massive session that landed 10 commits across 5 major workstreams. Foundation is now ready for Phase 3 of the unified-Discovery overhaul.
+
+### Commits this session (10, all pushed to main, in chronological order)
+
+| Hash | What |
+|------|------|
+| `28ead2d` | fix: toast migration across 18 components (~40 silent errors surfaced) |
+| `3747eac` | feat: admin dashboard at hidden `/admin` (users, plans, overrides, audit log) |
+| `6599cd1` | docs: adopt SemVer-per-doc + CHANGELOG.md + frontmatter |
+| `4032cbc` | docs: enforce doc-versioning via CLAUDE.md prominence + Stop hook |
+| `ec1e0a2` | docs: refresh ROADMAP with shipped work + Up Next queue |
+| `64a87bf` | feat: realtime inbox via SSE stream + Redis pub/sub (verified) |
+| `e33c7a6` | fix: Discovery SSE always emits done; assistant msg persists independently |
+| `fb840de` | feat(discovery v2): Phase 1 — module field schemas + up-front pathway assembly |
+| `8cfc66a` | feat(discovery v2): Phase 2 — unified prompt + field_update event |
+| `23f5e7d` | fix(discovery v2): Phase 2 hotfix — shape fix + race-safe upsert + type coercion |
+
+### Most important things to know for the next session
+
+**Discovery v2 overhaul is in flight** (Phases 1-2-hotfix done, Phase 3 is next). Two flow versions now coexist:
+- **v1 (legacy projects)** — `projects.flow_version = 'v1'` (backfilled by migration 029). Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
+- **v2 (new projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. New SSE event `field_update` carries per-module summary for the eventual progress meter.
+
+**Where Phase 3 picks up:**
+- Frontend Home page needs a category selector grid (16 categories) at the top before the idea input
+- Project creation needs to actually pass `primary_category` (and optionally `secondary_category`) to the backend — currently nullable, breaks up-front assembly when null
+- After project creation, optionally show a brief "Modules we picked: [list]" panel before routing to Discovery
+
+**Backend foundation is solid for v2:**
+- Module library has 40 modules with 154 fields total (52 required, 102 optional), 6 modules flagged `has_output`
+- `ai_service.build_unified_discovery_prompt` + `extract_module_fields` work end-to-end
+- `discovery_service.apply_extracted_module_fields` uses race-safe ON CONFLICT upsert (migration 030)
+- `_coerce_field_value` defends against AI returning wrong-shape values
+- SSE done event always fires (Phase-pre robustness fix carried through)
+
+### Admin system live (commit 3747eac)
+
+- Hidden `/admin` route gated by `users.is_admin`. Sidebar shows admin link automatically when flag is true.
+- User search + plan toggle + entitlement overrides (Inherit/Unlimited/Custom per limit key) + grant-admin
+- Append-only audit log on every action
+- First admin bootstrap via SQL `UPDATE users SET is_admin = TRUE WHERE id = '<id from /auth/me>'` (use the id from /auth/me to avoid the duplicate-user-row gotcha — see `.claude/memory/duplicate-user-rows.md`)
+- User confirmed admin works end-to-end
+
+### Realtime inbox live (commit 64a87bf, verified)
+
+- `GET /api/v1/inbox/stream` SSE endpoint backed by Redis pub/sub
+- Channel per user: `inbox:user:{user_id}`. Published on POST/PROMOTE/DELETE inbox routes + inbound-email webhook.
+- Frontend `inboxStore.connectStream()` opens an authenticated EventSource-style stream with exponential-backoff reconnect. Falls back to mount-time `refresh()` if Redis isn't configured (`REDIS_URL` empty → 503).
+- Production env: Redis service attached, `REDIS_URL` set, sign-in verified, multi-tab realtime working
+
+### Doc-versioning system live (commits 6599cd1 + 4032cbc)
+
+- DOC_VERSIONING.md — SemVer per doc, root CHANGELOG, frontmatter format, 5-step checklist
+- CHANGELOG.md — Keep-a-Changelog format, current up to today
+- Stop hook at `.claude/hooks/check-doc-versioning.sh` nags if a commit touched `frontend/src/` or `backend/app/` without CHANGELOG.md
+- Project memory entries for `admin-system`, `doc-versioning`, `duplicate-user-rows` so future sessions inherit the conventions
+
+---
+
+## Earlier 2026-05-23 work — Admin + Error UX + Initial Doc Versioning
 
 Three logical chunks: (1) Production hardening of Railway env vars, (2) Toast migration to surface ~40 previously silent failures, (3) Backend + frontend admin system for managing users without going through Stripe checkout, (4) Doc versioning convention adopted across the project.
 
@@ -126,33 +187,48 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What's Working Today (verified)
 
-- **Auth pipeline** — Clerk JWKS verification with issuer + audience + authorized-parties enforcement; INSERT ON CONFLICT race handling; svix-signed webhooks; migration 026/028 dedup history
-- **Production hardening** — Railway env vars `CORS_ORIGINS`, `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` all active; sign-in confirmed post-hardening
-- **Admin dashboard** — `/admin` route gated by `users.is_admin`; plan/override/admin-flag mutations all working; audit log records every action
-- **Entitlement system** — `get_limits()` merges per-user overrides over plan defaults; admins can comp users to pro or set per-key custom limits
-- **Discovery SSE** — `done` event always fires (try/except wrapped), safety-net `onDone` in `useSSE`, anti-repetition CONVERSATION RULES injected, `sheet_update` fires BEFORE `done`
-- **Error surfacing** — react-hot-toast globally available; ~40 previously silent failures now surface via `toast.error(extractError(err, fallback))` across 18 components
+- **Auth pipeline** — Clerk JWKS verification with issuer + audience + authorized-parties enforcement active in production
+- **Production hardening** — Railway env vars set (CORS_ORIGINS, CLERK_ISSUER, CLERK_AUTHORIZED_PARTIES, REDIS_URL), sign-in + realtime inbox both verified end-to-end
+- **Admin dashboard** — `/admin` route gated by `users.is_admin`; plan/override/admin-flag mutations all working; audit log records every action; user has tested it
+- **Realtime inbox** — Redis pub/sub backed SSE stream verified delivering events under 1-2s; auto-reconnect + 503 fallback in place
+- **Discovery SSE robustness** — `done` event always fires (try/except wrapped at every yield), assistant message persists in its own transaction (resume bug fixed), chip generator has a 3-item fallback chain
+- **Discovery v1 (legacy projects)** — Unchanged: state machine stages → design-sheet extraction → sheet_update event → PathwayReview → PathwayExecute → per-module sessions
+- **Discovery v2 backend foundation** — Up-front pathway assembly at project creation, unified prompt targeting all module field schemas, `field_update` SSE event, race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`
+- **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output` for the Refresh affordance coming in Phase 5
+- **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.4.1), CONTEXT_HANDOFF.md (3.0.0), TODO.md (2.0.0+), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.1.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
-- **Migration chain** — Linear 001→028, all `down_revision` correct, all child-table names match models
-- **Mobile viewport** — All 19 affected pages use `.h-dvh` + `.pb-mobile-nav`, Sidebar nav extends for safe-area, TopBar actions horizontally scrollable
-- **CLAUDE.md** — Now at 2.0.0, all sections current; doc versioning system documented in DOC_VERSIONING.md
-- **Partner styles** — 10 styles substantive (Behaviour/Questioning/Guardrails), default `strategist` consistent everywhere
+- **Migration chain** — Linear 001→030, all reversible cleanly
+- **Mobile viewport** — All 19 affected pages use `.h-dvh` + `.pb-mobile-nav`
+- **Error UX** — react-hot-toast wired; ~40 silent failures now surface via toast across 18 components
 
 ---
 
 ## What Still Needs Your Action
 
+### 🚦 Phase 3 next steps (frontend Home + project creation)
+
+1. **Category selector grid on Home** — 16 categories grouped (software, food, film, fashion, etc.) above the idea input. User picks category first, then describes idea, then partner + templates + advanced.
+2. **Pass `primary_category` to POST /projects** — currently the frontend doesn't include it, which means the v2 assembly skips and falls back to v1 behavior. Phase 3 must wire this.
+3. **Optionally pass `secondary_category`** — flagged minor in audit; enrichment rule unreachable without it.
+4. **Optional: brief module preview** — after project creation, show "Modules we picked: [list]" before routing to Discovery, so the user sees what they're about to fill out.
+
 ### 🔐 Security hygiene (recommended but not blocking)
 
-- **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat earlier this session. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll signing secret), then update Railway. Test after rotation with a "Send example" event.
+- **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat earlier today. Roll each in its origin dashboard, update Railway, test with "Send example".
 
 ### 🧹 Code follow-ups (low priority)
 
-- **Other pages still use `setError` patterns** — Home (`createError`), SprintPlanner (`errorMessage`), Exports (already removed `packageError`), SharedProject (kept intentionally for full-page blocking errors). The remaining ones are non-blocking; toast-friendly to convert when convenient.
-- **Duplicate `_partnerCache`** in Home.tsx and Inbox.tsx — could be hoisted to `lib/partnerCache.ts`. Currently independent fetches.
-- **Cross-tab inbox badge sync** — Sidebar polls every 60s but doesn't listen to `storage` events. Adding ideas in tab A shows in tab B after up to 60s.
-- **Orphan user row cleanup** — One known orphan row (no `clerk_user_id`) from the dedupe debug earlier. Safe to leave. Delete query in [duplicate-user-rows memory](.claude/memory/duplicate-user-rows.md) if desired.
-- **Frontend admin tests** — No Vitest suite yet for the new admin store / drawer / table. Backend admin endpoints also lack pytest coverage. Worth adding when the test scaffolding for frontend lands.
+- **`Home.tsx createError` state** — convert to toast for consistency (one of the few remaining setError sites)
+- **`SprintPlanner.tsx errorMessage` state** — currently kept alongside toast for sticky display during 60s+ generation; could simplify to toast-only
+- **Duplicate `_partnerCache`** in Home.tsx and Inbox.tsx — hoist to `lib/partnerCache.ts`
+- **Orphan user row** — one row with `is_admin=TRUE` but no `clerk_user_id` from the early-session debug. Safe to leave or `DELETE`.
+- **Frontend tests** — none exist (TypeScript build is the only verification). Vitest scaffolding + first tests would be high-leverage.
+- **Backend admin endpoint tests** — `require_admin` rejection, `update_user_plan` audit trail, `update_user_admin_flag` self-revoke block, entitlement override merge logic.
+
+### 📋 Audit findings deferred from Phase 2 hotfix
+
+- **Prompt size unbounded as modules scale** — currently 8-15 modules typical, ~150 lines of system prompt. Fine for now; revisit if Phase 5+ adds many more modules per pathway.
+- **Discovery "Proceed" button still routes v2 to /pathway-review** — effectively unreachable since v2 doesn't update design_sheet (confidence_score stays at 0). Phase 4 will replace the trigger with a field-completion condition + route to the new design-kit page.
 
 ---
 
@@ -207,6 +283,8 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 | 026 | Deduplicate user rows v2 (post-Clerk webhook race cleanup) |
 | 027 | Add `users.is_admin` (bool) + `users.entitlement_overrides` (JSONB) |
 | 028 | Create `admin_audit_log` table (append-only admin action log) |
+| 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
+| 030 | Phase-2 hotfix — backfill module_pathways.modules shape, dedup module_responses, UNIQUE(project_id, module_id) |
 
 ---
 
@@ -293,19 +371,24 @@ Required pip packages: `pytest pytest-asyncio aiosqlite sqlalchemy[asyncio] pyda
 
 ---
 
-## Code Quality Snapshot (2026-05-23 — end of admin-system session)
+## Code Quality Snapshot (2026-05-23 — end of marathon session)
 
-- ✅ TypeScript: zero compilation errors
-- ✅ Backend Python: syntax validated on all 11 admin-system files
-- ✅ Migration chain: linear 001→028, all alembic IDs match
-- ✅ Auth: race-handling consolidated with INSERT ON CONFLICT; production hardening active (issuer + audience + azp enforcement)
-- ✅ SSE: always emits `done`, sheet_update fires before done
+- ✅ TypeScript: zero compilation errors (last verified after toast migration + admin UI + realtime inbox)
+- ✅ Backend Python: syntax validated on all 15+ files changed today
+- ✅ Migration chain: linear 001→030, all reversible
+- ✅ Auth: production-hardened with issuer + audience + azp enforcement; race-handling consolidated with INSERT ON CONFLICT
+- ✅ SSE: always emits `done` (Phase-pre robustness fix); v2 emits `field_update` before done with default=str safety
 - ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities
 - ✅ Error UX: ~40 silent failures now surface via toast across 18 components; 2 `fetchPathway` callers wrapped
-- ✅ Admin system: shipped with audit logging; entitlement overrides merge correctly with plan defaults
-- ✅ Railway: all required env vars set; sign-in verified end-to-end
-- ✅ Doc versioning: convention adopted, CHANGELOG seeded with recent history
-- ⚠️ Webhook secrets: 3 exposed in chat earlier this session — rotate when convenient
-- ⚠️ One orphan user row in DB (no clerk_user_id) — leftover from debug; safe to leave or delete
-- ❌ Frontend tests: none exist (TypeScript build is the only verification)
+- ✅ Admin system: live + user-tested; entitlement overrides merge correctly
+- ✅ Realtime inbox: Redis pub/sub verified end-to-end in production
+- ✅ Discovery v1: backward-compat fully preserved (verified by 2-agent audit)
+- ✅ Discovery v2 backend: foundation solid (up-front assembly + unified prompt + race-safe upsert + type coercion + always-fires done)
+- ✅ Railway: all env vars set including REDIS_URL
+- ✅ Doc versioning: convention live + Stop hook nags on missing CHANGELOG
+- ⚠️ Webhook secrets: 3 exposed in chat earlier — rotate when convenient
+- ⚠️ One orphan user row in DB (no clerk_user_id) — leftover from debug
+- ⚠️ Phase 3 frontend not yet started — v2 projects can be created but currently routed through the v1 UI
+- ❌ Frontend tests: none exist
 - ❌ Backend admin endpoint tests: no pytest coverage yet
+- ❌ Discovery v2 tests: zero coverage on the new prompt builder, extractor, upsert path
