@@ -6,7 +6,16 @@
     "description": "Detailed user/customer profiles, demographics, motivations, and pain points.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "primary_persona", "label": "Primary persona", "type": "text", "required": true, "extraction_hint": "One-line description of the primary user or customer (e.g. 'Early-stage SaaS founders aged 28-45')." },
+      { "key": "pain_points", "label": "Pain points", "type": "list", "required": true, "extraction_hint": "The top 2-5 pain points or frustrations this persona faces." },
+      { "key": "motivations", "label": "Motivations", "type": "list", "required": false, "extraction_hint": "What drives this persona to seek a solution (goals, aspirations, fears)." },
+      { "key": "demographics", "label": "Demographics", "type": "dict", "required": false, "extraction_hint": "Age range, location, income, education, profession as key/value pairs." },
+      { "key": "current_workarounds", "label": "Current workarounds", "type": "list", "required": false, "extraction_hint": "What they do today to solve or live with the problem (existing tools, manual workarounds)." },
+      { "key": "tech_savviness", "label": "Tech savviness", "type": "text", "required": false, "extraction_hint": "How comfortable this persona is with new tools and tech (novice / intermediate / expert)." }
+    ]
   },
   {
     "id": "problem_opportunity_framer",
@@ -15,7 +24,15 @@
     "description": "Articulates the specific gap or need the concept addresses.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "core_problem", "label": "Core problem", "type": "longtext", "required": true, "extraction_hint": "The specific gap or pain in 2-3 sentences." },
+      { "key": "who_has_problem", "label": "Who has this problem", "type": "text", "required": true, "extraction_hint": "Who specifically faces this problem (a short phrase, not the persona dump)." },
+      { "key": "current_alternatives", "label": "Current alternatives", "type": "list", "required": false, "extraction_hint": "Existing solutions and why they fall short (each entry: 'Solution X — falls short because Y')." },
+      { "key": "urgency", "label": "Urgency / why now", "type": "text", "required": false, "extraction_hint": "What has changed recently to make this problem more pressing." },
+      { "key": "opportunity_size", "label": "Opportunity size", "type": "text", "required": false, "extraction_hint": "Rough sense of how many people are affected or potential market size." }
+    ]
   },
   {
     "id": "goals_success_metrics",
@@ -24,7 +41,15 @@
     "description": "Defines what winning looks like with measurable outcomes.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "10 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "north_star_metric", "label": "North-star metric", "type": "text", "required": true, "extraction_hint": "The one number that defines success (e.g. 'Weekly active users', 'Monthly revenue')." },
+      { "key": "secondary_metrics", "label": "Secondary metrics", "type": "list", "required": false, "extraction_hint": "2-4 supporting metrics that ladder up to the north-star." },
+      { "key": "time_horizon", "label": "Time horizon", "type": "text", "required": true, "extraction_hint": "Timeframe to hit goals (e.g. '6 months', '1 year', '3 years')." },
+      { "key": "target_value", "label": "Target value", "type": "text", "required": false, "extraction_hint": "Specific target number for the north-star metric within the horizon." },
+      { "key": "non_goals", "label": "Non-goals", "type": "list", "required": false, "extraction_hint": "Things explicitly NOT being optimized for (helps focus)." }
+    ]
   },
   {
     "id": "constraints_mapper",
@@ -33,7 +58,16 @@
     "description": "Budget, time, skills, regulations, and physical limits.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "10 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "budget_ceiling", "label": "Budget ceiling", "type": "text", "required": false, "extraction_hint": "Total budget or budget category (e.g. '<$5k', '$50-100k', 'self-funded')." },
+      { "key": "time_constraint", "label": "Time constraint", "type": "text", "required": false, "extraction_hint": "Hard deadlines or time pressure." },
+      { "key": "team_size", "label": "Team size", "type": "text", "required": false, "extraction_hint": "Number of people involved (e.g. 'solo', '2-3 cofounders', '10-person team')." },
+      { "key": "tech_constraints", "label": "Tech constraints", "type": "list", "required": false, "extraction_hint": "Required or forbidden technologies, platforms, languages." },
+      { "key": "regulatory_constraints", "label": "Regulatory constraints", "type": "list", "required": false, "extraction_hint": "Laws, licenses, certifications that apply." },
+      { "key": "physical_constraints", "label": "Physical constraints", "type": "list", "required": false, "extraction_hint": "Space, equipment, geographic limits." }
+    ]
   },
   {
     "id": "assumptions_log",
@@ -42,7 +76,13 @@
     "description": "Surfaces things being taken for granted that should be validated.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "assumptions", "label": "Assumptions", "type": "list", "required": true, "extraction_hint": "List of things being assumed to be true that haven't been validated yet." },
+      { "key": "validation_priority", "label": "Top to validate first", "type": "list", "required": false, "extraction_hint": "Top 3 highest-risk assumptions to validate first." },
+      { "key": "evidence_for", "label": "Evidence so far", "type": "dict", "required": false, "extraction_hint": "Per-assumption supporting evidence (key=assumption, value=evidence)." }
+    ]
   },
   {
     "id": "audience_validation_planner",
@@ -51,7 +91,14 @@
     "description": "Methods and questions to test assumptions about target users before building.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "interview_targets", "label": "Interview targets", "type": "text", "required": true, "extraction_hint": "Who to talk to and roughly how many (e.g. '10 indie founders, 5 agencies')." },
+      { "key": "key_questions", "label": "Key questions to ask", "type": "list", "required": true, "extraction_hint": "3-5 questions that test the core hypotheses." },
+      { "key": "validation_method", "label": "Validation method", "type": "text", "required": false, "extraction_hint": "Interviews / surveys / observation / landing-page test / etc." },
+      { "key": "success_criteria", "label": "Success criteria", "type": "text", "required": false, "extraction_hint": "What signal counts as 'this is real' (e.g. '7 of 10 interviewees say they'd pay')." }
+    ]
   },
   {
     "id": "proof_of_concept_planner",
@@ -60,7 +107,14 @@
     "description": "Defines the smallest testable version and how to test it.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "mvp_definition", "label": "Smallest testable version", "type": "longtext", "required": true, "extraction_hint": "The smallest thing that proves or disproves the core idea." },
+      { "key": "success_signal", "label": "Success signal", "type": "text", "required": true, "extraction_hint": "What evidence we need to consider the POC successful." },
+      { "key": "timebox", "label": "Timebox", "type": "text", "required": true, "extraction_hint": "Max time to spend on the POC before deciding." },
+      { "key": "learnings_sought", "label": "Learnings sought", "type": "list", "required": false, "extraction_hint": "What questions the POC will answer." }
+    ]
   },
   {
     "id": "risk_assessment",
@@ -69,7 +123,13 @@
     "description": "What could go wrong, likelihood, severity, and mitigation strategies.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "risks", "label": "Major risks", "type": "list", "required": true, "extraction_hint": "Top risks across technical, market, financial, legal, operational categories." },
+      { "key": "mitigations", "label": "Mitigation strategies", "type": "dict", "required": false, "extraction_hint": "Per-risk mitigation (key=risk, value=mitigation)." },
+      { "key": "worst_case", "label": "Worst plausible outcome", "type": "text", "required": false, "extraction_hint": "Worst-case scenario and what triggers it." }
+    ]
   },
   {
     "id": "regulatory_compliance_check",
@@ -78,7 +138,13 @@
     "description": "Legal, licensing, safety, and industry-specific rules.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "applicable_regulations", "label": "Applicable regulations", "type": "list", "required": true, "extraction_hint": "Laws and standards that apply (GDPR, HIPAA, FDA, local licensing, etc.)." },
+      { "key": "licenses_needed", "label": "Licenses & certifications", "type": "list", "required": false, "extraction_hint": "Permits, certifications, or registrations required." },
+      { "key": "data_privacy_concerns", "label": "Data privacy concerns", "type": "list", "required": false, "extraction_hint": "PII categories handled and applicable privacy laws." }
+    ]
   },
   {
     "id": "trend_timing_analysis",
@@ -87,7 +153,13 @@
     "description": "Whether the timing is right and why, relevant trend signals.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "trend_signals", "label": "Trend signals", "type": "list", "required": true, "extraction_hint": "Recent shifts (tech, regulatory, cultural, economic) that make this timely." },
+      { "key": "competing_trends", "label": "Competing trends", "type": "list", "required": false, "extraction_hint": "Counter-currents or headwinds that could undermine timing." },
+      { "key": "timing_thesis", "label": "Timing thesis", "type": "longtext", "required": true, "extraction_hint": "Why now in 2-3 sentences — what makes this the right moment." }
+    ]
   },
   {
     "id": "team_resource_planner",
@@ -96,7 +168,14 @@
     "description": "Who and what is needed, roles, skills gaps, hiring needs.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "key_roles", "label": "Key roles needed", "type": "list", "required": true, "extraction_hint": "Roles required to build this (designer, engineer, marketer, ops, etc.)." },
+      { "key": "skill_gaps", "label": "Skill gaps", "type": "list", "required": false, "extraction_hint": "Capabilities the current team lacks." },
+      { "key": "hiring_priorities", "label": "Hiring priorities", "type": "list", "required": false, "extraction_hint": "First few hires needed, in priority order." },
+      { "key": "external_help", "label": "External help", "type": "list", "required": false, "extraction_hint": "Contractors, agencies, advisors, mentors needed." }
+    ]
   },
   {
     "id": "budget_cost_estimator",
@@ -105,7 +184,14 @@
     "description": "Full project cost breakdown by phase across all project types.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "total_budget", "label": "Total budget", "type": "text", "required": true, "extraction_hint": "Overall ballpark budget." },
+      { "key": "phase_breakdown", "label": "Phase breakdown", "type": "dict", "required": false, "extraction_hint": "Per-phase or per-quarter cost split (key=phase, value=dollar amount)." },
+      { "key": "recurring_costs", "label": "Recurring costs", "type": "list", "required": false, "extraction_hint": "Monthly/annual subscriptions, salaries, rent, etc." },
+      { "key": "one_time_costs", "label": "One-time costs", "type": "list", "required": false, "extraction_hint": "Setup, hardware, software licenses, legal, etc." }
+    ]
   },
   {
     "id": "dependency_mapper",
@@ -114,7 +200,13 @@
     "description": "What must happen before what, critical path identification.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "critical_path", "label": "Critical path", "type": "list", "required": true, "extraction_hint": "Sequenced milestones from start to launch." },
+      { "key": "blockers", "label": "Blockers", "type": "list", "required": false, "extraction_hint": "Things that can't start until X happens." },
+      { "key": "parallel_workstreams", "label": "Parallel workstreams", "type": "list", "required": false, "extraction_hint": "Streams that can run in parallel without conflict." }
+    ]
   },
   {
     "id": "operations_planner",
@@ -123,7 +215,13 @@
     "description": "Day-to-day logistics once the concept is live.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "daily_operations", "label": "Day-to-day rhythm", "type": "longtext", "required": true, "extraction_hint": "What running this looks like on a typical day or week." },
+      { "key": "key_tools", "label": "Operating tools", "type": "list", "required": false, "extraction_hint": "CRM, support, project management, accounting tools needed." },
+      { "key": "escalation_paths", "label": "Escalation paths", "type": "list", "required": false, "extraction_hint": "Who handles what when things go wrong." }
+    ]
   },
   {
     "id": "data_model_planner",
@@ -132,7 +230,14 @@
     "description": "Entities, relationships, data types, and storage needs.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "entities", "label": "Main entities", "type": "list", "required": true, "extraction_hint": "Main data objects (User, Project, Order, Post, etc.)." },
+      { "key": "relationships", "label": "Relationships", "type": "longtext", "required": false, "extraction_hint": "How entities connect (one-to-many, many-to-many, etc.)." },
+      { "key": "data_volumes", "label": "Data volumes", "type": "text", "required": false, "extraction_hint": "Expected scale (number of users, records per user, etc.)." },
+      { "key": "storage_needs", "label": "Storage needs", "type": "text", "required": false, "extraction_hint": "Database, file storage, search engine, etc." }
+    ]
   },
   {
     "id": "security_compliance_layer",
@@ -141,7 +246,14 @@
     "description": "Auth strategy, data protection, privacy, and access control.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "auth_strategy", "label": "Auth strategy", "type": "text", "required": true, "extraction_hint": "Approach to authentication (OAuth, magic link, custom JWT, etc.)." },
+      { "key": "data_classification", "label": "Data classification", "type": "list", "required": false, "extraction_hint": "Sensitive data categories (PII, financial, health, etc.)." },
+      { "key": "access_control", "label": "Access control", "type": "text", "required": false, "extraction_hint": "Role-based access, attribute-based, multi-tenancy approach." },
+      { "key": "audit_requirements", "label": "Audit & logging", "type": "text", "required": false, "extraction_hint": "Logging, compliance reporting needs." }
+    ]
   },
   {
     "id": "brand_identity_framework",
@@ -150,7 +262,15 @@
     "description": "Name, voice, tone, visual language, and core values.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "brand_name", "label": "Brand name", "type": "text", "required": true, "extraction_hint": "Proposed name for the brand or project." },
+      { "key": "brand_voice", "label": "Brand voice", "type": "longtext", "required": true, "extraction_hint": "Tone of voice in 2-3 sentences (e.g. 'Warm and authoritative; confident but never preachy')." },
+      { "key": "core_values", "label": "Core values", "type": "list", "required": false, "extraction_hint": "3-5 values that guide brand decisions." },
+      { "key": "brand_promise", "label": "Brand promise", "type": "text", "required": false, "extraction_hint": "One-line promise to customers." },
+      { "key": "personality_traits", "label": "Personality traits", "type": "list", "required": false, "extraction_hint": "Adjectives that describe the brand (e.g. 'witty', 'reliable', 'edgy')." }
+    ]
   },
   {
     "id": "design_language_guide",
@@ -159,7 +279,14 @@
     "description": "Color direction, typography, and style references.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "color_direction", "label": "Color direction", "type": "longtext", "required": true, "extraction_hint": "The color story — primary, accent, mood." },
+      { "key": "typography", "label": "Typography", "type": "text", "required": false, "extraction_hint": "Type choices or direction (e.g. 'modern sans-serif, geometric')." },
+      { "key": "visual_references", "label": "Visual references", "type": "list", "required": false, "extraction_hint": "Mood references — specific brands, products, or styles to look like or not look like." },
+      { "key": "design_principles", "label": "Design principles", "type": "list", "required": false, "extraction_hint": "Guiding principles (e.g. 'less is more', 'never two colors', 'always grid-aligned')." }
+    ]
   },
   {
     "id": "narrative_story_arc",
@@ -168,7 +295,15 @@
     "description": "Story structure for writing, film, games, or brand storytelling.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "premise", "label": "Premise", "type": "longtext", "required": true, "extraction_hint": "The core premise in 1-3 sentences." },
+      { "key": "protagonist", "label": "Protagonist", "type": "text", "required": true, "extraction_hint": "Main character with a one-line description." },
+      { "key": "central_conflict", "label": "Central conflict", "type": "longtext", "required": true, "extraction_hint": "The driving conflict that powers the story." },
+      { "key": "act_structure", "label": "Act / beat structure", "type": "list", "required": false, "extraction_hint": "Beat sheet or 3-act outline (each entry = one beat or act summary)." },
+      { "key": "themes", "label": "Themes", "type": "list", "required": false, "extraction_hint": "Underlying themes the story explores." }
+    ]
   },
   {
     "id": "character_world_builder",
@@ -177,7 +312,14 @@
     "description": "Character profiles, world rules, and lore for fiction, screenplays, and games.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "main_characters", "label": "Main characters", "type": "list", "required": true, "extraction_hint": "Major characters with brief descriptions (name — role — defining trait)." },
+      { "key": "world_rules", "label": "World rules", "type": "list", "required": false, "extraction_hint": "Setting laws, physics, magic system, or genre conventions." },
+      { "key": "setting_description", "label": "Setting", "type": "longtext", "required": false, "extraction_hint": "Where and when the story takes place." },
+      { "key": "lore_elements", "label": "Lore elements", "type": "list", "required": false, "extraction_hint": "History, cultures, factions, key events that shape the world." }
+    ]
   },
   {
     "id": "content_strategy",
@@ -186,7 +328,14 @@
     "description": "What content is needed, in what format, when, and for whom.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "content_pillars", "label": "Content pillars", "type": "list", "required": true, "extraction_hint": "3-5 main themes or topics content will focus on." },
+      { "key": "formats", "label": "Formats", "type": "list", "required": false, "extraction_hint": "Blog, video, social, podcast, newsletter, etc." },
+      { "key": "cadence", "label": "Publishing cadence", "type": "text", "required": false, "extraction_hint": "Posting frequency (e.g. '2 blog posts per week, daily social')." },
+      { "key": "distribution_channels", "label": "Distribution channels", "type": "list", "required": false, "extraction_hint": "Platforms where content will live (own blog, YouTube, X, LinkedIn, etc.)." }
+    ]
   },
   {
     "id": "creative_direction_brief",
@@ -195,7 +344,14 @@
     "description": "Visual and tonal reference points, mood board prompts.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "mood_words", "label": "Mood words", "type": "list", "required": true, "extraction_hint": "Adjectives capturing the feel (e.g. 'warm', 'futuristic', 'gritty')." },
+      { "key": "visual_references", "label": "Visual references", "type": "list", "required": false, "extraction_hint": "Specific brands, films, products, or images to reference." },
+      { "key": "tone_examples", "label": "Tone examples", "type": "list", "required": false, "extraction_hint": "Comparable brands or products that nail the desired tone." },
+      { "key": "do_nots", "label": "What to avoid", "type": "list", "required": false, "extraction_hint": "Aesthetics, references, or vibes to steer clear of." }
+    ]
   },
   {
     "id": "space_program",
@@ -204,7 +360,13 @@
     "description": "Areas and rooms needed, their functions and spatial relationships.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "required_areas", "label": "Required areas", "type": "list", "required": true, "extraction_hint": "Rooms or zones needed (kitchen, dining, prep, storage, restroom, etc.)." },
+      { "key": "area_sizes", "label": "Area sizes", "type": "dict", "required": false, "extraction_hint": "Rough size per area (key=area, value=sq ft or approximation)." },
+      { "key": "adjacency_requirements", "label": "Adjacency requirements", "type": "list", "required": false, "extraction_hint": "Which areas need to be near each other or kept apart." }
+    ]
   },
   {
     "id": "materials_finish_selector",
@@ -213,7 +375,13 @@
     "description": "Surfaces, textures, and key material choices.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "key_materials", "label": "Key materials", "type": "list", "required": true, "extraction_hint": "Primary materials for floors, walls, surfaces, fixtures." },
+      { "key": "finish_palette", "label": "Finish palette", "type": "longtext", "required": false, "extraction_hint": "Overall finish direction in a sentence or two." },
+      { "key": "sustainability_criteria", "label": "Sustainability criteria", "type": "list", "required": false, "extraction_hint": "Eco / reclaimed / certifications required." }
+    ]
   },
   {
     "id": "footprint_flow_diagram",
@@ -222,7 +390,13 @@
     "description": "How people move through the space or interact with the product.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "entry_flow", "label": "Entry flow", "type": "longtext", "required": true, "extraction_hint": "How users enter and start (first impression, first action)." },
+      { "key": "key_interactions", "label": "Key interactions", "type": "list", "required": false, "extraction_hint": "Main touchpoints or stations during the experience." },
+      { "key": "exit_flow", "label": "Exit flow", "type": "longtext", "required": false, "extraction_hint": "How users leave or complete the experience." }
+    ]
   },
   {
     "id": "vendor_supplier_map",
@@ -231,7 +405,13 @@
     "description": "Who provides what physically and sourcing strategy.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "key_vendors", "label": "Vendor categories", "type": "list", "required": true, "extraction_hint": "Categories of vendors needed (food, packaging, equipment, etc.)." },
+      { "key": "selection_criteria", "label": "Selection criteria", "type": "list", "required": false, "extraction_hint": "How vendors will be evaluated (cost, quality, location, ethics)." },
+      { "key": "backup_options", "label": "Backup options", "type": "dict", "required": false, "extraction_hint": "Per-category backup vendor (key=category, value=backup approach)." }
+    ]
   },
   {
     "id": "equipment_inventory_list",
@@ -240,7 +420,13 @@
     "description": "Hardware, tools, stock, and physical assets needed.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "equipment_needed", "label": "Equipment needed", "type": "list", "required": true, "extraction_hint": "Major items required (hardware, machines, tools, fixtures)." },
+      { "key": "quantities", "label": "Quantities", "type": "dict", "required": false, "extraction_hint": "How many of each (key=item, value=count)." },
+      { "key": "acquisition_strategy", "label": "Buy / rent / lease", "type": "text", "required": false, "extraction_hint": "Overall acquisition approach." }
+    ]
   },
   {
     "id": "launch_strategy",
@@ -249,7 +435,14 @@
     "description": "How and when to introduce this to the world.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "launch_date", "label": "Target launch date", "type": "text", "required": true, "extraction_hint": "Date or rough window for launch." },
+      { "key": "launch_phases", "label": "Launch phases", "type": "list", "required": false, "extraction_hint": "Soft launch / beta / public phases with rough dates." },
+      { "key": "launch_channels", "label": "Launch channels", "type": "list", "required": false, "extraction_hint": "Where the launch will happen (Product Hunt, press, community, etc.)." },
+      { "key": "success_indicators", "label": "First-week success indicators", "type": "list", "required": false, "extraction_hint": "Metrics that show launch went well." }
+    ]
   },
   {
     "id": "distribution_channel_planner",
@@ -258,7 +451,13 @@
     "description": "How it reaches its audience and channel mix.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "primary_channels", "label": "Primary channels", "type": "list", "required": true, "extraction_hint": "Main distribution channels (direct sales, app stores, retail, content, etc.)." },
+      { "key": "channel_economics", "label": "Channel economics", "type": "dict", "required": false, "extraction_hint": "Per-channel cost vs reach (key=channel, value=note)." },
+      { "key": "channel_dependencies", "label": "Channel dependencies", "type": "list", "required": false, "extraction_hint": "Platform requirements or risks per channel." }
+    ]
   },
   {
     "id": "pricing_strategy",
@@ -267,7 +466,13 @@
     "description": "How value is captured and pricing model options.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "pricing_model", "label": "Pricing model", "type": "text", "required": true, "extraction_hint": "Subscription / one-time / freemium / usage-based / tiered / etc." },
+      { "key": "price_points", "label": "Price points", "type": "list", "required": true, "extraction_hint": "Specific tier names + prices." },
+      { "key": "pricing_rationale", "label": "Pricing rationale", "type": "longtext", "required": false, "extraction_hint": "Why this pricing (anchoring, value-based, competitive)." }
+    ]
   },
   {
     "id": "marketing_messaging_framework",
@@ -276,7 +481,14 @@
     "description": "What to say, where to say it, and to whom.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "value_prop", "label": "Value proposition", "type": "longtext", "required": true, "extraction_hint": "The core value proposition in 1-2 sentences." },
+      { "key": "key_messages", "label": "Key messages", "type": "list", "required": true, "extraction_hint": "3-5 messages that support the value prop." },
+      { "key": "audience_segments", "label": "Audience segments", "type": "list", "required": false, "extraction_hint": "Per-segment messaging variations." },
+      { "key": "proof_points", "label": "Proof points", "type": "list", "required": false, "extraction_hint": "Evidence supporting the messages (stats, testimonials, demos)." }
+    ]
   },
   {
     "id": "partnership_outreach_map",
@@ -285,7 +497,13 @@
     "description": "Collaborators, press, influencers, and key relationships.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "12 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "target_partners", "label": "Target partner categories", "type": "list", "required": true, "extraction_hint": "Categories of partners (distributors, integrators, press, influencers)." },
+      { "key": "specific_targets", "label": "Named targets", "type": "list", "required": false, "extraction_hint": "Specific companies or individuals to approach." },
+      { "key": "value_exchange", "label": "Value exchange", "type": "text", "required": false, "extraction_hint": "What we offer partners / what we want from them." }
+    ]
   },
   {
     "id": "community_retention_plan",
@@ -294,7 +512,13 @@
     "description": "How to keep people engaged after launch.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "community_format", "label": "Community format", "type": "text", "required": true, "extraction_hint": "Discord / forum / events / newsletter / etc." },
+      { "key": "engagement_rituals", "label": "Engagement rituals", "type": "list", "required": false, "extraction_hint": "Recurring touchpoints (weekly digest, AMAs, office hours)." },
+      { "key": "retention_metrics", "label": "Retention metrics", "type": "list", "required": false, "extraction_hint": "Metrics that measure stickiness (DAU/MAU, repeat purchase, churn)." }
+    ]
   },
   {
     "id": "revenue_model_designer",
@@ -303,7 +527,13 @@
     "description": "How this makes money, model options, and unit economics.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": false,
+    "fields": [
+      { "key": "revenue_streams", "label": "Revenue streams", "type": "list", "required": true, "extraction_hint": "All the ways this makes money (subscription, transactions, ads, services, etc.)." },
+      { "key": "unit_economics", "label": "Unit economics", "type": "longtext", "required": false, "extraction_hint": "Per-unit profit math (CAC, LTV, gross margin)." },
+      { "key": "pricing_tiers", "label": "Pricing tiers", "type": "list", "required": false, "extraction_hint": "If subscription, the tier names and prices." }
+    ]
   },
   {
     "id": "financial_projection_builder",
@@ -312,7 +542,14 @@
     "description": "Basic P&L, break-even, cash flow, and projections.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "year_1_revenue", "label": "Year 1 revenue target", "type": "text", "required": false, "extraction_hint": "Revenue goal for year 1." },
+      { "key": "breakeven_timeline", "label": "Breakeven timeline", "type": "text", "required": false, "extraction_hint": "When we expect to break even." },
+      { "key": "monthly_burn", "label": "Monthly burn rate", "type": "text", "required": false, "extraction_hint": "Expected monthly cost to operate." },
+      { "key": "growth_assumptions", "label": "Growth assumptions", "type": "list", "required": false, "extraction_hint": "Key assumptions driving the projections." }
+    ]
   },
   {
     "id": "funding_investment_map",
@@ -321,7 +558,13 @@
     "description": "Bootstrapped, grants, investors, and crowdfunding paths.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "funding_path", "label": "Funding path", "type": "text", "required": true, "extraction_hint": "Bootstrap / friends-family / angel / VC / grants / crowdfund / revenue." },
+      { "key": "funding_milestones", "label": "Funding milestones", "type": "list", "required": false, "extraction_hint": "Round sizes and what each round unlocks." },
+      { "key": "current_runway", "label": "Current runway", "type": "text", "required": false, "extraction_hint": "Months of runway available before needing more funding." }
+    ]
   },
   {
     "id": "business_model_canvas",
@@ -330,7 +573,19 @@
     "description": "Lean one-page business structure overview.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "value_proposition", "label": "Value proposition", "type": "longtext", "required": true, "extraction_hint": "The center of the canvas — the value delivered to customers." },
+      { "key": "customer_segments", "label": "Customer segments", "type": "list", "required": true, "extraction_hint": "Who we serve, segmented." },
+      { "key": "revenue_streams", "label": "Revenue streams", "type": "list", "required": false, "extraction_hint": "How we capture value." },
+      { "key": "key_activities", "label": "Key activities", "type": "list", "required": false, "extraction_hint": "What we do daily to deliver value." },
+      { "key": "key_resources", "label": "Key resources", "type": "list", "required": false, "extraction_hint": "What we need (people, IP, capital, infrastructure)." },
+      { "key": "cost_structure", "label": "Cost structure", "type": "longtext", "required": false, "extraction_hint": "Major cost categories." },
+      { "key": "key_partners", "label": "Key partners", "type": "list", "required": false, "extraction_hint": "Who we work with to deliver value." },
+      { "key": "customer_relationships", "label": "Customer relationships", "type": "text", "required": false, "extraction_hint": "Type of relationship (self-serve, high-touch, community-driven)." },
+      { "key": "channels", "label": "Channels", "type": "list", "required": false, "extraction_hint": "How we reach and deliver to customers." }
+    ]
   },
   {
     "id": "legal_ip_planner",
@@ -339,7 +594,13 @@
     "description": "Entity type, IP protection strategy, and key contracts needed.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "15 min",
-    "default_mode": "lite"
+    "default_mode": "lite",
+    "has_output": false,
+    "fields": [
+      { "key": "entity_type", "label": "Entity type", "type": "text", "required": true, "extraction_hint": "Sole prop / LLC / C-corp / B-corp / nonprofit / etc." },
+      { "key": "ip_strategy", "label": "IP strategy", "type": "list", "required": false, "extraction_hint": "Trademarks, patents, copyrights, trade secrets to protect." },
+      { "key": "contracts_needed", "label": "Contracts needed", "type": "list", "required": false, "extraction_hint": "Founder agreement, employment, customer ToS, vendor agreements, NDAs." }
+    ]
   },
   {
     "id": "production_bible",
@@ -348,7 +609,14 @@
     "description": "Full reference doc: characters, world rules, tone, chapter/episode breakdowns.",
     "estimated_time_lite": "10 min",
     "estimated_time_deep": "30 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "outline", "label": "Outline", "type": "longtext", "required": true, "extraction_hint": "Chapter, episode, or scene breakdown." },
+      { "key": "tone_and_voice", "label": "Tone & voice", "type": "longtext", "required": false, "extraction_hint": "How it reads or sounds — narrative voice, pacing, prose style." },
+      { "key": "references", "label": "Comparable works", "type": "list", "required": false, "extraction_hint": "Comparable books, films, or shows for tone/structure." },
+      { "key": "format_specs", "label": "Format specs", "type": "text", "required": false, "extraction_hint": "Length, format, target channel (e.g. '8-episode limited series, 60 min each')." }
+    ]
   },
   {
     "id": "investor_deck_outline",
@@ -357,6 +625,12 @@
     "description": "Structured framework for a funding presentation.",
     "estimated_time_lite": "5 min",
     "estimated_time_deep": "20 min",
-    "default_mode": "deep"
+    "default_mode": "deep",
+    "has_output": true,
+    "fields": [
+      { "key": "pitch_hook", "label": "Pitch hook", "type": "longtext", "required": true, "extraction_hint": "The opening line that grabs investor attention." },
+      { "key": "key_slides", "label": "Key slides", "type": "list", "required": true, "extraction_hint": "Slide-by-slide structure (10-15 slides, each with a one-line summary)." },
+      { "key": "the_ask", "label": "The ask", "type": "text", "required": false, "extraction_hint": "Specific funding ask — amount, use of funds, milestones it unlocks." }
+    ]
   }
 ]

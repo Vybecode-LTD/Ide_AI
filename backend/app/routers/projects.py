@@ -1,6 +1,7 @@
 """
 projects.py — Project CRUD router. Manages user project workspaces.
 """
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,11 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.module_pathway import ModulePathway
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
+from app.services import modular_pathway_service
 from app.services.entitlement_service import require_project_slot
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -56,6 +61,38 @@ async def create_project(
     )
     db.add(project)
     await db.flush()
+
+    # v2 flow: assemble the module pathway UP FRONT so discovery can target
+    # all module fields from the first turn. Skipped for legacy v1 projects
+    # (no pre-assembly — they still use Discovery → PathwayReview → Execute).
+    if project.flow_version == "v2" and project.primary_category:
+        try:
+            assembled = modular_pathway_service.assemble_pathway_from_creation_inputs(
+                description=project.description,
+                primary_category=project.primary_category,
+                secondary_category=project.secondary_category,
+                platform=project.platform,
+                audience=project.audience,
+                tone=project.tone,
+            )
+            pathway = ModulePathway(
+                project_id=project.id,
+                modules=assembled["modules"],
+                lite_deep_settings=modular_pathway_service.get_lite_deep_defaults(
+                    [m["module_id"] for m in assembled["modules"]]
+                ),
+                status="active",
+            )
+            db.add(pathway)
+            await db.flush()
+        except Exception as exc:
+            # Don't fail project creation if pathway assembly hiccups — the
+            # frontend can fall back to the legacy on-demand assemble endpoint.
+            logger.warning(
+                "Up-front pathway assembly failed for project %s: %s",
+                project.id, exc,
+            )
+
     return project
 
 

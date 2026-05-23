@@ -28,6 +28,9 @@ class Project(Base):
     primary_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     secondary_category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     pathway_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # "v1" = legacy Discovery → PathwayReview → per-module sessions flow.
+    # "v2" = unified Discovery → Design Kit flow (assembled up-front).
+    flow_version: Mapped[str] = mapped_column(String(10), nullable=False, default="v2", server_default="v2", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

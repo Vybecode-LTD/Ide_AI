@@ -39,6 +39,7 @@ class ProjectRead(BaseModel):
     primary_category: Optional[str] = None
     secondary_category: Optional[str] = None
     pathway_locked: bool = False
+    flow_version: str = "v2"
     created_at: datetime
     updated_at: datetime
 

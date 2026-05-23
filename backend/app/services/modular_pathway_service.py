@@ -247,3 +247,126 @@ def get_lite_deep_defaults(module_ids: list[str]) -> dict[str, str]:
         defn = get_module_definition(mid)
         settings[mid] = defn.get("default_mode", "lite") if defn else "lite"
     return settings
+
+
+# ---------------------------------------------------------------------------
+# Field-schema helpers (used by the unified-discovery v2 flow)
+# ---------------------------------------------------------------------------
+
+
+def get_module_fields(module_id: str) -> list[dict]:
+    """Return the field schema for a module, or an empty list if not defined.
+
+    Each field is a dict with keys: ``key``, ``label``, ``type``, ``required``,
+    ``extraction_hint``. Modules added before the v2 schema migration may not
+    have a fields list — return ``[]`` so callers degrade gracefully.
+    """
+    defn = get_module_definition(module_id)
+    if not defn:
+        return []
+    return list(defn.get("fields") or [])
+
+
+def get_pathway_field_summary(module_ids: list[str]) -> dict:
+    """Aggregate field counts across an assembled pathway.
+
+    Returns a summary used by the progress meter:
+      {
+        "total_fields": int,
+        "required_fields": int,
+        "optional_fields": int,
+        "per_module": [
+          {"module_id": str, "label": str, "total": int, "required": int}
+        ],
+      }
+
+    Modules without a ``fields`` schema contribute zero to the counts so they
+    don't inflate the denominator.
+    """
+    total_required = 0
+    total_optional = 0
+    per_module: list[dict] = []
+
+    for mid in module_ids:
+        defn = get_module_definition(mid)
+        if not defn:
+            continue
+        fields = list(defn.get("fields") or [])
+        required = sum(1 for f in fields if f.get("required"))
+        optional = len(fields) - required
+        total_required += required
+        total_optional += optional
+        per_module.append({
+            "module_id": mid,
+            "label": defn.get("label", mid),
+            "total": len(fields),
+            "required": required,
+        })
+
+    return {
+        "total_fields": total_required + total_optional,
+        "required_fields": total_required,
+        "optional_fields": total_optional,
+        "per_module": per_module,
+    }
+
+
+def _description_to_pseudo_sheet(
+    description: str | None,
+    *,
+    platform: str | None = None,
+    audience: str | None = None,
+    tone: str | None = None,
+) -> dict:
+    """Build a minimal concept-sheet-shaped dict from project creation inputs.
+
+    Used for up-front pathway assembly in the v2 flow — we don't have a real
+    concept sheet yet, but we can still run the enrichment rules against the
+    description + the few signals collected on the Home page.
+    """
+    return {
+        "problem": description or "",
+        "audience": audience or "",
+        "mvp": "",
+        "tone": tone or "",
+        "platform": platform or "",
+        "tech_constraints": "",
+        "success_metric": "",
+        "features": [],
+        "fields_data": {},
+        "confidence_score": 0,
+    }
+
+
+def assemble_pathway_from_creation_inputs(
+    *,
+    description: str | None,
+    primary_category: str,
+    secondary_category: str | None = None,
+    platform: str | None = None,
+    audience: str | None = None,
+    tone: str | None = None,
+) -> dict:
+    """Assemble a pathway up-front using only project-creation signals.
+
+    Wraps :func:`assemble_pathway` with a pseudo concept-sheet derived from
+    description + platform + audience + tone. Each assembled module entry is
+    enriched with its ``fields`` schema and ``has_output`` flag so the caller
+    can persist the full pathway shape in one shot.
+    """
+    pseudo_sheet = _description_to_pseudo_sheet(
+        description, platform=platform, audience=audience, tone=tone
+    )
+    result = assemble_pathway(pseudo_sheet, primary_category, secondary_category)
+
+    # Decorate each module entry with its field schema + has_output flag so
+    # downstream code (discovery prompt builder, progress meter) doesn't need
+    # to re-resolve definitions from disk.
+    for entry in result["modules"]:
+        defn = get_module_definition(entry["module_id"])
+        if not defn:
+            continue
+        entry["fields"] = list(defn.get("fields") or [])
+        entry["has_output"] = bool(defn.get("has_output"))
+
+    return result

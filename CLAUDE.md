@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.2.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.3.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -490,6 +490,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 026 | Deduplicate user rows v2 (post-Clerk webhook race cleanup) |
 | 027 | Add `users.is_admin` (bool) + `users.entitlement_overrides` (JSONB) |
 | 028 | Create `admin_audit_log` table (append-only admin action log) |
+| 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
 
 ---
 

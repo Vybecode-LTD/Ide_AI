@@ -4,7 +4,18 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
-_Nothing yet._
+### In progress — Unified Discovery overhaul (Phase 1 of 6)
+
+The discovery → design kit flow is being restructured. Old `v1` projects keep the existing PathwayReview → Execute → per-module sessions path. New `v2` projects (default for all newly created projects) will use a unified Discovery that funnels toward filling fields across an up-front-assembled module pathway, then land directly on a complete Design Kit. See ROADMAP "Up Next" for the full 6-phase plan.
+
+**Phase 1 shipped today:**
+- **`projects.flow_version`** column (migration 029) — `v2` default, existing rows backfilled to `v1`
+- **Field schemas on every module in `module_library.seed.json`** — 40 modules, 154 total fields (52 required, 102 optional), 6 modules flagged `has_output` for the eventual Refresh affordance
+- Each field has `key`, `label`, `type` (text/longtext/list/dict), `required`, `extraction_hint` (used by the AI in Phase 2)
+- **Up-front pathway assembly** at project creation: when `flow_version='v2'` and `primary_category` is set, the existing `assemble_pathway` runs synchronously, decorates each module entry with its field schema + `has_output` flag, and persists the `module_pathways` row immediately. Frontend can stop calling `assemble` after Discovery.
+- New helpers in `modular_pathway_service`: `get_module_fields(module_id)`, `get_pathway_field_summary(module_ids)`, `assemble_pathway_from_creation_inputs(...)`
+
+Phase 2 (unified-discovery prompt + extraction) and the frontend phases follow in subsequent commits.
 
 ---
 
