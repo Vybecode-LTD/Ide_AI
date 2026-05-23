@@ -23,6 +23,7 @@ import { PulseBeacon, Whisper } from '../components/tutorial'
 interface ModulePreview {
   modules: Array<{ module_id: string; label: string; group: string }>
   totalRequired: number
+  destination: string
 }
 
 /* ── Module-level cache for partner styles (never changes per session) ── */
@@ -134,7 +135,11 @@ export function Home() {
           group: m.group || '',
         }
       })
-      setModulePreview({ modules: decorated, totalRequired: decorated.length })
+      setModulePreview({
+        modules: decorated,
+        totalRequired: decorated.length,
+        destination: `/discovery/${projectId}`,
+      })
       // Auto-navigate after a short read of the preview. Stored in a ref so
       // the cleanup effect can cancel it if the component unmounts first
       // (manual sidebar nav, tab close) — otherwise the orphan timer fires
@@ -514,60 +519,120 @@ export function Home() {
 
       {/* Module-preview overlay — shown after a v2 project is created, before
           we route to Discovery. Gives the user a 2-second read of which
-          modules they're about to fill out. */}
+          modules they're about to fill out.
+
+          A11y: role=alertdialog with aria-labelledby on the heading so screen
+          readers announce the dialog properly. Esc key skips the wait and
+          navigates immediately. The dialog is focused on mount so keyboard
+          users can press Esc straight away. We don't trap focus (overlay
+          only lives 2.2s, no interactive controls inside). */}
       <AnimatePresence>
         {modulePreview && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
-            role="status"
-            aria-live="polite"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="bg-surface border border-accent/30 rounded-2xl shadow-[0_0_40px_rgba(0,229,255,0.15)] p-6 md:p-8 max-w-xl w-full"
-            >
-              <div className="text-center mb-5">
-                <p className="text-xs uppercase tracking-wider text-accent font-semibold mb-1">
-                  Design kit assembled
-                </p>
-                <h2 className="text-lg md:text-xl font-bold text-white">
-                  {modulePreview.modules.length} modules to fill out
-                </h2>
-                <p className="text-xs text-text-muted mt-1">
-                  Your AI partner will guide you through each one in Discovery.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
-                {modulePreview.modules.map((m, i) => (
-                  <motion.div
-                    key={m.module_id}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.02, duration: 0.2 }}
-                    className="text-[11px] text-white bg-white/5 border border-border rounded-md px-2.5 py-1.5 truncate capitalize"
-                    title={m.label}
-                  >
-                    {m.label}
-                  </motion.div>
-                ))}
-              </div>
-              <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-text-muted">
-                <span className="inline-block w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
-                <span>Starting Discovery...</span>
-              </div>
-            </motion.div>
-          </motion.div>
+          <ModulePreviewOverlay
+            modules={modulePreview.modules}
+            onSkip={() => {
+              if (previewTimerRef.current) {
+                clearTimeout(previewTimerRef.current)
+                previewTimerRef.current = null
+              }
+              navigate(modulePreview.destination)
+            }}
+          />
         )}
       </AnimatePresence>
 
       <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
+  )
+}
+
+/* ── Module preview overlay ──────────────────────────────────────
+ * Brief 2.2-second announcement shown after v2 project creation. Behaves like
+ * a one-shot dialog: Esc skips the wait and navigates immediately. We keep it
+ * non-modal beyond the focus + Esc handling — no focus trap (no interactive
+ * controls inside), no backdrop click (the timer handles the dismiss). */
+interface ModulePreviewOverlayProps {
+  modules: Array<{ module_id: string; label: string; group: string }>
+  onSkip: () => void
+}
+
+function ModulePreviewOverlay({ modules, onSkip }: ModulePreviewOverlayProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Focus the dialog on mount so keyboard users can press Esc to skip.
+  // Listen for Esc anywhere — focusing the dialog isn't enough on its own
+  // because the browser may strip focus on rapid mount-then-navigate cycles.
+  useEffect(() => {
+    dialogRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onSkip()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onSkip])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
+    >
+      <motion.div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="alertdialog"
+        aria-labelledby="module-preview-heading"
+        aria-describedby="module-preview-desc"
+        initial={{ opacity: 0, y: 16, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="bg-surface border border-accent/30 rounded-2xl shadow-[0_0_40px_rgba(0,229,255,0.15)] p-5 md:p-8 max-w-xl w-full max-h-[88vh] overflow-hidden flex flex-col focus:outline-none focus:ring-2 focus:ring-accent/40"
+      >
+        <div className="text-center mb-5 shrink-0">
+          <p className="text-xs uppercase tracking-wider text-accent font-semibold mb-1">
+            Design kit assembled
+          </p>
+          <h2 id="module-preview-heading" className="text-lg md:text-xl font-bold text-white">
+            {modules.length} modules to fill out
+          </h2>
+          <p id="module-preview-desc" className="text-xs text-text-muted mt-1">
+            Your AI partner will guide you through each one in Discovery.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-[40vh] md:max-h-60 overflow-y-auto pr-1">
+          {modules.map((m, i) => (
+            <motion.div
+              key={m.module_id}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.02, duration: 0.2 }}
+              className="text-[11px] text-white bg-white/5 border border-border rounded-md px-2.5 py-1.5 truncate capitalize"
+              title={m.label}
+            >
+              {m.label}
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-4 md:mt-5 flex items-center justify-between gap-2 text-[11px] text-text-muted shrink-0">
+          <span className="flex items-center gap-2">
+            <span className="inline-block w-1.5 h-1.5 bg-accent rounded-full animate-pulse" aria-hidden="true" />
+            <span>Starting Discovery&hellip;</span>
+          </span>
+          <button
+            type="button"
+            onClick={onSkip}
+            className="px-2 py-1 text-[11px] text-text-muted hover:text-white rounded focus:outline-none focus:ring-1 focus:ring-accent/40 transition-colors"
+          >
+            Skip <kbd className="font-mono text-[10px] bg-white/5 border border-border rounded px-1">Esc</kbd>
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

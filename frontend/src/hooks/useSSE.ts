@@ -11,6 +11,8 @@ interface SSEMessage {
   stage?: string
   chips?: string[]
   sheet?: Record<string, unknown>
+  updates?: FieldUpdate[]
+  summary?: FieldSummary
   complete?: boolean
   question_number?: number
   [key: string]: unknown
@@ -23,10 +25,41 @@ interface SSEDoneData {
   question_number?: number
 }
 
+/** Single field update emitted by the v2 discovery extractor. */
+export interface FieldUpdate {
+  module_id: string
+  field_key: string
+  value: unknown
+}
+
+/** Aggregate field-completion stats payload from the backend
+ *  (see `compute_field_summary` in discovery_service.py). */
+export interface FieldSummary {
+  total_filled: number
+  total_fields: number
+  required_filled: number
+  required_total: number
+  overall_percent: number
+  per_module: Array<{
+    module_id: string
+    label: string
+    filled: number
+    total: number
+    required_filled: number
+    required_total: number
+  }>
+}
+
+export interface FieldUpdatePayload {
+  updates: FieldUpdate[]
+  summary: FieldSummary
+}
+
 interface UseSSEOptions {
   onToken?: (token: string) => void
   onDone?: (data: SSEDoneData) => void
   onSheetUpdate?: (sheet: Record<string, unknown>) => void
+  onFieldUpdate?: (payload: FieldUpdatePayload) => void
   onError?: (error: Error) => void
 }
 
@@ -91,6 +124,11 @@ export function useSSE(options: UseSSEOptions) {
               })
             } else if (data.type === 'sheet_update' && data.sheet) {
               optionsRef.current.onSheetUpdate?.(data.sheet)
+            } else if (data.type === 'field_update' && data.summary) {
+              optionsRef.current.onFieldUpdate?.({
+                updates: data.updates ?? [],
+                summary: data.summary,
+              })
             }
           } catch { /* skip malformed lines */ }
         }

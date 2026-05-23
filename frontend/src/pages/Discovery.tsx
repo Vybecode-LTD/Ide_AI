@@ -11,6 +11,7 @@ import { StagesStepper } from '../components/discovery/StagesStepper'
 import { QuickChips } from '../components/discovery/QuickChips'
 import { TranscriptExportMenu } from '../components/discovery/TranscriptExportMenu'
 import { DesignSheetPanel } from '../components/framework/DesignSheetPanel'
+import { ProgressPanel } from '../components/discovery/ProgressPanel'
 import { ActivePartnerBadge } from '../components/partner/ActivePartnerBadge'
 import { PartnerSelector } from '../components/partner/PartnerSelector'
 import { VoiceMicButton } from '../components/voice/VoiceMicButton'
@@ -18,6 +19,7 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { StageInterlude, PulseBeacon, Whisper } from '../components/tutorial'
 import { useSSE } from '../hooks/useSSE'
+import type { FieldSummary, FieldUpdate } from '../hooks/useSSE'
 import { usePathwayStore } from '../stores/pathwayStore'
 import apiClient from '../lib/apiClient'
 import toast from 'react-hot-toast'
@@ -65,6 +67,14 @@ export function Discovery() {
   const [allPartners, setAllPartners] = useState<PartnerStyleMeta[]>([])
   const [showPartnerPicker, setShowPartnerPicker] = useState(false)
 
+  // ── v2 flow state ─────────────────────────────────────────────
+  // `flowVersion` resolves from the project record on mount. Until then we
+  // assume v1 so the legacy sheet panel renders (matches CLAUDE.md rule:
+  // existing rows backfilled to v1 in migration 029).
+  const [flowVersion, setFlowVersion] = useState<'v1' | 'v2'>('v1')
+  const [fieldSummary, setFieldSummary] = useState<FieldSummary | null>(null)
+  const [recentUpdates, setRecentUpdates] = useState<FieldUpdate[]>([])
+
   // Auto-save refs
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevStageRef = useRef(stage)
@@ -85,6 +95,11 @@ export function Discovery() {
     onSheetUpdate: (sheetData) => {
       setSheet((prev) => ({ ...prev, ...sheetData } as SheetData))
     },
+    onFieldUpdate: ({ updates, summary }) => {
+      setFieldSummary(summary)
+      setRecentUpdates(updates)
+    },
+    // L1 highlight-fade is handled by a useEffect on recentUpdates below.
     onError: (err) => {
       console.error('SSE error:', err)
       toast.error('Connection issue. Please retry.')
@@ -160,6 +175,28 @@ export function Discovery() {
     saveProgressRef().catch((err) => console.error('Stage-change save failed:', err))
   }, [sessionId, stage, saveProgressRef])
 
+  // L1: time-fade the "just filled" highlight after 8s so the accent doesn't
+  // linger forever between AI turns. Cleared on next field_update or unmount.
+  useEffect(() => {
+    if (recentUpdates.length === 0) return
+    const t = setTimeout(() => setRecentUpdates([]), 8000)
+    return () => clearTimeout(t)
+  }, [recentUpdates])
+
+  // M6 hydration: for v2 projects, fetch the current field summary as soon as
+  // we have a sessionId. Without this, the ProgressPanel sits empty on resume
+  // until the user's next message triggers a field_update SSE event.
+  useEffect(() => {
+    if (!sessionId || flowVersion !== 'v2') return
+    let cancelled = false
+    apiClient.get(`/discovery/${sessionId}/field-summary`)
+      .then(({ data }) => {
+        if (!cancelled && data) setFieldSummary(data)
+      })
+      .catch(() => { /* 409 (v1) or 404 — let the empty state render */ })
+    return () => { cancelled = true }
+  }, [sessionId, flowVersion])
+
   // Fetch partner style metadata
   useEffect(() => {
     apiClient.get('/meta/partner-styles')
@@ -201,30 +238,46 @@ export function Discovery() {
     }
   }, [])
 
-  // Fetch pathways + activate the project's pathway
+  // Fetch the pathway registry once. (Independent of the project — used to
+  // render stage steppers + sheet field configs for v1.)
   useEffect(() => {
-    if (!projectId) return
     fetchPathways()
-    apiClient.get(`/projects/${projectId}`)
-      .then(({ data }) => setActiveByProject(data))
-      .catch(() => { /* Project fetch failed — pathway stays at default */ })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [])
 
-  // Start session and trigger AI greeting on mount
+  // Single bootstrap: project → flow_version → session → (v1 only) loadSheet → greeting.
+  // Doing this in one effect (a) lets us skip loadSheet for v2 projects (audit
+  // M4 — the design_sheet 404 was wasted), and (b) ensures `flow_version` is
+  // known before the field-summary hydration effect fires.
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
 
     const init = async () => {
       try {
+        // Step 1: project (gives flow_version)
+        let fv: 'v1' | 'v2' = 'v1'
+        try {
+          const { data: proj } = await apiClient.get(`/projects/${projectId}`)
+          if (cancelled) return
+          setActiveByProject(proj)
+          fv = proj?.flow_version === 'v2' ? 'v2' : 'v1'
+          setFlowVersion(fv)
+        } catch {
+          // Project fetch failed — keep v1 fallback so the legacy panel renders
+        }
+
+        // Step 2: start session
         const { data } = await apiClient.post('/discovery/start', { project_id: projectId })
         if (cancelled) return
         setSessionId(data.id)
         if (data.ai_partner_style) setPartnerStyle(data.ai_partner_style)
 
-        // Always load the current design sheet
-        await loadSheet(data.id)
+        // Step 3: v1 only — load the design sheet. v2 uses module_responses
+        // via the field-summary endpoint instead, hydrated by a separate effect.
+        if (fv === 'v1') {
+          await loadSheet(data.id)
+        }
 
         if (data.messages?.length) {
           setMessages(data.messages)
@@ -234,7 +287,7 @@ export function Discovery() {
 
         if (data.stage) setStage(data.stage)
 
-        // Auto-trigger AI greeting for fresh sessions
+        // Step 4: auto-trigger AI greeting for fresh sessions
         const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
         if (!cancelled) {
           await send(`${baseUrl}/discovery/${data.id}/init`, {})
@@ -316,7 +369,11 @@ export function Discovery() {
       <Sidebar projectId={projectId} />
 
       <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col min-h-0">
-        <TopBar title="Discovery" subtitle={`Stage: ${stage}`}>
+        {/* M2/L3: hide the stage-name subtitle for v2 — there's no meaningful
+            stage progression in the unified flow (session.stage stays at
+            "greeting" forever). The progress % is shown via the mobile badge
+            and the right-side ProgressPanel instead. */}
+        <TopBar title="Discovery" subtitle={flowVersion === 'v2' ? undefined : `Stage: ${stage}`}>
           {/* Active partner badge */}
           <ActivePartnerBadge partner={partnerMeta} onClick={() => setShowPartnerPicker(true)} />
           {/* Save Place button — visible once conversation has started */}
@@ -341,39 +398,53 @@ export function Discovery() {
           {showExport && sessionId && (
             <TranscriptExportMenu sessionId={sessionId} messages={messages} />
           )}
-          {/* Mobile toggle for design sheet */}
+          {/* Mobile toggle for design sheet / progress panel */}
           <button
             onClick={() => setShowSheet(!showSheet)}
             className="md:hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/10 text-accent border border-accent/20"
           >
-            {showSheet ? 'Chat' : 'Sheet'}
-            {sheet.confidence_score > 0 && (
-              <Badge variant="accent" className="ml-1.5">{sheet.confidence_score}%</Badge>
-            )}
+            {showSheet ? 'Chat' : flowVersion === 'v2' ? 'Progress' : 'Sheet'}
+            {flowVersion === 'v2'
+              ? fieldSummary && fieldSummary.total_fields > 0 && (
+                  <Badge variant="accent" className="ml-1.5">{fieldSummary.overall_percent}%</Badge>
+                )
+              : sheet.confidence_score > 0 && (
+                  <Badge variant="accent" className="ml-1.5">{sheet.confidence_score}%</Badge>
+                )}
           </button>
         </TopBar>
 
         <div className="flex-1 flex min-h-0">
-          {/* Left: Stepper — hidden on mobile */}
-          <div className="hidden md:block w-48 border-r border-border bg-surface/30 shrink-0 overflow-y-auto">
-            <StagesStepper currentStage={stage} stages={activePathway?.stages} />
-          </div>
+          {/* Left: Stepper — hidden on mobile, and hidden entirely for v2
+              (no stage progression in the unified flow). */}
+          {flowVersion !== 'v2' && (
+            <div className="hidden md:block w-48 border-r border-border bg-surface/30 shrink-0 overflow-y-auto">
+              <StagesStepper currentStage={stage} stages={activePathway?.stages} />
+            </div>
+          )}
 
           {/* Center: Chat — hidden on mobile when sheet is shown */}
           <div className={`flex-1 flex flex-col min-h-0 ${showSheet ? 'hidden md:flex' : 'flex'}`}>
-            {/* Mobile stage indicator (replaces stepper) */}
-            <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-surface/30 overflow-x-auto">
-              <span className="text-[10px] text-text-muted font-medium shrink-0">Stage:</span>
-              <span className="text-[10px] text-accent font-semibold shrink-0">{stage}</span>
-            </div>
+            {/* Mobile stage indicator (v1 only) */}
+            {flowVersion !== 'v2' && (
+              <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-surface/30 overflow-x-auto">
+                <span className="text-[10px] text-text-muted font-medium shrink-0">Stage:</span>
+                <span className="text-[10px] text-accent font-semibold shrink-0">{stage}</span>
+              </div>
+            )}
 
             <ChatThread messages={messages} streamingContent={streamingContent} />
             <PulseBeacon id="discovery:chips">
               <QuickChips chips={chips} onSelect={sendMessage} disabled={isStreaming} />
             </PulseBeacon>
 
-            {/* Proceed to pathway CTA — appears when confidence is high enough */}
-            {sheet.confidence_score >= 70 && projectId && (
+            {/* Proceed to pathway CTA — gate depends on flow version.
+                v1: confidence_score >= 70 → /pathway-review/{id}
+                v2: always available once a summary exists with required fields;
+                    shows a warning chip when <80% of required fields are filled.
+                    Routes to /exports/{id} as an interim destination until the
+                    Phase 5 /design-kit/{id} page ships. */}
+            {projectId && flowVersion === 'v1' && sheet.confidence_score >= 70 && (
               <div className="px-3 md:px-4 py-2 shrink-0">
                 <PulseBeacon id="discovery:proceed">
                   <button
@@ -386,6 +457,35 @@ export function Discovery() {
                 </PulseBeacon>
               </div>
             )}
+            {projectId && flowVersion === 'v2' && fieldSummary && fieldSummary.total_fields > 0 && (() => {
+              // Audit M8: gate on total_fields > 0 (not required_total) so
+              // pathways made entirely of optional fields still get a Proceed
+              // button. The required-percent warning chip only shows when
+              // there actually are required fields to gate on.
+              const hasRequired = fieldSummary.required_total > 0
+              const requiredPct = hasRequired
+                ? Math.round((fieldSummary.required_filled / fieldSummary.required_total) * 100)
+                : 100
+              const short = hasRequired && requiredPct < 80
+              return (
+                <div className="px-3 md:px-4 py-2 shrink-0">
+                  <PulseBeacon id="discovery:proceed">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/exports/${projectId}`)}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>Proceed to Design Kit</span>
+                      {short && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300">
+                          {requiredPct}% required — keep going?
+                        </span>
+                      )}
+                    </button>
+                  </PulseBeacon>
+                </div>
+              )
+            })()}
 
             {/* Input */}
             <Whisper id="discovery:input" text="Use the quick replies, speak via the mic, or type freely">
@@ -413,13 +513,21 @@ export function Discovery() {
             </Whisper>
           </div>
 
-          {/* Right: Design Sheet — full width on mobile when toggled, side panel on desktop */}
+          {/* Right: Progress (v2) or Design Sheet (v1) — full width on mobile when
+              toggled, side panel on desktop. The v2 ProgressPanel hydrates from
+              the field_update SSE event; the v1 DesignSheetPanel from sheet_update. */}
           <div className={`${showSheet ? 'flex' : 'hidden'} md:flex w-full md:w-72 border-l-0 md:border-l border-border bg-surface/30 shrink-0 flex-col min-h-0`}>
             <div className="px-4 py-3 border-b border-border shrink-0">
-              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Design Sheet</h3>
+              <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                {flowVersion === 'v2' ? 'Design Kit Progress' : 'Design Sheet'}
+              </h3>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <DesignSheetPanel sheet={sheet} fieldConfigs={activePathway?.sheet_fields} />
+              {flowVersion === 'v2' ? (
+                <ProgressPanel summary={fieldSummary} recentUpdates={recentUpdates} />
+              ) : (
+                <DesignSheetPanel sheet={sheet} fieldConfigs={activePathway?.sheet_fields} />
+              )}
             </div>
           </div>
         </div>
