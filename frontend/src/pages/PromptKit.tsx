@@ -11,7 +11,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
 import { getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
-import { UpgradeModal } from '../components/ui/UpgradeModal'
+import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 
 interface PromptKitItem {
   id: string
@@ -235,7 +235,7 @@ export function PromptKit() {
         </div>
       </div>
 
-      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
+      <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

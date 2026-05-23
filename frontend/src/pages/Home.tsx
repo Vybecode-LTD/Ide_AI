@@ -14,7 +14,7 @@ import { CategorySelect } from './CategorySelect'
 import type { PartnerStyleMeta } from '../types/project'
 import apiClient from '../lib/apiClient'
 import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
-import { UpgradeModal } from '../components/ui/UpgradeModal'
+import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 import { useAuthStore } from '../stores/authStore'
 import { PulseBeacon, Whisper } from '../components/tutorial'
 
@@ -433,7 +433,7 @@ export function Home() {
 
       </main>
 
-      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
+      <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import secrets
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +52,74 @@ async def _fetch_clerk_email(clerk_user_id: str) -> str | None:
     return None
 
 
+async def _link_existing_email_user(
+    db: AsyncSession,
+    email: str | None,
+    clerk_user_id: str,
+) -> User | None:
+    """If a user with this email exists (e.g. webhook ran first), link the
+    clerk_user_id to that row. Returns the linked user, or None if no match
+    / linking failed due to a race."""
+    if not email:
+        return None
+    result = await db.execute(select(User).where(User.email == email))
+    existing = result.scalar_one_or_none()
+    if existing is None:
+        return None
+
+    existing.clerk_user_id = clerk_user_id
+    if not existing.inbox_email:
+        existing.inbox_email = f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}"
+    try:
+        await db.flush()
+        return existing
+    except IntegrityError:
+        # Another concurrent request linked the same clerk_id to a different row.
+        # Roll back and let the caller re-resolve via clerk_user_id.
+        await db.rollback()
+        return None
+
+
+async def _idempotent_create_user(
+    db: AsyncSession,
+    clerk_user_id: str,
+    email: str | None,
+) -> User | None:
+    """Atomically create a user row, idempotent on clerk_user_id collisions.
+
+    Uses PostgreSQL's INSERT ... ON CONFLICT (clerk_user_id) DO NOTHING to
+    collapse the race window with the Clerk webhook. Always returns the
+    canonical row by SELECT after the insert (whether we created it or not).
+
+    Returns None only if the row still can't be found, which should be
+    impossible unless the DB is in an inconsistent state.
+    """
+    stmt = (
+        pg_insert(User)
+        .values(
+            clerk_user_id=clerk_user_id,
+            email=email or f"{clerk_user_id}@clerk.pending",
+            email_verified=True,
+            inbox_email=f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}",
+            preferences={},
+        )
+        .on_conflict_do_nothing(index_elements=["clerk_user_id"])
+    )
+    try:
+        await db.execute(stmt)
+        await db.flush()
+    except IntegrityError:
+        # An OTHER unique constraint conflicted (email or inbox_email).
+        # Most common: another request inserted the same email between our
+        # email-link check and this insert. Roll back and re-resolve below.
+        await db.rollback()
+
+    result = await db.execute(
+        select(User).where(User.clerk_user_id == clerk_user_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_current_user(
     authorization: str = Header(...),
     db: AsyncSession = Depends(get_db),
@@ -78,65 +147,44 @@ async def get_current_user(
     except Exception:
         raise credentials_exception
 
-    # Look up local user by clerk_user_id
+    # Step 1: Fast path — look up by clerk_user_id
     result = await db.execute(
         select(User).where(User.clerk_user_id == clerk_user_id)
     )
     user = result.scalar_one_or_none()
 
     if user is None:
-        # On-first-request fallback: create user row if webhook hasn't arrived yet.
-        # Fetch real email from Clerk Backend API (session JWTs don't include email).
+        # Step 2: Webhook may not have arrived yet. Try linking an existing
+        # email-only row (created by webhook) to this clerk_user_id, then
+        # fall back to atomic INSERT ... ON CONFLICT DO NOTHING.
         email = await _fetch_clerk_email(clerk_user_id)
-
-        # Check if a user with this email already exists (created by webhook)
-        # and link them to this clerk_user_id instead of creating a duplicate.
-        if email:
-            result = await db.execute(select(User).where(User.email == email))
-            existing_by_email = result.scalar_one_or_none()
-            if existing_by_email:
-                existing_by_email.clerk_user_id = clerk_user_id
-                if not existing_by_email.inbox_email:
-                    existing_by_email.inbox_email = f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}"
-                try:
-                    await db.flush()
-                except IntegrityError:
-                    await db.rollback()
-                    # Re-query after rollback
-                    result = await db.execute(select(User).where(User.clerk_user_id == clerk_user_id))
-                    existing_by_email = result.scalar_one_or_none()
-                if existing_by_email:
-                    return existing_by_email
-
-        try:
-            user = User(
-                clerk_user_id=clerk_user_id,
-                email=email or f"{clerk_user_id}@clerk.pending",
-                email_verified=True,
-                inbox_email=f"{secrets.token_hex(4)}@{settings.INBOX_DOMAIN}",
-                preferences={},
-            )
-            db.add(user)
-            await db.flush()
-            await db.refresh(user)
-        except IntegrityError:
-            # Race condition: webhook created the user between our SELECT and INSERT.
-            # Roll back the failed INSERT and re-query.
-            await db.rollback()
+        user = await _link_existing_email_user(db, email, clerk_user_id)
+        if user is not None:
+            logger.info("Linked existing email user to clerk_id=%s", clerk_user_id)
+        else:
+            user = await _idempotent_create_user(db, clerk_user_id, email)
+            if user is not None:
+                logger.info("Created/resolved user via JWT path for clerk_id=%s", clerk_user_id)
+        if user is None:
+            # Last-ditch re-resolve by clerk_user_id, then by email
             result = await db.execute(
                 select(User).where(User.clerk_user_id == clerk_user_id)
             )
             user = result.scalar_one_or_none()
-            if user is None:
-                # Try by email as last resort
-                if email:
-                    result = await db.execute(select(User).where(User.email == email))
-                    user = result.scalar_one_or_none()
-                    if user:
-                        user.clerk_user_id = clerk_user_id
+            if user is None and email:
+                result = await db.execute(select(User).where(User.email == email))
+                user = result.scalar_one_or_none()
+                if user is not None and user.clerk_user_id != clerk_user_id:
+                    user.clerk_user_id = clerk_user_id
+                    try:
                         await db.flush()
+                    except IntegrityError:
+                        await db.rollback()
+                        user = None
             if user is None:
-                logger.error("Failed to create or find user for clerk_id=%s", clerk_user_id)
+                logger.error(
+                    "Failed to resolve user for clerk_id=%s after upsert", clerk_user_id
+                )
                 raise credentials_exception
 
     dirty = False

@@ -6,15 +6,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
 import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
-import { UpgradeModal } from '../components/ui/UpgradeModal'
+import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 import { useAuthStore } from '../stores/authStore'
+import { useInboxStore } from '../stores/inboxStore'
 import { useTutorialStore } from '../stores/tutorialStore'
+import type { PartnerStyleMeta } from '../types/project'
+
+/** Module-level cache so we only fetch partner styles once per session */
+let _partnerCache: PartnerStyleMeta[] | null = null
 
 interface InboxItem {
   id: string
@@ -32,7 +38,6 @@ export function Inbox() {
   const [items, setItems] = useState<InboxItem[]>([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
-  const [error, setError] = useState('')
 
   // Quick-add form
   const [showForm, setShowForm] = useState(false)
@@ -42,9 +47,25 @@ export function Inbox() {
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
   const showTip = useTutorialStore(s => !s.dismissedWhispers.includes('inbox-how-to'))
   const dismissTip = useTutorialStore(s => s.dismissWhisper)
+  const refreshInboxBadge = useInboxStore(s => s.refresh)
+  const adjustInboxBadge = useInboxStore(s => s.adjust)
+
+  // Per-item partner picker — track selected style per item id
+  const [partners, setPartners] = useState<PartnerStyleMeta[]>(() => _partnerCache ?? [])
+  const [itemPartners, setItemPartners] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (_partnerCache) return
+    apiClient.get<PartnerStyleMeta[]>('/meta/partner-styles')
+      .then(({ data }) => { _partnerCache = data; setPartners(data) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetchItems()
+    // Re-sync the badge whenever this page mounts (in case other tabs changed it)
+    refreshInboxBadge()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchItems = async () => {
@@ -52,7 +73,7 @@ export function Inbox() {
       const { data } = await apiClient.get('/inbox')
       setItems(data)
     } catch {
-      setError('Failed to load inbox.')
+      toast.error('Failed to load inbox.')
     } finally {
       setLoading(false)
     }
@@ -61,7 +82,6 @@ export function Inbox() {
   const handleAdd = async () => {
     if (!subject.trim()) return
     setSubmitting(true)
-    setError('')
     try {
       const { data } = await apiClient.post('/inbox', {
         subject: subject.trim(),
@@ -71,8 +91,10 @@ export function Inbox() {
       setSubject('')
       setBody('')
       setShowForm(false)
+      adjustInboxBadge(1)
+      toast.success('Idea captured')
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to add idea.'))
+      toast.error(extractError(err, 'Failed to add idea.'))
     } finally {
       setSubmitting(false)
     }
@@ -80,22 +102,31 @@ export function Inbox() {
 
   const handlePromote = async (item: InboxItem) => {
     try {
-      const { data } = await apiClient.post(`/inbox/${item.id}/promote`, { name: item.subject })
+      const selectedStyle = itemPartners[item.id] || 'strategist'
+      const { data } = await apiClient.post(`/inbox/${item.id}/promote`, {
+        name: item.subject,
+        ai_partner_style: selectedStyle,
+      })
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, project_id: data.project_id } : i))
+      // Promoted items no longer count as unread
+      if (!item.project_id) adjustInboxBadge(-1)
       navigate(`/discovery/${data.project_id}`)
     } catch (err: unknown) {
       const ent = getEntitlementDetail(err)
       if (ent) setUpgradeDetail(ent)
-      else setError(extractError(err, 'Failed to create project.'))
+      else toast.error(extractError(err, 'Failed to create project.'))
     }
   }
 
   const handleDelete = async (id: string) => {
+    // Look up the item BEFORE removal so we know if it was unread
+    const wasUnread = items.find(i => i.id === id && !i.project_id) !== undefined
     try {
       await apiClient.delete(`/inbox/${id}`)
       setItems(prev => prev.filter(i => i.id !== id))
+      if (wasUnread) adjustInboxBadge(-1)
     } catch (err: unknown) {
-      setError(extractError(err, 'Failed to delete.'))
+      toast.error(extractError(err, 'Failed to delete.'))
     }
   }
 
@@ -110,12 +141,6 @@ export function Inbox() {
 
         <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-20 md:pb-6">
           <div className="max-w-2xl mx-auto space-y-4">
-            {error && (
-              <div className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">
-                {error}
-              </div>
-            )}
-
             {/* Inbox email address */}
             {user?.inbox_email && (
               <Card>
@@ -270,21 +295,41 @@ export function Inbox() {
                                   <p className="text-[10px] text-text-muted mt-1">From: {item.sender_email}</p>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <Button size="sm" onClick={() => handlePromote(item)}>
-                                  Start Project
-                                </Button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(item.id)}
-                                  className="text-text-muted hover:text-red-400 transition-colors p-1"
-                                  title="Delete"
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(item.id)}
+                                className="text-text-muted hover:text-red-400 transition-colors p-1 shrink-0"
+                                title="Delete"
+                                aria-label={`Delete ${item.subject}`}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                </svg>
+                              </button>
+                            </div>
+                            {/* Partner picker + promote action row */}
+                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                              {partners.length > 0 ? (
+                                <select
+                                  value={itemPartners[item.id] || 'strategist'}
+                                  onChange={(e) =>
+                                    setItemPartners((prev) => ({ ...prev, [item.id]: e.target.value }))
+                                  }
+                                  aria-label={`AI partner style for ${item.subject}`}
+                                  className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent transition-colors"
                                 >
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                  </svg>
-                                </button>
-                              </div>
+                                  {partners.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.icon} {p.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="flex-1 text-[10px] text-text-muted/60">Default partner</span>
+                              )}
+                              <Button size="sm" onClick={() => handlePromote(item)}>
+                                Start Project
+                              </Button>
                             </div>
                           </Card>
                         </motion.div>
@@ -326,7 +371,7 @@ export function Inbox() {
         </div>
       </div>
 
-      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
+      <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

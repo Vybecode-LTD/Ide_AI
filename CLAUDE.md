@@ -9,7 +9,7 @@
 
 - **Name:** Ide/AI (codebase directory: `Ide_AI`, formerly known as ideaFORGE)
 - **Repo:** `github.com/PromptMonster-Media-Ltd/Ide_AI`
-- **Working directory:** `D:\Development\Ide_AI\` — this is the ONLY working directory. Do not use `D:\Development\ideaFORGE\` (that is a separate, unrelated repo).
+- **Working directory:** `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` — this is the ONLY working directory for this codebase. Any references in older docs to `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` are obsolete.
 - **Branch:** `main`
 - **Deployment:** Railway (2 public services: backend + frontend, no reverse proxy)
 
@@ -41,7 +41,7 @@ The full process takes 15–30 minutes: describe an idea, configure options, go 
 ## Project Structure
 
 ```
-D:\Development\Ide_AI\
+C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                    # FastAPI app, CORS, router registration
@@ -441,19 +441,19 @@ D:\Development\Ide_AI\
 | Projects | `POST /projects`, `GET /projects/{id}`, `PATCH /projects/{id}` |
 | Pathways | `GET /pathways`, `POST /pathways/detect` |
 | Meta | `GET /meta/partner-styles` |
-| Discovery | `POST /discovery/{project_id}/start`, `POST /{session_id}/greeting` (SSE), `POST /{session_id}/message` (SSE), `PATCH /{session_id}/partner`, `GET /{session_id}` |
-| Blocks | `GET /projects/{id}/blocks`, `POST /projects/{id}/blocks/generate`, `PATCH /blocks/{id}`, `DELETE /blocks/{id}` |
+| Discovery | `POST /discovery/start` (body: project_id), `POST /discovery/{session_id}/init` (SSE), `POST /discovery/{session_id}/message` (SSE), `PATCH /discovery/{session_id}/partner`, `PATCH /discovery/{session_id}/progress`, `GET /discovery/{session_id}`, `GET /discovery/{session_id}/sheet`, `GET /discovery/{session_id}/transcript?format=md\|pdf\|txt` |
+| Blocks | `GET /projects/{project_id}/blocks`, `POST /projects/{project_id}/blocks`, `POST /projects/{project_id}/blocks/generate`, `PATCH /projects/{project_id}/blocks/{block_id}`, `DELETE /projects/{project_id}/blocks/{block_id}` |
 | Pipeline | `GET /projects/{id}/pipeline`, `POST /projects/{id}/pipeline/recommend`, `PATCH /projects/{id}/pipeline/{layer}`, `POST /projects/{id}/pipeline/ui-skeleton` |
 | Exports | `GET /projects/{id}/export?format=md\|pdf\|docx\|zip` |
 | Market | `POST /market/{project_id}/generate` (SSE), `GET /market/{project_id}`, `GET /market/{project_id}/report`, `GET /market/{project_id}/export` |
 | Sprints | `POST /sprints/{project_id}/generate` |
 | Sharing | Project share CRUD, `POST/GET /sharing/public/{token}/comments`, `POST/GET /sharing/public/{token}/ratings` |
-| Library | `GET /library`, `POST /library/{id}/snapshots`, `GET /library/{id}/snapshots`, `POST /library/{id}/snapshots/{sid}/restore`, `GET /library/export/{id}`, `POST /library/import` |
-| Module Pathway | `POST /module-pathway/{id}/categorize`, `POST /module-pathway/{id}/assemble`, `POST /module-pathway/{id}/review`, `POST /module-pathway/{id}/lock` |
+| Library | `GET /library/projects`, `POST /library/{project_id}/snapshots`, `GET /library/{project_id}/snapshots`, `POST /library/snapshots/{snapshot_id}/restore`, `POST /library/{project_id}/export`, `POST /library/import` |
+| Module Pathway | `POST /projects/{project_id}/categorize`, `POST /projects/{project_id}/pathway/assemble`, `GET /projects/{project_id}/pathway`, `PATCH /projects/{project_id}/pathway`, `POST /projects/{project_id}/pathway/lock` |
 | Modules | `POST /modules/{id}/{module_id}/start` (SSE), `POST /modules/{id}/{module_id}/respond` (SSE), `POST /modules/{id}/{module_id}/skip`, `GET /modules/{id}/{module_id}/summary` |
 | Inbox | `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}` |
 | Templates | `GET /templates` |
-| Branching | `POST /projects/{id}/branch`, `POST /projects/{id}/merge/{branch_id}`, `GET /projects/{id}/branches`, `GET /projects/{id}/compare/{branch_id}` |
+| Branching | `POST /branching/{project_id}/branch`, `POST /branching/{project_id}/merge/{branch_id}`, `GET /branching/{project_id}/branches`, `GET /branching/{project_id}/compare/{branch_id}` |
 | Integrations | `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}` |
 | Webhooks | `POST /webhooks/inbound-email` |
 
@@ -493,7 +493,7 @@ D:\Development\Ide_AI\
 
 - On session start, read this CLAUDE.md file first.
 - If a `CONTEXT_HANDOFF.md` exists in the project root, read it for additional session-specific context.
-- The working directory is ALWAYS `D:\Development\Ide_AI\`. Never use `D:\Development\ideaFORGE\`.
+- The working directory is ALWAYS `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — these paths are obsolete.
 
 ---
 

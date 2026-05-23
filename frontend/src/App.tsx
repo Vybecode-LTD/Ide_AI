@@ -6,6 +6,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, useParams } from 'react-router-dom'
 import { useAuth, useClerk } from '@clerk/clerk-react'
+import { Toaster } from 'react-hot-toast'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { SignInPage } from './pages/SignInPage'
 import { SignUpPage } from './pages/SignUpPage'
@@ -130,49 +131,70 @@ export default function App() {
   }, [clerk])
 
   return (
-    <Routes>
-      {/* Public landing page (visitors) / protected Home (authenticated) */}
-      <Route path="/" element={<RootRoute />} />
-
-      {/* Public pricing page (accessible even when logged in) */}
-      <Route path="/pricing" element={<Landing />} />
-
-      {/* Clerk auth routes */}
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignUpPage />} />
-
-      {/* Post-signup checkout redirect */}
-      <Route path="/checkout-redirect" element={<ProtectedRoute><CheckoutRedirect /></ProtectedRoute>} />
-
-      {/* Public shared project view (no auth required) */}
-      <Route path="/shared/:token" element={<SharedProject />} />
-
-      {/* Protected non-project routes */}
-      <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-      <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
-
-      {/* Modular pathway routes */}
-      <Route
-        path="/pathway-review/:projectId"
-        element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><PathwayReview /></Suspense></ProtectedRoute>}
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1a1a22',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(8px)',
+            fontSize: '13px',
+          },
+          success: {
+            iconTheme: { primary: '#00E5FF', secondary: '#0d0d12' },
+          },
+          error: {
+            iconTheme: { primary: '#f87171', secondary: '#0d0d12' },
+          },
+        }}
       />
-      <Route
-        path="/pathway-execute/:projectId"
-        element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><PathwayExecute /></Suspense></ProtectedRoute>}
-      />
-      <Route
-        path="/module-session/:projectId/:moduleId"
-        element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><ModuleSessionPage /></Suspense></ProtectedRoute>}
-      />
+      <Routes>
+        {/* Public landing page (visitors) / protected Home (authenticated) */}
+        <Route path="/" element={<RootRoute />} />
 
-      {/* Dynamic project-scoped module route */}
-      <Route
-        path="/:moduleSlug/:projectId"
-        element={<ProtectedRoute><ModuleRouter /></ProtectedRoute>}
-      />
-    </Routes>
+        {/* Public pricing page (accessible even when logged in) */}
+        <Route path="/pricing" element={<Landing />} />
+
+        {/* Clerk auth routes */}
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
+
+        {/* Post-signup checkout redirect */}
+        <Route path="/checkout-redirect" element={<ProtectedRoute><CheckoutRedirect /></ProtectedRoute>} />
+
+        {/* Public shared project view (no auth required) */}
+        <Route path="/shared/:token" element={<SharedProject />} />
+
+        {/* Protected non-project routes */}
+        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+
+        {/* Modular pathway routes */}
+        <Route
+          path="/pathway-review/:projectId"
+          element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><PathwayReview /></Suspense></ProtectedRoute>}
+        />
+        <Route
+          path="/pathway-execute/:projectId"
+          element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><PathwayExecute /></Suspense></ProtectedRoute>}
+        />
+        <Route
+          path="/module-session/:projectId/:moduleId"
+          element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><ModuleSessionPage /></Suspense></ProtectedRoute>}
+        />
+
+        {/* Dynamic project-scoped module route */}
+        <Route
+          path="/:moduleSlug/:projectId"
+          element={<ProtectedRoute><ModuleRouter /></ProtectedRoute>}
+        />
+      </Routes>
+    </>
   )
 }

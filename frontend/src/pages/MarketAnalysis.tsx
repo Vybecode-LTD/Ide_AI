@@ -12,7 +12,7 @@ import { Card } from '../components/ui/Card'
 import apiClient, { getAuthToken } from '../lib/apiClient'
 import { downloadBlob } from '../lib/exportUtils'
 import type { EntitlementDetail } from '../lib/extractError'
-import { UpgradeModal } from '../components/ui/UpgradeModal'
+import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1147,7 +1147,7 @@ export function MarketAnalysis() {
         )}
       </div>
 
-      <UpgradeModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
+      <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
   )
 }

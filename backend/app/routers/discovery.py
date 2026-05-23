@@ -205,17 +205,9 @@ async def send_message(
         except Exception as exc:
             logger.warning("Sheet extraction failed: %s", exc)
 
-        # Step 3: Commit everything that succeeded
-        try:
-            await db.commit()
-        except Exception as exc:
-            logger.error("DB commit failed after stream: %s", exc)
-
-        # ALWAYS send completion event with chips — this must never be skipped
-        chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
-        yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
-
-        # Send sheet update if changed
+        # Snapshot sheet fields BEFORE commit — guards against any future
+        # async lazy-load issues if `expire_on_commit` ever changes from False.
+        sheet_data = None
         if sheet_changed and updated_sheet:
             sheet_data = {
                 "problem": updated_sheet.problem,
@@ -228,7 +220,21 @@ async def send_message(
                 "success_metric": updated_sheet.success_metric,
                 "confidence_score": updated_sheet.confidence_score,
             }
+
+        # Step 3: Commit everything that succeeded
+        try:
+            await db.commit()
+        except Exception as exc:
+            logger.error("DB commit failed after stream: %s", exc)
+
+        # Send sheet update FIRST — clients may close the stream on `done`,
+        # so the sheet_update must arrive before the done sentinel.
+        if sheet_data is not None:
             yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
+
+        # ALWAYS send completion event with chips LAST — this is the end-of-stream sentinel
+        chips = await ai_service.generate_quick_chips(ai_text, stage=session.stage or "greeting")
+        yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

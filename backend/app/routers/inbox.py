@@ -42,6 +42,7 @@ class InboxItemRead(BaseModel):
 class InboxPromote(BaseModel):
     """Promote an inbox item to a full project."""
     name: Optional[str] = Field(None, max_length=200)
+    ai_partner_style: Optional[str] = Field(None, max_length=30)
 
 
 # ── Endpoints ──
@@ -117,6 +118,15 @@ async def promote_to_project(
 
     await require_project_slot(current_user, db)
 
+    # Validate partner style (or fall back to default)
+    partner_style = "strategist"
+    if payload.ai_partner_style:
+        from app.services.partner_style_service import validate_partner_style
+        try:
+            partner_style = validate_partner_style(payload.ai_partner_style)
+        except ValueError:
+            partner_style = "strategist"
+
     project = Project(
         name=payload.name or item.subject[:200],
         description=item.body or item.subject,
@@ -126,7 +136,7 @@ async def promote_to_project(
         complexity="medium",
         tone="casual",
         pathway_id="software_product",
-        ai_partner_style="strategist",
+        ai_partner_style=partner_style,
     )
     db.add(project)
     await db.flush()

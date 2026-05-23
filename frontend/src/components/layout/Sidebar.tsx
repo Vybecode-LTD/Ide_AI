@@ -6,11 +6,12 @@
  * Project module items are driven by the active pathway from pathwayStore.
  * @module components/layout/Sidebar
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { usePathwayStore } from '../../stores/pathwayStore'
 import { useModulePathwayStore } from '../../stores/modulePathwayStore'
-import { UserButton } from '@clerk/clerk-react'
+import { useInboxStore } from '../../stores/inboxStore'
+import { UserButton, useAuth } from '@clerk/clerk-react'
 import { useAuthStore } from '../../stores/authStore'
 
 const NAV_ITEMS = [
@@ -50,6 +51,7 @@ const ACTIVE_PROJECT_KEY = 'ideai_active_project'
 const ACTIVE_PROJECT_PATH_KEY = 'ideai_active_path'
 const ACTIVE_PROJECT_TS_KEY = 'ideai_active_ts'
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
+const INBOX_POLL_MS = 60_000 // Refresh inbox count every 60s
 
 export function Sidebar({ projectId }: { projectId?: string }) {
   const location = useLocation()
@@ -58,10 +60,36 @@ export function Sidebar({ projectId }: { projectId?: string }) {
   const { user, fetchUser } = useAuthStore()
   const { fetchPathways } = usePathwayStore()
   const { assembledModules, pathway } = useModulePathwayStore()
+  const { isSignedIn } = useAuth()
+  const inboxCount = useInboxStore((s) => s.count)
+  const refreshInboxCount = useInboxStore((s) => s.refresh)
 
   // Fetch user + pathways on mount (deduped inside stores)
   useEffect(() => { fetchUser() }, [fetchUser])
   useEffect(() => { fetchPathways() }, [fetchPathways])
+
+  // ── Inbox unread badge ─────────────────────────────────────────
+  // Polls every 60s (only when signed in), and refreshes on transitions
+  // AWAY from /inbox (where the user likely modified items).
+  // Inbox page itself calls store.refresh() / store.adjust() after mutations
+  // for instant feedback.
+  useEffect(() => {
+    if (!isSignedIn) return
+    refreshInboxCount()
+    const id = setInterval(refreshInboxCount, INBOX_POLL_MS)
+    return () => clearInterval(id)
+  }, [isSignedIn, refreshInboxCount])
+
+  // Track previous path so we only refresh on actual /inbox → other transitions,
+  // not on every render or every route change.
+  const prevPathRef = useRef(location.pathname)
+  useEffect(() => {
+    const prev = prevPathRef.current
+    prevPathRef.current = location.pathname
+    if (prev === '/inbox' && location.pathname !== '/inbox' && isSignedIn) {
+      refreshInboxCount()
+    }
+  }, [location.pathname, isSignedIn, refreshInboxCount])
 
   // Build project items from assembled dynamic modules
   // During discovery (before PathwayReview locks the pathway), only show Discovery
@@ -165,20 +193,31 @@ export function Sidebar({ projectId }: { projectId?: string }) {
         </Link>
 
         <nav className="flex-1 py-4 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                isActive(item)
-                  ? 'text-accent bg-accent-dim'
-                  : 'text-text-muted hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <span className="shrink-0 text-base">{item.icon}</span>
-              <span className="whitespace-nowrap">{item.label}</span>
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const showInboxBadge = item.path === '/inbox' && inboxCount > 0
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                  isActive(item)
+                    ? 'text-accent bg-accent-dim'
+                    : 'text-text-muted hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <span className="shrink-0 text-base">{item.icon}</span>
+                <span className="whitespace-nowrap flex-1">{item.label}</span>
+                {showInboxBadge && (
+                  <span
+                    aria-label={`${inboxCount} unread inbox item${inboxCount === 1 ? '' : 's'}`}
+                    className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-background text-[10px] font-bold flex items-center justify-center"
+                  >
+                    {inboxCount > 99 ? '99+' : inboxCount}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
 
           {/* Back to Project button — shown when user leaves a project */}
           {showBackToProject && (
@@ -249,22 +288,37 @@ export function Sidebar({ projectId }: { projectId?: string }) {
           </Link>
         )}
 
-        {mobileBarItems.map((item) => (
-          <Link
-            key={item.path}
-            to={buildTo(item)}
-            className={`flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 rounded-lg text-xs transition-colors ${
-              isActive(item)
-                ? 'text-accent'
-                : 'text-text-muted'
-            }`}
-            aria-label={item.label}
-            aria-current={isActive(item) ? 'page' : undefined}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span className="text-[10px] leading-tight">{item.label}</span>
-          </Link>
-        ))}
+        {mobileBarItems.map((item) => {
+          const showInboxBadge = item.path === '/inbox' && inboxCount > 0
+          return (
+            <Link
+              key={item.path}
+              to={buildTo(item)}
+              className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] px-2 rounded-lg text-xs transition-colors ${
+                isActive(item)
+                  ? 'text-accent'
+                  : 'text-text-muted'
+              }`}
+              aria-label={
+                showInboxBadge
+                  ? `${item.label}, ${inboxCount} unread item${inboxCount === 1 ? '' : 's'}`
+                  : item.label
+              }
+              aria-current={isActive(item) ? 'page' : undefined}
+            >
+              <span className="text-lg">{item.icon}</span>
+              <span className="text-[10px] leading-tight">{item.label}</span>
+              {showInboxBadge && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 right-0 min-w-[16px] h-4 px-1 rounded-full bg-accent text-background text-[9px] font-bold flex items-center justify-center"
+                >
+                  {inboxCount > 99 ? '99+' : inboxCount}
+                </span>
+              )}
+            </Link>
+          )
+        })}
 
         {mobileOverflowItems.length > 0 && (
           <button
@@ -298,21 +352,32 @@ export function Sidebar({ projectId }: { projectId?: string }) {
             <div className="px-4 py-2 flex items-center border-b border-border mb-2">
               <img src="/logo.png" alt="Ide/AI" className="w-[120px] object-contain" />
             </div>
-            {mobileOverflowItems.map((item) => (
-              <Link
-                key={item.path}
-                to={buildTo(item)}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
-                  isActive(item)
-                    ? 'text-accent bg-accent-dim'
-                    : 'text-text-muted hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <span className="text-base">{item.icon}</span>
-                <span>{item.label}</span>
-              </Link>
-            ))}
+            {mobileOverflowItems.map((item) => {
+              const showInboxBadge = item.path === '/inbox' && inboxCount > 0
+              return (
+                <Link
+                  key={item.path}
+                  to={buildTo(item)}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                    isActive(item)
+                      ? 'text-accent bg-accent-dim'
+                      : 'text-text-muted hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {showInboxBadge && (
+                    <span
+                      aria-label={`${inboxCount} unread inbox item${inboxCount === 1 ? '' : 's'}`}
+                      className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-accent text-background text-[10px] font-bold flex items-center justify-center"
+                    >
+                      {inboxCount > 99 ? '99+' : inboxCount}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
         </>
       )}

@@ -1,13 +1,13 @@
 /**
- * UpgradeModal — Shown when a user hits an entitlement limit (403).
+ * EntitlementLimitModal — Shown when a user hits an entitlement limit (403).
  * Displays the limit info and a link to the pricing page.
- * @module components/ui/UpgradeModal
+ * @module components/ui/EntitlementLimitModal
  */
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './Button'
 import type { EntitlementDetail } from '../../lib/extractError'
 
-interface UpgradeModalProps {
+interface EntitlementLimitModalProps {
   /** The structured 403 detail from the entitlement guard, or null to hide. */
   detail: EntitlementDetail | null
   onClose: () => void
@@ -25,7 +25,7 @@ function featureLabel(detail: EntitlementDetail): string {
   return f.replace(/_/g, ' ')
 }
 
-export function UpgradeModal({ detail, onClose }: UpgradeModalProps) {
+export function EntitlementLimitModal({ detail, onClose }: EntitlementLimitModalProps) {
   if (!detail) return null
 
   const planName = PLAN_LABELS[detail.plan] ?? detail.plan
