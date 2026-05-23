@@ -343,3 +343,166 @@ async def get_sheet_for_project(db: AsyncSession, project_id: uuid.UUID) -> Desi
         select(DesignSheet).where(DesignSheet.project_id == project_id)
     )
     return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Unified-discovery (v2) helpers — populate module_responses from conversation
+# ---------------------------------------------------------------------------
+
+
+async def get_filled_fields_for_project(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+) -> dict[str, dict]:
+    """Return current state of module field values for a project.
+
+    Returns a dict mapping ``module_id`` to ``{field_key: value}``. Used by
+    the unified-discovery prompt builder to show the AI what's already filled.
+    """
+    from app.models.module_response import ModuleResponse
+    result = await db.execute(
+        select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+    )
+    return {r.module_id: dict(r.responses or {}) for r in result.scalars().all()}
+
+
+async def compute_field_summary(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    modules: list[dict],
+) -> dict:
+    """Aggregate field-completion stats across all assembled modules.
+
+    Returns the payload used by the SSE ``field_update`` event and the
+    frontend progress meter:
+      {
+        "total_filled": int, "total_fields": int,
+        "required_filled": int, "required_total": int,
+        "overall_percent": int,
+        "per_module": [
+          {"module_id", "label", "filled", "total",
+           "required_filled", "required_total"}
+        ]
+      }
+    """
+    from app.models.module_response import ModuleResponse
+    result = await db.execute(
+        select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+    )
+    by_mid = {r.module_id: r for r in result.scalars().all()}
+
+    per_module: list[dict] = []
+    total_filled = 0
+    total_fields = 0
+    required_filled = 0
+    required_total = 0
+
+    for mod in modules:
+        mid = mod.get("module_id") or mod.get("id")
+        if not mid:
+            continue
+        fields = mod.get("fields") or []
+        resp = by_mid.get(mid)
+        filled_keys = set((resp.responses if resp else {}).keys())
+
+        m_total = len(fields)
+        m_filled = sum(1 for f in fields if f.get("key") in filled_keys)
+        m_req_total = sum(1 for f in fields if f.get("required"))
+        m_req_filled = sum(
+            1 for f in fields if f.get("required") and f.get("key") in filled_keys
+        )
+
+        per_module.append({
+            "module_id": mid,
+            "label": mod.get("label", mid),
+            "filled": m_filled,
+            "total": m_total,
+            "required_filled": m_req_filled,
+            "required_total": m_req_total,
+        })
+
+        total_filled += m_filled
+        total_fields += m_total
+        required_filled += m_req_filled
+        required_total += m_req_total
+
+    return {
+        "total_filled": total_filled,
+        "total_fields": total_fields,
+        "required_filled": required_filled,
+        "required_total": required_total,
+        "overall_percent": int((total_filled / total_fields * 100)) if total_fields else 0,
+        "per_module": per_module,
+    }
+
+
+async def apply_extracted_module_fields(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    extracted: dict,
+    modules: list[dict],
+) -> tuple[list[dict], dict]:
+    """Write extracted "module_id.field_key" updates into module_responses.
+
+    Args:
+        extracted: dict mapping "module_id.field_key" -> value (from
+            :func:`ai_service.extract_module_fields`).
+        modules: assembled module list — used for the summary computation
+            and to know which module_ids are valid.
+
+    Returns:
+        ``(updates_list, summary)`` where:
+        - ``updates_list`` is the per-field update payload for the SSE
+          ``field_update`` event (list of {module_id, field_key, value})
+        - ``summary`` is the aggregate completion summary from
+          :func:`compute_field_summary`
+    """
+    from app.models.module_response import ModuleResponse
+
+    # Group extracted keys by module_id
+    by_module: dict[str, dict] = {}
+    valid_module_ids = {
+        (mod.get("module_id") or mod.get("id")) for mod in modules
+    }
+    for compound_key, value in extracted.items():
+        if "." not in compound_key:
+            continue
+        mid, fkey = compound_key.split(".", 1)
+        if mid not in valid_module_ids or not fkey:
+            continue
+        by_module.setdefault(mid, {})[fkey] = value
+
+    updates_list: list[dict] = []
+
+    if by_module:
+        # Load existing module_response rows for this project, grouped by module_id
+        existing_result = await db.execute(
+            select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+        )
+        existing_by_mid = {r.module_id: r for r in existing_result.scalars().all()}
+
+        for mid, field_updates in by_module.items():
+            row = existing_by_mid.get(mid)
+            if row is not None:
+                merged = dict(row.responses or {})
+                for fk, v in field_updates.items():
+                    merged[fk] = v
+                    updates_list.append({"module_id": mid, "field_key": fk, "value": v})
+                row.responses = merged
+                if row.status == "pending":
+                    row.status = "active"
+            else:
+                row = ModuleResponse(
+                    project_id=project_id,
+                    module_id=mid,
+                    responses=field_updates,
+                    status="active",
+                )
+                db.add(row)
+                for fk, v in field_updates.items():
+                    updates_list.append({"module_id": mid, "field_key": fk, "value": v})
+
+        await db.flush()
+
+    summary = await compute_field_summary(db, project_id, modules)
+    return updates_list, summary

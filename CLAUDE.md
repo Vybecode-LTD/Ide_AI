@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.3.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.4.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -258,14 +258,13 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 ### 5. AI Discovery Chat
 - SSE streaming via FastAPI StreamingResponse + EventSource on frontend
-- State machine stages: greeting → problem → audience → features → constraints → confirm
-- Each pathway defines its own stage sequence mixing divergent (exploration) and convergent (narrowing) stages
-- Event types: `token` (streaming text), `sheet_update` (field extracted), `done` (response complete)
-- After each AI response: backend extracts structured fields, writes to design_sheets, emits sheet_update
-- Confidence scoring: 0–100, recalculated per sheet update based on field completeness
-- Quick reply chips: AI-generated suggested replies per turn
+- **Branches on `project.flow_version`**:
+  - **v1 (legacy projects)**: State machine stages (greeting → problem → audience → features → constraints → confirm). After each AI response the backend extracts design-sheet fields, writes to `design_sheets`, emits `sheet_update` event. This is the original behavior — untouched.
+  - **v2 (new projects)**: Unified prompt that targets ALL module field schemas at once. The AI sees every assembled module + its fields + what's already filled, and funnels toward the first unfilled REQUIRED field each turn. After each response the backend runs `extract_module_fields` and writes per-module field values into `module_responses.responses`. Emits a NEW `field_update` SSE event containing per-field updates + an aggregate summary (overall %, required %, per-module breakdown).
+- Event types: `token` (streaming text), `sheet_update` (v1 only), `field_update` (v2 only), `done` (response complete; always emitted, hardened with try/except + fallback chips)
+- Quick reply chips: AI-generated suggested replies per turn (`[CHIPS: a | b | c]` extracted with 3-stage fallback chain)
 - Voice input: Web Speech API mic button next to chat input (browser-only, zero backend cost)
-- UI: left stage stepper, center chat thread, right live design sheet panel
+- UI: left stage stepper, center chat thread, right live design sheet panel (v1) — for v2 the right panel will become a module-aware progress meter in Phase 4
 - AI model: Anthropic Claude (claude-sonnet-4-6), configurable via CLAUDE_MODEL env var
 - Designed for 15–30 minute sessions from idea to completed design kit
 

@@ -4,18 +4,29 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
-### In progress — Unified Discovery overhaul (Phase 1 of 6)
+### In progress — Unified Discovery overhaul (Phases 1-2 of 6 shipped)
 
 The discovery → design kit flow is being restructured. Old `v1` projects keep the existing PathwayReview → Execute → per-module sessions path. New `v2` projects (default for all newly created projects) will use a unified Discovery that funnels toward filling fields across an up-front-assembled module pathway, then land directly on a complete Design Kit. See ROADMAP "Up Next" for the full 6-phase plan.
 
-**Phase 1 shipped today:**
-- **`projects.flow_version`** column (migration 029) — `v2` default, existing rows backfilled to `v1`
-- **Field schemas on every module in `module_library.seed.json`** — 40 modules, 154 total fields (52 required, 102 optional), 6 modules flagged `has_output` for the eventual Refresh affordance
-- Each field has `key`, `label`, `type` (text/longtext/list/dict), `required`, `extraction_hint` (used by the AI in Phase 2)
-- **Up-front pathway assembly** at project creation: when `flow_version='v2'` and `primary_category` is set, the existing `assemble_pathway` runs synchronously, decorates each module entry with its field schema + `has_output` flag, and persists the `module_pathways` row immediately. Frontend can stop calling `assemble` after Discovery.
-- New helpers in `modular_pathway_service`: `get_module_fields(module_id)`, `get_pathway_field_summary(module_ids)`, `assemble_pathway_from_creation_inputs(...)`
+**Phase 1 (commit `fb840de`):**
+- `projects.flow_version` column (migration 029) — `v2` default, existing rows backfilled to `v1`
+- Field schemas on every module in `module_library.seed.json` — 40 modules, 154 total fields (52 required, 102 optional), 6 modules flagged `has_output`
+- Up-front pathway assembly at project creation
+- New helpers: `get_module_fields`, `get_pathway_field_summary`, `assemble_pathway_from_creation_inputs`
 
-Phase 2 (unified-discovery prompt + extraction) and the frontend phases follow in subsequent commits.
+**Phase 2 (this commit):**
+- `ai_service.build_unified_discovery_prompt(...)` — new system prompt builder that exposes ALL assembled modules + their field schemas + already-filled state, and instructs the AI to funnel toward the first unfilled REQUIRED field each turn. Layered with the existing partner-style fragments. Includes the standard CHIPS rules.
+- `ai_service.extract_module_fields(messages, modules, current_fields)` — new extractor that returns a JSON dict keyed by `"module_id.field_key"`. Validates returned keys against the schema and drops anything not recognized. Handles markdown-fence-wrapped JSON.
+- `discovery_service.get_filled_fields_for_project(...)` — loads current state of `module_responses.responses` grouped by module_id.
+- `discovery_service.compute_field_summary(...)` — aggregates total/required/per-module completion counts for the progress meter payload.
+- `discovery_service.apply_extracted_module_fields(...)` — writes extracted values into `module_responses` (creates rows on first touch, merges into existing rows otherwise) and returns `(updates_list, summary)` for the SSE event.
+- **`/discovery/{id}/message` now branches on `project.flow_version`**:
+  - v1 projects: unchanged — design-sheet prompt + sheet_update event
+  - v2 projects: unified prompt + field_update event with the per-module summary
+- New SSE event type: `field_update` carrying `{updates: [{module_id, field_key, value}], summary: {total_filled, total_fields, required_filled, required_total, overall_percent, per_module: [...]}}`
+- Done event still always fires with chips fallback (Phase-pre fix from earlier today carried through).
+
+Phase 3 (frontend Home category selector) is the next slice.
 
 ---
 

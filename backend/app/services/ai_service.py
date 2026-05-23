@@ -348,6 +348,233 @@ Example: If you ask "What kind of product?" → [CHIPS: A marketplace connecting
     return "\n".join(parts)
 
 
+async def build_unified_discovery_prompt(
+    *,
+    project_name: str,
+    project_description: str | None,
+    primary_category: str | None,
+    platform: str | None,
+    modules: list[dict],
+    current_fields: dict[str, dict],
+    ai_partner_style: str | None = None,
+    user_name: str | None = None,
+    memories: str | None = None,
+    message_count: int = 0,
+) -> str:
+    """Build the unified-discovery system prompt for the v2 flow.
+
+    Tells the AI about every assembled module + its field schema + what's
+    already filled, and instructs it to funnel toward filling the most
+    important unfilled REQUIRED field next.
+
+    Args:
+        project_name, project_description, primary_category, platform — project context
+        modules — assembled module list with embedded `fields` schemas
+        current_fields — dict module_id → {field_key: value} of what's already filled
+        ai_partner_style — partner persona to layer on top
+        user_name, memories — optional personalization
+        message_count — total turns so far (for pacing)
+    """
+    from app.services.partner_style_service import get_partner_style_fragment, DEFAULT_PARTNER_STYLE
+
+    parts = [
+        "You are a discovery partner helping the user build a COMPLETE design kit "
+        "for their project. The kit is a structured set of modules. Your job over "
+        "the next several turns is to gather enough information to fill in every "
+        "REQUIRED field across the modules. After the required fields are filled, "
+        "you may optionally gather optional fields if the user is engaged."
+    ]
+
+    # ── Project header ──
+    parts.append(f"""
+PROJECT
+- Name: {project_name}
+- Description: {project_description or '(none yet — ask the user to clarify if needed)'}
+- Category: {primary_category or 'general'}
+- Platform: {platform or 'custom'}""")
+
+    # ── Partner style fragment ──
+    style = ai_partner_style or DEFAULT_PARTNER_STYLE
+    parts.append(f"\n{get_partner_style_fragment(style)}")
+
+    if user_name:
+        parts.append(f"\nThe user's name is {user_name}. Address them by name where natural.")
+    if memories:
+        parts.append(f"\n{memories}")
+
+    # ── Module schemas + filled state ──
+    n_modules = len(modules)
+    parts.append(f"\nMODULES IN THIS DESIGN KIT ({n_modules})")
+
+    for i, mod in enumerate(modules, 1):
+        mid = mod.get("module_id") or mod.get("id") or "unknown"
+        label = mod.get("label", mid)
+        fields = mod.get("fields") or []
+        filled_for_module = current_fields.get(mid, {})
+
+        parts.append(f"\n{i}. {label} [{mid}]")
+        if not fields:
+            parts.append("   (no detailed field schema — gather general info, then move on)")
+            continue
+        for f in fields:
+            fk = f.get("key", "")
+            req = "REQUIRED" if f.get("required") else "optional"
+            ftype = f.get("type", "text")
+            hint = f.get("extraction_hint", "")
+            if fk in filled_for_module:
+                parts.append(f"   - {fk} ({req} {ftype}) — STATUS: filled. (hint: {hint})")
+            else:
+                parts.append(f"   - {fk} ({req} {ftype}) — STATUS: missing. {hint}")
+
+    # ── Discovery rules ──
+    parts.append(f"""
+
+DISCOVERY RULES (CRITICAL — violation makes you useless)
+Turn count so far: {message_count}
+
+1. ONE QUESTION PER TURN. Look at the MODULES list above. Find the FIRST REQUIRED
+   field marked "STATUS: missing" (top-to-bottom). Ask a focused, specific question
+   that elicits a direct answer for that field. Never stack multiple questions.
+
+2. NEVER REPEAT YOURSELF. If you already asked something or made a point, don't
+   say it again in any form. Each response must cover NEW GROUND.
+
+3. SHORT RESPONSES. 2-4 sentences max (excluding the chips line). Rapid-fire
+   collaboration, not lectures.
+
+4. PROGRESS RELENTLESSLY. Every turn must fill at least one missing field. If the
+   user's answer was vague, dig deeper on THAT answer (don't restart the topic).
+
+5. AFTER REQUIRED FIELDS ARE FILLED, you may gather optional fields. Make it clear
+   the user can hit "Proceed to Design Kit" whenever they want — you're not gating.
+
+6. RESPECT WHAT'S FILLED. Build on filled values to ask better questions about
+   adjacent missing fields. Don't ask the user to repeat information you can see.
+
+7. VARY YOUR APPROACH. Sometimes lead with an insight about what they said,
+   sometimes challenge an assumption, sometimes offer a concrete suggestion.
+   Never two consecutive responses opening with "Great!" or "That's interesting!".""")
+
+    parts.append("""
+QUICK REPLY CHIPS (MANDATORY — never skip)
+End every response with 2-3 specific answer options on the very last line.
+Format: [CHIPS: answer1 | answer2 | answer3]
+
+Each chip must be a DIRECT, COMPLETE answer to the question you just asked.
+- 3-10 words per chip
+- Specific and tappable (e.g. "Solo founder, no team" not "Tell me more")
+- The [CHIPS: ...] line is stripped from the displayed message and rendered as buttons.""")
+
+    return "\n".join(parts)
+
+
+async def extract_module_fields(
+    messages: list,
+    modules: list[dict],
+    current_fields: dict[str, dict],
+) -> dict:
+    """Extract NEW per-module field values from the conversation using Claude.
+
+    Returns a dict mapping ``"module_id.field_key"`` to the extracted value.
+    Lists become JSON arrays; dicts become JSON objects; text/longtext become
+    strings. Empty dict if extraction fails or finds nothing new.
+    """
+    if not modules:
+        return {}
+
+    schema_lines: list[str] = []
+    filled_lines: list[str] = []
+    for mod in modules:
+        mid = mod.get("module_id") or mod.get("id")
+        if not mid:
+            continue
+        for f in mod.get("fields") or []:
+            fk = f.get("key", "")
+            ftype = f.get("type", "text")
+            req = "required" if f.get("required") else "optional"
+            hint = f.get("extraction_hint", "")
+            schema_lines.append(f"- {mid}.{fk} ({ftype}, {req}): {hint}")
+        filled_for_module = current_fields.get(mid, {})
+        for fk, val in filled_for_module.items():
+            preview = str(val)[:120]
+            filled_lines.append(f"- {mid}.{fk} = {preview}")
+
+    extraction_prompt = f"""Extract NEW factual information from the conversation that matches these field schemas.
+Return ONLY a JSON object mapping "module_id.field_key" to the extracted value.
+
+Field schemas (the only valid keys you may return):
+{chr(10).join(schema_lines)}
+
+Already filled (do NOT repeat unless the user explicitly updated them in the latest messages):
+{chr(10).join(filled_lines) if filled_lines else '(nothing filled yet)'}
+
+Rules:
+- For "list" fields, return a JSON array of strings
+- For "dict" fields, return a JSON object
+- For "text" / "longtext" fields, return a JSON string
+- ONLY include fields where you have NEW information from the latest user messages
+- If unsure, OMIT the field entirely (do not return null or empty strings)
+- Return strictly JSON. No commentary, no markdown.
+
+Example return shape:
+{{
+  "audience_persona_builder.primary_persona": "Early-stage SaaS founders aged 28-45",
+  "audience_persona_builder.pain_points": ["Time poverty", "Funding pressure"],
+  "problem_opportunity_framer.urgency": "AI tooling just became affordable"
+}}"""
+
+    extraction_messages = list(messages) + [{"role": "user", "content": extraction_prompt}]
+
+    try:
+        response = await client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=2048,
+            system="You are a data extraction assistant. Return only valid JSON, no commentary.",
+            messages=extraction_messages,
+        )
+    except Exception as exc:
+        logger.warning("Module field extraction API call failed: %s", exc)
+        return {}
+
+    try:
+        text = response.content[0].text.strip()
+    except (IndexError, AttributeError):
+        return {}
+
+    # Strip markdown fences if present
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+
+    # Find the first JSON object in the response
+    json_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not json_match:
+        logger.warning("Module field extraction returned no JSON: %r", text[:200])
+        return {}
+
+    try:
+        extracted = json.loads(json_match.group(0))
+    except json.JSONDecodeError as exc:
+        logger.warning("Module field extraction JSON parse failed: %s", exc)
+        return {}
+
+    if not isinstance(extracted, dict):
+        return {}
+
+    # Validate keys against schema — drop anything unrecognized
+    valid_keys: set[str] = set()
+    for mod in modules:
+        mid = mod.get("module_id") or mod.get("id")
+        if not mid:
+            continue
+        for f in mod.get("fields") or []:
+            fk = f.get("key", "")
+            if fk:
+                valid_keys.add(f"{mid}.{fk}")
+
+    return {k: v for k, v in extracted.items() if k in valid_keys and v not in (None, "", [], {})}
+
+
 async def stream_response(messages: list, system_prompt: str) -> AsyncGenerator[str, None]:
     """Stream Claude API response tokens as an async generator."""
     async with client.messages.stream(

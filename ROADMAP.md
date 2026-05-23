@@ -48,10 +48,9 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions:
 
-1. **Unified Discovery overhaul** — major restructure across 6 phases. Phase 1 (backend module field schemas + up-front assembly, `flow_version` column) shipped today. Remaining phases:
-   - **Phase 2 (backend):** rewrite discovery SSE prompt to funnel across all module field schemas; `field_update` event for progress meter; replace `design_sheets` writes with `module_responses.fields_data`
+1. **Unified Discovery overhaul** — major restructure across 6 phases. Phases 1-2 shipped today (backend foundation + unified discovery prompt + field_update SSE event). Remaining phases:
    - **Phase 3 (frontend):** Home category selector + brief module preview before Discovery starts
-   - **Phase 4 (frontend):** replace `DesignSheetPanel` with `ProgressPanel` (overall % + expandable per-module breakdown, Proceed always available)
+   - **Phase 4 (frontend):** replace `DesignSheetPanel` with `ProgressPanel` (overall % + expandable per-module breakdown, Proceed always available, consumes the `field_update` event)
    - **Phase 5 (frontend):** new `/design-kit/{projectId}` page with Edit + Refresh per module + Add Modules button
    - **Phase 6 (full stack):** Additional discovery flow for newly-added modules
 2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.

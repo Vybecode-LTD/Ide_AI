@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.module_pathway import ModulePathway
 from app.models.project import Project
 from app.models.user import User
 from app.pathways import PathwayRegistry
@@ -168,29 +169,60 @@ async def send_message(
     await discovery_service.add_message(db, session, "user", payload.content)
     await db.commit()
 
-    # Get the design sheet for context
-    sheet = await discovery_service.get_sheet_for_project(db, session.project_id)
-    sheet_context = None
-    if sheet:
-        sheet_context = {
-            "problem": sheet.problem,
-            "audience": sheet.audience,
-            "mvp": sheet.mvp,
-            "platform": sheet.platform,
-            "tone": sheet.tone,
-        }
-
-    # Resolve project and pathway
+    # Resolve project (used by both v1 and v2 branches)
     proj_result = await db.execute(select(Project).where(Project.id == session.project_id))
     project = proj_result.scalar_one_or_none()
     platform = project.platform if project else "custom"
     pw = PathwayRegistry.get_or_default(project.pathway_id if project else None)
 
-    system_prompt = await ai_service.build_system_prompt(
-        platform, session.stage, sheet_context,
-        pathway=pw, ai_partner_style=session.ai_partner_style,
-        message_count=len(session.messages or []),
-    )
+    # ── Flow-version branch ──
+    # v2 projects use a unified-discovery prompt that targets all module
+    # field schemas at once and writes into module_responses. v1 projects
+    # keep the original stage-based prompt + design_sheet behavior intact.
+    use_v2_flow = False
+    pathway_modules: list[dict] = []
+    current_fields: dict[str, dict] = {}
+
+    if project and getattr(project, "flow_version", "v1") == "v2":
+        mp_result = await db.execute(
+            select(ModulePathway).where(ModulePathway.project_id == project.id)
+        )
+        mp = mp_result.scalar_one_or_none()
+        if mp and mp.modules:
+            use_v2_flow = True
+            pathway_modules = list(mp.modules)
+            current_fields = await discovery_service.get_filled_fields_for_project(
+                db, project.id
+            )
+
+    if use_v2_flow:
+        system_prompt = await ai_service.build_unified_discovery_prompt(
+            project_name=project.name,
+            project_description=project.description,
+            primary_category=project.primary_category,
+            platform=project.platform,
+            modules=pathway_modules,
+            current_fields=current_fields,
+            ai_partner_style=session.ai_partner_style,
+            message_count=len(session.messages or []),
+        )
+    else:
+        # Legacy v1 path — design-sheet-driven prompt
+        sheet = await discovery_service.get_sheet_for_project(db, session.project_id)
+        sheet_context = None
+        if sheet:
+            sheet_context = {
+                "problem": sheet.problem,
+                "audience": sheet.audience,
+                "mvp": sheet.mvp,
+                "platform": sheet.platform,
+                "tone": sheet.tone,
+            }
+        system_prompt = await ai_service.build_system_prompt(
+            platform, session.stage, sheet_context,
+            pathway=pw, ai_partner_style=session.ai_partner_style,
+            message_count=len(session.messages or []),
+        )
 
     # Build Claude message history
     claude_messages = [
@@ -226,37 +258,69 @@ async def send_message(
             except Exception:
                 pass
 
-        # Step 2: Extract and update design sheet (separate AI call + DB
-        # transaction — must not be allowed to break the SSE stream).
+        # Step 2: Extract — branch on flow_version.
+        # v2: extract per-module field values, write to module_responses,
+        #     emit a `field_update` SSE event with the per-module summary.
+        # v1: extract design-sheet fields, emit the existing `sheet_update`.
         sheet_data: dict | None = None
-        try:
-            updated_sheet, sheet_changed = await discovery_service.update_sheet_from_conversation(
-                db, session, pathway=pw
-            )
-            if sheet_changed and updated_sheet:
-                sheet_data = {
-                    "problem": updated_sheet.problem,
-                    "audience": updated_sheet.audience,
-                    "mvp": updated_sheet.mvp,
-                    "features": updated_sheet.features,
-                    "tone": updated_sheet.tone,
-                    "platform": updated_sheet.platform,
-                    "tech_constraints": updated_sheet.tech_constraints,
-                    "success_metric": updated_sheet.success_metric,
-                    "confidence_score": updated_sheet.confidence_score,
-                }
-                await db.commit()
-        except Exception as exc:
-            logger.warning("Sheet extraction/commit failed: %s", exc)
-            try:
-                await db.rollback()
-            except Exception:
-                pass
-            sheet_data = None  # Don't ship a potentially-stale snapshot
+        v2_payload: dict | None = None
 
-        # Step 3: Emit sheet_update BEFORE done — clients may close the stream
-        # on the done sentinel, so the sheet must arrive first.
-        if sheet_data is not None:
+        if use_v2_flow:
+            try:
+                # Use the freshly-updated session.messages (now includes the assistant turn)
+                latest_messages = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in (session.messages or [])
+                ]
+                extracted = await ai_service.extract_module_fields(
+                    latest_messages, pathway_modules, current_fields
+                )
+                updates_list, summary = await discovery_service.apply_extracted_module_fields(
+                    db, project.id, extracted, pathway_modules
+                )
+                await db.commit()
+                v2_payload = {"updates": updates_list, "summary": summary}
+            except Exception as exc:
+                logger.warning("Module field extraction/commit failed: %s", exc)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                v2_payload = None
+        else:
+            try:
+                updated_sheet, sheet_changed = await discovery_service.update_sheet_from_conversation(
+                    db, session, pathway=pw
+                )
+                if sheet_changed and updated_sheet:
+                    sheet_data = {
+                        "problem": updated_sheet.problem,
+                        "audience": updated_sheet.audience,
+                        "mvp": updated_sheet.mvp,
+                        "features": updated_sheet.features,
+                        "tone": updated_sheet.tone,
+                        "platform": updated_sheet.platform,
+                        "tech_constraints": updated_sheet.tech_constraints,
+                        "success_metric": updated_sheet.success_metric,
+                        "confidence_score": updated_sheet.confidence_score,
+                    }
+                    await db.commit()
+            except Exception as exc:
+                logger.warning("Sheet extraction/commit failed: %s", exc)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+                sheet_data = None
+
+        # Step 3: Emit extraction-derived event BEFORE done so clients that
+        # close the stream on the done sentinel still receive the payload.
+        if v2_payload is not None:
+            try:
+                yield f"data: {json.dumps({'type': 'field_update', **v2_payload})}\n\n"
+            except Exception as exc:
+                logger.error("Failed to emit field_update event: %s", exc)
+        elif sheet_data is not None:
             try:
                 yield f"data: {json.dumps({'type': 'sheet_update', 'sheet': sheet_data})}\n\n"
             except Exception as exc:
