@@ -3,7 +3,7 @@
  * then describe their idea, choose an AI partner, and start discovery.
  * @module pages/Home
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../components/ui/Button'
@@ -45,13 +45,35 @@ export function Home() {
   )
 
   // Side effects for billing success: refresh user, clean URL, auto-dismiss.
+  // Preserve ALL other params (e.g. `category`) when stripping `billing=success`
+  // so a user landing on `/home?category=software&billing=success` doesn't lose
+  // their category selection mid-flow.
   useEffect(() => {
     if (!billingSuccess) return
     fetchUser() // Refresh user to get updated account_type
-    setSearchParams({}, { replace: true }) // Clean URL
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('billing')
+        return next
+      },
+      { replace: true },
+    )
     const timer = setTimeout(() => setBillingSuccess(false), 5000)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Track the post-create preview timeout so unmounting (manual nav, tab close)
+  // can clear it before it fires a stale navigate().
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current)
+        previewTimerRef.current = null
+      }
+    }
   }, [])
   const [loading, setLoading] = useState(false)
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
@@ -113,8 +135,15 @@ export function Home() {
         }
       })
       setModulePreview({ modules: decorated, totalRequired: decorated.length })
-      // Auto-navigate after a short read of the preview
-      setTimeout(() => navigate(`/discovery/${projectId}`), 2200)
+      // Auto-navigate after a short read of the preview. Stored in a ref so
+      // the cleanup effect can cancel it if the component unmounts first
+      // (manual sidebar nav, tab close) — otherwise the orphan timer fires
+      // a navigate() that yanks the user away from wherever they went.
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+      previewTimerRef.current = setTimeout(() => {
+        previewTimerRef.current = null
+        navigate(`/discovery/${projectId}`)
+      }, 2200)
     } catch {
       // No pathway available (template project, v1 project, or assembly skipped)
       navigate(`/discovery/${projectId}`)

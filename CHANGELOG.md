@@ -14,7 +14,20 @@ The discovery → design kit flow is being restructured. Old `v1` projects keep 
 - Up-front pathway assembly at project creation
 - New helpers: `get_module_fields`, `get_pathway_field_summary`, `assemble_pathway_from_creation_inputs`
 
-**Phase 3 (this commit) — frontend Home reorder + post-create module preview:**
+**Phase 3 hotfix (this commit, post 2-agent audit):**
+- **`Home.tsx` setTimeout leak fixed** — preview-navigate timer is now stored in a `useRef` and cleared in an unmount effect. Previously the orphan timer could fire after the component unmounted, yanking a user away from wherever they manually navigated to during the 2.2s preview window.
+- **`Home.tsx` billing-URL category preservation** — the billing-success cleanup effect now strips only `?billing=success` and preserves all other query params (notably `category`). Previously a user landing on `/home?category=software&billing=success` lost their category selection mid-flow.
+- **`templates.py` flow_version='v1'** — template-created projects now explicitly set `flow_version='v1'` (was defaulting to `'v2'` from the column default). Template projects don't run up-front pathway assembly, so being marked v2 would break Library resume routing and PathwayReview redirects. Phase 5 may revisit once `/design-kit` can render template-seeded fields.
+- **`library.py:_compute_resume_path` flow_version branch** — v2 projects now always resume to `/discovery/{pid}` (the unified Discovery is their only surface until Phase 5's `/design-kit` ships). v1 routing untouched.
+- **`PathwayReview.tsx` v2 redirect** — fetches the project on mount; if `flow_version === 'v2'`, immediately redirects to `/discovery/{projectId}` so v2 users who deep-link or get bounced here don't fall into the legacy review/lock flow which would clobber their up-front-assembled pathway.
+- CLAUDE.md → 2.5.1 (PATCH — pure bug fixes, no documented-feature change)
+
+Audit findings deferred to Phase 4 (not blockers for handoff):
+- Discovery "Proceed to Design Kit" button still requires `sheet.confidence_score >= 70` (effectively unreachable for v2). Phase 4 ProgressPanel replaces this trigger with a field-completion check.
+- DesignSheetPanel on the right side of Discovery still renders for v2 (empty/blank state). Phase 4 swaps it for ProgressPanel.
+- Module-preview overlay a11y (`role="status"` vs `role="alertdialog"`) and mobile overflow on tiny viewports.
+
+**Phase 3 (commit `94102cb`) — frontend Home reorder + post-create module preview:**
 - Moved `TemplateGrid` directly below the partner-style picker (was below the Submit button) per the v2 UX spec: "partner style with templates below it and optional advanced configuration".
 - New `showPreviewAndNavigate(projectId)` flow on the Submit handler: after a v2 project is created, fetch `/projects/{id}/pathway`, then show a glassmorphism overlay listing every module the AI will fill during Discovery, then auto-route to `/discovery/{id}` after 2.2 seconds.
 - Overlay is animated (AnimatePresence) with per-module stagger. Falls through to immediate navigation when the pathway endpoint 404s (template projects, v1 projects, or assembly skipped at creation).

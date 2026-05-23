@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.5.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.5.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.

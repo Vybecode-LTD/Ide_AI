@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -59,14 +59,24 @@ Single massive session that landed 10 commits across 5 major workstreams. Founda
 
 ### Most important things to know for the next session
 
-**Discovery v2 overhaul is in flight** (Phases 1-2-hotfix done, Phase 3 is next). Two flow versions now coexist:
-- **v1 (legacy projects)** — `projects.flow_version = 'v1'` (backfilled by migration 029). Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
-- **v2 (new projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. New SSE event `field_update` carries per-module summary for the eventual progress meter.
+**Discovery v2 overhaul is in flight** — Phases 1-2-hotfix-3-3hotfix all shipped today. Phase 4 is next. Two flow versions coexist:
+- **v1 (legacy projects + template projects)** — `projects.flow_version = 'v1'`. Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
+- **v2 (new non-template projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. New SSE event `field_update` carries per-module summary. After creation, Home shows a 2.2-second module-preview overlay listing what the AI will fill, then routes to /discovery.
 
-**Where Phase 3 picks up:**
-- Frontend Home page needs a category selector grid (16 categories) at the top before the idea input
-- Project creation needs to actually pass `primary_category` (and optionally `secondary_category`) to the backend — currently nullable, breaks up-front assembly when null
-- After project creation, optionally show a brief "Modules we picked: [list]" panel before routing to Discovery
+**Phase 3 is shipped** (commit `94102cb`) + **Phase 3 hotfix shipped** (current commit) covering 5 audit-found bugs:
+1. `setTimeout` leak in Home's preview-navigate (orphan timer no longer fires post-unmount)
+2. Billing-success URL clean preserves `?category=...` (was stripped, causing flow loss)
+3. Template projects now flagged `flow_version='v1'` (was defaulting to v2 with no pathway → Library/PathwayReview routing broke)
+4. Library resume routing gates on `flow_version` — v2 projects always resume to `/discovery/{pid}`
+5. PathwayReview redirects v2 projects to `/discovery/{pid}` on mount so deep-links don't drop users into legacy module sessions
+
+**Where Phase 4 picks up — ProgressPanel for v2 Discovery:**
+- Replace `DesignSheetPanel` on the right side of Discovery with a new `ProgressPanel` for v2 projects
+- Subscribe to the `field_update` SSE event (already emitted by Phase 2 backend) for the live progress data
+- Show overall % at top with the Proceed button (always available, warning chip if <80% required filled)
+- Expandable per-module breakdown: filled / required-blank / optional-blank counts
+- Replace the `sheet.confidence_score >= 70` Proceed trigger with a field-completion check
+- Route Proceed to a temporary "Design Kit coming in Phase 5" placeholder (or directly to /exports for now) — Phase 5 builds the real `/design-kit/{projectId}` page
 
 **Backend foundation is solid for v2:**
 - Module library has 40 modules with 154 fields total (52 required, 102 optional), 6 modules flagged `has_output`
@@ -74,6 +84,7 @@ Single massive session that landed 10 commits across 5 major workstreams. Founda
 - `discovery_service.apply_extracted_module_fields` uses race-safe ON CONFLICT upsert (migration 030)
 - `_coerce_field_value` defends against AI returning wrong-shape values
 - SSE done event always fires (Phase-pre robustness fix carried through)
+- 5 audit-found bugs all closed via the Phase 3 hotfix commit
 
 ### Admin system live (commit 3747eac)
 
@@ -205,12 +216,13 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What Still Needs Your Action
 
-### 🚦 Phase 3 next steps (frontend Home + project creation)
+### 🚦 Phase 4 next steps (frontend ProgressPanel for v2 Discovery)
 
-1. **Category selector grid on Home** — 16 categories grouped (software, food, film, fashion, etc.) above the idea input. User picks category first, then describes idea, then partner + templates + advanced.
-2. **Pass `primary_category` to POST /projects** — currently the frontend doesn't include it, which means the v2 assembly skips and falls back to v1 behavior. Phase 3 must wire this.
-3. **Optionally pass `secondary_category`** — flagged minor in audit; enrichment rule unreachable without it.
-4. **Optional: brief module preview** — after project creation, show "Modules we picked: [list]" before routing to Discovery, so the user sees what they're about to fill out.
+1. **New `ProgressPanel` component** at `frontend/src/components/discovery/ProgressPanel.tsx`. Replaces `DesignSheetPanel` on the right side of Discovery for v2 projects only.
+2. **Extend `useSSE`** to handle the new `field_update` event type (currently silently dropped — `useSSE.ts:80-95`).
+3. **Discovery.tsx branch**: if `project.flow_version === 'v2'`, render `ProgressPanel`; else keep `DesignSheetPanel`.
+4. **Replace the Proceed-button trigger** at `Discovery.tsx:368` — for v2 use the `field_update` summary's `required_filled / required_total` ratio (e.g. show button always, with warning chip if <80%). Route to a placeholder `/design-kit/{projectId}` (404 for now until Phase 5 ships) OR keep routing to `/exports/{projectId}` as an interim.
+5. Plumb `flow_version` into Discovery — currently not loaded. Either fetch project at mount or add to `/discovery/start` response.
 
 ### 🔐 Security hygiene (recommended but not blocking)
 

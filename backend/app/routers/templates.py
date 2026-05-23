@@ -114,6 +114,10 @@ async def use_template(
     # Extract fields from template's concept_sheet
     cs = template.concept_sheet or {}
 
+    # Template projects bypass up-front pathway assembly — flag them as v1
+    # so Library resume routing + PathwayReview redirect logic treat them
+    # like legacy projects. (Phase 5 may revisit this once the design-kit
+    # view can render template-seeded fields directly.)
     project = Project(
         name=f"{template.name} Project",
         description=description,
@@ -121,6 +125,7 @@ async def use_template(
         platform=cs.get("platform", "custom"),
         ai_partner_style=payload.ai_partner_style or "strategist",
         primary_category=concept_category,
+        flow_version="v1",
     )
     db.add(project)
     await db.flush()

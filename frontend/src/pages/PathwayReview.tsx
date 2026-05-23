@@ -40,6 +40,23 @@ export function PathwayReview() {
 
     const init = async () => {
       try {
+        // v2 projects don't use PathwayReview — they go straight from
+        // creation → Discovery → Design Kit (Phase 5). Redirect any v2
+        // project that lands here back to Discovery so they don't fall
+        // into the legacy review/lock flow which would clobber their
+        // up-front-assembled pathway.
+        try {
+          const { data: proj } = await apiClient.get(`/projects/${projectId}`)
+          if (proj?.flow_version === 'v2') {
+            navigate(`/discovery/${projectId}`, { replace: true })
+            return
+          }
+        } catch {
+          // If project fetch fails, fall through to the legacy path —
+          // worst case the user sees the v1 PathwayReview UI for a v2
+          // project, which is recoverable (they can re-navigate).
+        }
+
         // Check if pathway already exists (404 is expected for fresh projects)
         try {
           await fetchPathway(projectId)

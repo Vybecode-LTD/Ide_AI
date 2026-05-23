@@ -31,39 +31,46 @@ def _compute_resume_path(
     discovery_stage: str | None,
     block_count: int,
     pathway_status: str | None,
+    flow_version: str = "v1",
 ) -> str:
     """Determine the best page to resume working on a project.
 
-    Discovery is considered complete when:
-    - ``session_status`` is ``"completed"`` (explicit completion), OR
-    - ``discovery_stage`` is ``"confirm"`` or ``"complete"`` (reached final
-      stage but session may still be marked ``"active"``).
+    v2 projects always route to Discovery (unified Discovery is the only
+    surface — PathwayReview/PathwayExecute/per-module sessions are not part
+    of the v2 flow). When Phase 5 ships ``/design-kit/{pid}``, completed-
+    discovery v2 projects will route there instead.
 
-    Without this, projects whose discovery reached the confirm stage but
-    never flipped ``status`` to ``"completed"`` would route back to Discovery
-    forever.
+    v1 (legacy) routing:
+    - Discovery still in progress → ``/discovery/{pid}``
+    - Discovery done, pathway pending → ``/pathway-review/{pid}``
+    - Discovery done, pathway active → ``/pathway-execute/{pid}``
+    - Pathway complete, no blocks → ``/blocks/{pid}``
+    - Pathway complete, has blocks → ``/exports/{pid}``
+
+    Discovery is considered complete when ``session_status == "completed"``
+    OR ``discovery_stage`` is ``"confirm"`` / ``"complete"``.
     """
     pid = str(project_id)
 
-    # Check whether discovery is done (stage-based OR status-based).
+    # v2 projects: Discovery is the unified surface. Always send them back
+    # there until Phase 5 ships the Design Kit view.
+    if flow_version == "v2":
+        return f"/discovery/{pid}"
+
+    # ── v1 legacy routing ──
     discovery_done = (
         discovery_stage in {"confirm", "complete"}
         or session_status == "completed"
     )
 
-    # No session at all, or discovery still in progress → send to Discovery.
     if not discovery_done:
         return f"/discovery/{pid}"
-
-    # Discovery complete — check module pathway
     if not pathway_status or pathway_status == "pending":
         return f"/pathway-review/{pid}"
     if pathway_status == "active":
         return f"/pathway-execute/{pid}"
-    # Pathway complete — check blocks
     if block_count == 0:
         return f"/blocks/{pid}"
-    # Has blocks — go to exports
     return f"/exports/{pid}"
 
 
@@ -160,6 +167,7 @@ async def list_library_projects(
         message_count = len(session_messages) if isinstance(session_messages, list) else 0
         resume_path = _compute_resume_path(
             project.id, session_status, discovery_stage, block_count, pathway_status,
+            flow_version=getattr(project, "flow_version", "v1"),
         )
 
         projects.append(

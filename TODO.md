@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See `ROADMAP.md` for strategic direction.
 
@@ -12,16 +12,19 @@ _Nothing currently blocking. v2 backend foundation is solid; Phase 3 frontend is
 
 ---
 
-## 🚦 Phase 3 — frontend Home category + project creation (next active work)
+## 🚦 Phase 4 — frontend ProgressPanel for v2 Discovery (next active work)
 
-The Discovery v2 backend is ready but project creation doesn't currently pass `primary_category`, which means assembly skips and v2 projects fall back to v1 behavior. Phase 3 wires this.
+Phase 3 is shipped (commits `94102cb` + Phase 3 hotfix). Phase 4 makes the v2 Discovery experience visually different from v1 by swapping in a module-aware progress meter.
 
-- [ ] Add a **category selector grid** at the top of Home.tsx — 16 categories grouped by group (software, food, film, fashion, etc.). 4×4 glassmorphism card grid.
-- [ ] Default category to user's previous pick (localStorage) for fast iteration.
-- [ ] **Pass `primary_category` in the POST /projects payload** — currently nullable, causes v2 assembly to no-op.
-- [ ] Optionally pass `secondary_category` based on AI inference from idea description (audit minor — enrichment rule unreachable otherwise).
-- [ ] Filter template grid to category-relevant templates when a category is picked.
-- [ ] **Brief module preview after project creation** — fetch `/projects/{id}/pathway`, show "Modules we picked: [list]" for 2-3 seconds, then route to Discovery. Optional polish.
+- [ ] Create `frontend/src/components/discovery/ProgressPanel.tsx` — overall % at top, expandable per-module sections, fields list per module with filled/required-blank/optional-blank status
+- [ ] Extend `useSSE` hook to handle the new `field_update` event type (`useSSE.ts:80-95`) — currently silently dropped
+- [ ] Wire ProgressPanel state from `field_update` summary payload — already emitted by Phase 2 backend
+- [ ] In `Discovery.tsx`, branch on `project.flow_version === 'v2'` to choose ProgressPanel vs DesignSheetPanel
+- [ ] Replace `sheet.confidence_score >= 70` Proceed-button gate with a v2-aware field-completion check (always available, warning chip when <80% required filled)
+- [ ] Plumb `flow_version` into Discovery (fetch project at mount, or include in `/discovery/start` response)
+- [ ] Interim Proceed destination for v2 — route to `/exports/{projectId}` as a placeholder OR show toast "Design Kit coming in Phase 5" until that page ships
+- [ ] Module-preview overlay accessibility improvements deferred from Phase 3 audit (`role="alertdialog"`, focus trap, Esc-to-skip)
+- [ ] Mobile overflow on the module-preview overlay at <360px viewport — increase `max-h` on small screens
 
 ---
 
