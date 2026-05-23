@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.3.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -58,7 +58,8 @@ Single massive session that landed 11 commits across 6 major workstreams. Founda
 | `23f5e7d` | fix(discovery v2): Phase 2 hotfix — shape fix + race-safe upsert + type coercion |
 | `94102cb` + `a7257e0` | feat(discovery v2): Phase 3 + hotfix — Home reorder + post-create overlay + 5 audit fixes |
 | _(Phase 4)_ | feat(discovery v2): Phase 4 — ProgressPanel + v2 Proceed gate + overlay a11y |
-| _(this commit)_ | feat(discovery v2): Phase 4 audit closure — H1+H2+M8+M6+M3+M7+M1+M2+M4+M5+L1+L2+L5+I4 (14 fixes/additions) |
+| _(prev commit)_ | feat(discovery v2): Phase 4 audit closure — H1+H2+M8+M6+M3+M7+M1+M2+M4+M5+L1+L2+L5+I4 (14 fixes/additions) |
+| _(this commit)_ | test(discovery v2): 15 HTTP integration tests + H1 greenlet-bug fix in projects.py |
 
 ### Most important things to know for the next session
 
@@ -230,7 +231,7 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 - **Module-preview overlay a11y** — `role="alertdialog"`, labelledby/describedby, Esc-to-skip, focus-on-mount, mobile max-h fix
 - **Audit-closure additions** — `GET /discovery/{session_id}/field-summary` endpoint, `build_unified_greeting_prompt` (v2-aware init), `_coerce_field_value` drop logging, defensive unknown-field-key rejection, ProgressPanel expanded-set cap (FIFO 3), recentUpdates 8s fade, stage UI hidden for v2, loadSheet skipped for v2, `_reset_module_library` test hook
 - **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output` for the Refresh affordance coming in Phase 5
-- **Backend test coverage on v2** — 35 new tests in `test_discovery_v2.py` covering `_coerce_field_value`, `_reset_module_library`, `compute_field_summary`, `load_decorated_pathway_modules`, `apply_extracted_module_fields` validation logic, `build_unified_discovery_prompt`, `build_unified_greeting_prompt`. 76/76 backend tests pass.
+- **Backend test coverage on v2** — 50 new tests across `test_discovery_v2.py` (35 service-layer) + `test_discovery_v2_integration.py` (15 HTTP-level). Integration tests caught the H1 greenlet-during-serialization bug. **91/91 backend tests pass.**
 - **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.4.1), CONTEXT_HANDOFF.md (3.0.0), TODO.md (2.0.0+), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.1.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
 - **Migration chain** — Linear 001→030, all reversible cleanly

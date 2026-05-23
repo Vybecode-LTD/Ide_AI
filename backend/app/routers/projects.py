@@ -118,6 +118,10 @@ async def create_project(
     if project.flow_version == "v2" and not pathway_created:
         project.flow_version = "v1"
         await db.flush()
+        # Explicit setattr-then-flush expires server-default / onupdate
+        # attributes (updated_at) — refresh so ProjectRead serialization
+        # doesn't lazy-load them outside the greenlet context.
+        await db.refresh(project)
 
     return project
 

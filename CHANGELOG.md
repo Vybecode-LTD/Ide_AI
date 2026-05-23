@@ -4,7 +4,30 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
-### Phase 4 audit closure (this commit)
+### Phase 4 HTTP-level integration tests + H1 prod-bug fix
+
+After the audit closure, added FastAPI TestClient-based integration tests covering the HTTP routes the service-layer tests in `test_discovery_v2.py` couldn't reach. The new suite immediately caught a real production bug in the H1 fix.
+
+### Fixed
+- **`projects.py` greenlet-during-serialization bug.** The H1 downgrade (`project.flow_version = "v1"; await db.flush()`) was implicitly expiring `updated_at` (server_default/onupdate column). FastAPI's response-serialization then tried to lazy-load it outside the greenlet context, raising `MissingGreenlet`. Fix: `await db.refresh(project)` after the downgrade so all server-default columns are populated before serialization. Every H1-downgraded project would have hit this in production (any POST /projects without primary_category, or with a failing assembly). Caught by `test_downgrades_to_v1_when_no_primary_category` in the new integration suite.
+
+### Added
+- **`backend/tests/test_discovery_v2_integration.py`** — 15 tests using FastAPI TestClient with dependency overrides for `get_db` + `get_current_user`. Covers:
+  - **TestCreateProjectH1** (5 tests): v2-with-pathway happy path, H1 downgrade on no-category, H1 downgrade on empty assembly (monkeypatched), H1 downgrade on assembly exception (monkeypatched), Phase-2-hotfix invariant that `module_pathways.modules` is `list[str]`.
+  - **TestFieldSummaryEndpoint** (4 tests): 200 + correct shape for v2, 409 for v1, 404 for nonexistent session, 404 for cross-user session (security check).
+  - **TestTemplateFlowVersion** (1 test): Phase 3 hotfix invariant that template-created projects are `flow_version='v1'`.
+  - **TestLibraryResumeRouting** (2 tests): exhaustive matrix proving v2 always routes to `/discovery`, plus v1 routing unchanged across all 5 legacy states.
+  - **TestDiscoveryStartV2** (2 tests): session creation with partner-style propagation, cross-user 404 isolation.
+  - **TestProjectReadShape** (1 test): asserts every field the Phase 4 frontend `Project` type expects is present in the response.
+
+### Coverage summary
+- **Backend tests: 91 total, all passing** (41 existing + 35 unit + 15 integration).
+- Phase 1-4 + audit closure now has HTTP-level regression coverage for: H1 (4 cases), M6 endpoint (4 cases), Phase 3 hotfix (template v1 flag), `_compute_resume_path` (exhaustive matrix), discovery start ownership check, ProjectRead shape, pathway-shape invariant. PostgreSQL ON CONFLICT upsert is still out of scope (SQLite harness). SSE streaming endpoints are not exercised — that would require mocking the AsyncAnthropic streaming client.
+
+### Changed
+- **CLAUDE.md → 2.7.1** (PATCH — real bug fix in `projects.py` + new test file, no documented-feature change).
+
+### Phase 4 audit closure (previous commit)
 
 End-of-Phase-4 internal audit identified 2 HIGH, 8 MEDIUM, 5 LOW findings across the v2 code paths. All actionable items resolved in a single sweep with regression testing between each phase. 76/76 backend tests now pass (35 new v2 tests + 41 existing), TypeScript build clean.
 
