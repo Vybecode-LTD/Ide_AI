@@ -14,7 +14,15 @@ The discovery → design kit flow is being restructured. Old `v1` projects keep 
 - Up-front pathway assembly at project creation
 - New helpers: `get_module_fields`, `get_pathway_field_summary`, `assemble_pathway_from_creation_inputs`
 
-**Phase 2 hotfix (this commit, post 2-agent audit):**
+**Phase 3 (this commit) — frontend Home reorder + post-create module preview:**
+- Moved `TemplateGrid` directly below the partner-style picker (was below the Submit button) per the v2 UX spec: "partner style with templates below it and optional advanced configuration".
+- New `showPreviewAndNavigate(projectId)` flow on the Submit handler: after a v2 project is created, fetch `/projects/{id}/pathway`, then show a glassmorphism overlay listing every module the AI will fill during Discovery, then auto-route to `/discovery/{id}` after 2.2 seconds.
+- Overlay is animated (AnimatePresence) with per-module stagger. Falls through to immediate navigation when the pathway endpoint 404s (template projects, v1 projects, or assembly skipped at creation).
+- Tolerates both list-of-strings AND list-of-dicts shape from `/projects/{id}/pathway` (legacy data) so the overlay renders cleanly whether migration 030 has run or not.
+- Frontend now respects `data.flow_version === 'v2'` returned from POST /projects to decide between the overlay path and the legacy immediate-nav path.
+- CLAUDE.md → 2.5.0 (MINOR — new user-visible UX flow).
+
+**Phase 2 hotfix (commit `23f5e7d`):**
 - **Migration 030** — three forward-only data fixes:
   1. Backfill `module_pathways.modules` from list[dict] → list[str] for any rows already created on the broken Phase-1 shape
   2. Dedup `module_responses` by (project_id, module_id) keeping the newest row per pair

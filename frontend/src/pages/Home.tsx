@@ -18,6 +18,13 @@ import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 import { useAuthStore } from '../stores/authStore'
 import { PulseBeacon, Whisper } from '../components/tutorial'
 
+/** Brief overlay shown after project creation while we fetch the assembled
+ *  pathway and announce which modules will be filled during Discovery. */
+interface ModulePreview {
+  modules: Array<{ module_id: string; label: string; group: string }>
+  totalRequired: number
+}
+
 /* ── Module-level cache for partner styles (never changes per session) ── */
 let _partnerCache: PartnerStyleMeta[] | null = null
 
@@ -49,6 +56,7 @@ export function Home() {
   const [loading, setLoading] = useState(false)
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
   const [createError, setCreateError] = useState('')
+  const [modulePreview, setModulePreview] = useState<ModulePreview | null>(null)
 
   // Template state
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null)
@@ -81,6 +89,38 @@ export function Home() {
     setSearchParams({ category: categoryId }, { replace: true })
   }
 
+  /** Fetch the assembled module pathway for a freshly-created project so we
+   *  can show the user what they're about to fill out. Best-effort — falls
+   *  back to immediate navigation if the pathway isn't queryable. */
+  const showPreviewAndNavigate = async (projectId: string) => {
+    try {
+      const { data: pathway } = await apiClient.get(`/projects/${projectId}/pathway`)
+      const modules = (pathway?.modules || []) as Array<string | { module_id: string; label?: string; group?: string }>
+      if (modules.length === 0) {
+        navigate(`/discovery/${projectId}`)
+        return
+      }
+      // Normalize to {module_id, label, group}. Backend stores strings;
+      // labels are looked up from a static map on the client.
+      const decorated = modules.map((m) => {
+        if (typeof m === 'string') {
+          return { module_id: m, label: m.replace(/_/g, ' '), group: '' }
+        }
+        return {
+          module_id: m.module_id,
+          label: m.label || m.module_id.replace(/_/g, ' '),
+          group: m.group || '',
+        }
+      })
+      setModulePreview({ modules: decorated, totalRequired: decorated.length })
+      // Auto-navigate after a short read of the preview
+      setTimeout(() => navigate(`/discovery/${projectId}`), 2200)
+    } catch {
+      // No pathway available (template project, v1 project, or assembly skipped)
+      navigate(`/discovery/${projectId}`)
+    }
+  }
+
   /** Create the project and navigate to discovery. */
   const createProject = async () => {
     // If a template is active, use the template endpoint
@@ -89,6 +129,7 @@ export function Home() {
         extra_description: idea.trim() || undefined,
         ai_partner_style: partnerStyle,
       })
+      // Templates currently bypass up-front assembly — go straight to Discovery
       navigate(`/discovery/${data.project_id}`)
       return
     }
@@ -115,7 +156,14 @@ export function Home() {
       complexity,
       tone,
     })
-    navigate(`/discovery/${data.id}`)
+    // v2 projects: show the brief module preview before routing to Discovery
+    // so the user sees what they're about to fill out. v1 projects (and any
+    // case where the pathway isn't queryable) fall straight through.
+    if (data?.flow_version === 'v2') {
+      await showPreviewAndNavigate(data.id)
+    } else {
+      navigate(`/discovery/${data.id}`)
+    }
   }
 
   /** Main submit handler — create project directly (category already chosen). */
@@ -304,6 +352,15 @@ export function Home() {
             </PulseBeacon>
           )}
 
+          {/* Template grid — filtered to selected category. Placed directly
+              below the partner picker per the v2 UX spec (templates inform
+              what the user wants to build before they tweak advanced config). */}
+          <TemplateGrid
+            onSelect={(t) => setActiveTemplate(prev => prev?.id === t.id ? null : t)}
+            selectedId={activeTemplate?.id}
+            category={selectedCategory}
+          />
+
           {/* Advanced configuration — collapsed by default */}
           <div className="w-full max-w-2xl mb-4 md:mb-6">
             <button
@@ -424,14 +481,61 @@ export function Home() {
           </PulseBeacon>
         </motion.div>
 
-        {/* Template grid — filtered to selected category */}
-        <TemplateGrid
-          onSelect={(t) => setActiveTemplate(prev => prev?.id === t.id ? null : t)}
-          selectedId={activeTemplate?.id}
-          category={selectedCategory}
-        />
-
       </main>
+
+      {/* Module-preview overlay — shown after a v2 project is created, before
+          we route to Discovery. Gives the user a 2-second read of which
+          modules they're about to fill out. */}
+      <AnimatePresence>
+        {modulePreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
+            role="status"
+            aria-live="polite"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="bg-surface border border-accent/30 rounded-2xl shadow-[0_0_40px_rgba(0,229,255,0.15)] p-6 md:p-8 max-w-xl w-full"
+            >
+              <div className="text-center mb-5">
+                <p className="text-xs uppercase tracking-wider text-accent font-semibold mb-1">
+                  Design kit assembled
+                </p>
+                <h2 className="text-lg md:text-xl font-bold text-white">
+                  {modulePreview.modules.length} modules to fill out
+                </h2>
+                <p className="text-xs text-text-muted mt-1">
+                  Your AI partner will guide you through each one in Discovery.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
+                {modulePreview.modules.map((m, i) => (
+                  <motion.div
+                    key={m.module_id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.02, duration: 0.2 }}
+                    className="text-[11px] text-white bg-white/5 border border-border rounded-md px-2.5 py-1.5 truncate capitalize"
+                    title={m.label}
+                  >
+                    {m.label}
+                  </motion.div>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-text-muted">
+                <span className="inline-block w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
+                <span>Starting Discovery...</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
     </div>
