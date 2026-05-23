@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, billing, blocks, branching, clerk_webhook, design_sheet, discovery, exports, inbox, integrations, library, market, meta, module_pathway, modules, pathways, pipeline, projects, prompts, sharing, sprints, templates, webhooks
+from app.routers import admin, auth, billing, blocks, branching, clerk_webhook, design_sheet, discovery, exports, inbox, integrations, library, market, meta, module_pathway, modules, pathways, pipeline, projects, prompts, sharing, sprints, templates, webhooks
 
 
 def create_app() -> FastAPI:
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks.router, prefix=prefix)
     app.include_router(billing.router, prefix=prefix)
     app.include_router(clerk_webhook.router, prefix=prefix)
+    app.include_router(admin.router, prefix=prefix)
 
     @app.get("/api/v1/health")
     async def health():

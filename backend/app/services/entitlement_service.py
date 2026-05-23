@@ -41,9 +41,20 @@ PLAN_LIMITS: dict[str, dict[str, int | None]] = {
 
 
 def get_limits(user: User) -> dict[str, int | None]:
-    """Return the plan limits for a user based on their account_type."""
+    """Return the effective limits for a user.
+
+    Plan defaults are looked up by ``account_type``, then merged with any
+    per-user ``entitlement_overrides`` (which admins set via /admin/users/{id}/overrides).
+    Override semantics: any key present in overrides wins. A value of ``None``
+    in overrides means *unlimited* for that key.
+    """
     plan = getattr(user, "account_type", "free") or "free"
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    base = dict(PLAN_LIMITS.get(plan, PLAN_LIMITS["free"]))
+    overrides = getattr(user, "entitlement_overrides", None) or {}
+    for key, value in overrides.items():
+        if key in base:
+            base[key] = value
+    return base
 
 
 async def check_project_limit(user: User, db: AsyncSession) -> dict[str, Any]:

@@ -43,6 +43,7 @@ class UserProfile(BaseModel):
     oauth_provider: Optional[str] = None
     email_verified: bool = False
     account_type: str = "free"
+    is_admin: bool = False
     bio: Optional[str] = None
     inbox_email: Optional[str] = None
     preferences: Optional[dict] = None

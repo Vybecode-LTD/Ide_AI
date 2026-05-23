@@ -27,6 +27,8 @@ class User(Base):
     oauth_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     account_type: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False, index=True)
+    entitlement_overrides: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     clerk_user_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)

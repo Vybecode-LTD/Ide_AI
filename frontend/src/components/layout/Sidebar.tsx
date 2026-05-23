@@ -21,6 +21,9 @@ const NAV_ITEMS = [
   { path: '/settings', label: 'Settings', icon: '\u2699' },
 ]
 
+/** Conditionally appended for admins */
+const ADMIN_NAV_ITEM = { path: '/admin', label: 'Admin', icon: '\u{1F6E1}' }
+
 /** Discovery-only item shown before pathway is locked */
 const DISCOVERY_ONLY = [
   { path: '/discovery', label: 'Discovery', icon: '\u{1F50D}' },
@@ -162,9 +165,10 @@ export function Sidebar({ projectId }: { projectId?: string }) {
   const isOnHomePage = location.pathname === '/home' || location.pathname === '/settings'
   const showBackToProject = isOnHomePage && savedProjectId && !projectId
 
+  const baseNav = user?.is_admin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS
   const allItems = projectId
-    ? [...NAV_ITEMS, ...projectItems]
-    : NAV_ITEMS
+    ? [...baseNav, ...projectItems]
+    : baseNav
 
   const mobileBarItems = allItems.slice(0, 4)
   const mobileOverflowItems = allItems.slice(4)
@@ -193,7 +197,7 @@ export function Sidebar({ projectId }: { projectId?: string }) {
         </Link>
 
         <nav className="flex-1 py-4 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {baseNav.map((item) => {
             const showInboxBadge = item.path === '/inbox' && inboxCount > 0
             return (
               <Link

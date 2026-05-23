@@ -35,6 +35,7 @@ const PromptKitPage = lazy(() => import('./pages/PromptKit').then(m => ({ defaul
 const PathwayReview = lazy(() => import('./pages/PathwayReview').then(m => ({ default: m.PathwayReview })))
 const PathwayExecute = lazy(() => import('./pages/PathwayExecute').then(m => ({ default: m.PathwayExecute })))
 const ModuleSessionPage = lazy(() => import('./pages/ModuleSession').then(m => ({ default: m.ModuleSession })))
+const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })))
 
 /**
  * Component registry — maps component_key (from pathway modules) to lazy components.
@@ -174,6 +175,10 @@ export default function App() {
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
+        <Route
+          path="/admin"
+          element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><Admin /></Suspense></ProtectedRoute>}
+        />
 
         {/* Modular pathway routes */}
         <Route

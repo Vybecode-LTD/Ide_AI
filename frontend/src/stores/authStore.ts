@@ -15,6 +15,7 @@ export interface AuthUser {
   avatar_url: string | null
   email_verified: boolean
   account_type: string
+  is_admin: boolean
   bio: string | null
   inbox_email: string | null
   preferences: Record<string, unknown> | null
