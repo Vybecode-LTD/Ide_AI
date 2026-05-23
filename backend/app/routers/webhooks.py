@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.idea_inbox import IdeaInbox
 from app.models.user import User
+from app.services import inbox_pubsub
 
 logger = logging.getLogger(__name__)
 
@@ -125,5 +126,19 @@ async def inbound_email(request: Request):
         )
         db.add(item)
         await db.commit()
+        # Refresh so we have the persisted id for the realtime event
+        await db.refresh(item)
+
+    # Publish OUTSIDE the session — pubsub is best-effort and shouldn't
+    # extend the DB transaction window.
+    await inbox_pubsub.publish_event(
+        user.id,
+        {
+            "type": "added",
+            "id": str(item.id),
+            "subject": item.subject,
+            "source": "email",
+        },
+    )
 
     return {"status": "ok"}

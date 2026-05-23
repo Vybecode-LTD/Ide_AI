@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     STRIPE_PRICE_PRO_MONTHLY: str = ""
     STRIPE_PRICE_PRO_YEARLY: str = ""
 
+    # Redis (for realtime inbox pubsub). Optional in dev — empty disables
+    # realtime updates and the /inbox/stream endpoint returns 503.
+    REDIS_URL: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

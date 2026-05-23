@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.2.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -379,10 +379,13 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - Inbound emails parsed via Resend webhook → `IdeaInboxItem` records
 - Manual idea capture also supported
 - Per-item: choose AI partner style, promote to full project ("Build"), or delete
-- Sidebar shows unread inbox count badge
-- Endpoints: `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}`
-- Webhook: `POST /webhooks/inbound-email`
+- Sidebar shows unread inbox count badge — updated in realtime via SSE stream (Redis pub/sub backed). Falls back to a one-shot fetch on mount when Redis isn't configured (`REDIS_URL` empty → endpoint returns 503).
+- Realtime architecture: `app/services/inbox_pubsub.py` publishes to `inbox:user:{user_id}` channel on every mutation; `GET /inbox/stream` opens an SSE subscription for the authenticated user and pushes `hello` (initial count) + `update` events as they happen
+- Endpoints: `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `GET /inbox/stream` (SSE), `POST /inbox/{id}/promote`, `DELETE /inbox/{id}`
+- Webhook: `POST /webhooks/inbound-email` (publishes to pubsub after creating the row)
+- Frontend: `inboxStore` (Zustand) manages connection + auto-reconnect with exponential backoff; Sidebar wires `connectStream()` / `disconnectStream()` to mount/unmount
 - DB: `idea_inbox_items` table, `inbox_email` on users (migration 014)
+- Required env var (production): `REDIS_URL` — without it, the stream returns 503 and the frontend falls back to mount-time fetches only
 
 ### 20. Sharing Feedback & Ratings
 - Project shares can enable comments and/or star ratings via toggles
@@ -510,7 +513,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | Library | `GET /library/projects`, `POST /library/{project_id}/snapshots`, `GET /library/{project_id}/snapshots`, `POST /library/snapshots/{snapshot_id}/restore`, `POST /library/{project_id}/export`, `POST /library/import` |
 | Module Pathway | `POST /projects/{project_id}/categorize`, `POST /projects/{project_id}/pathway/assemble`, `GET /projects/{project_id}/pathway`, `PATCH /projects/{project_id}/pathway`, `POST /projects/{project_id}/pathway/lock` |
 | Modules | `POST /modules/{id}/{module_id}/start` (SSE), `POST /modules/{id}/{module_id}/respond` (SSE), `POST /modules/{id}/{module_id}/skip`, `GET /modules/{id}/{module_id}/summary` |
-| Inbox | `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}` |
+| Inbox | `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `GET /inbox/stream` (SSE), `POST /inbox/{id}/promote`, `DELETE /inbox/{id}` |
 | Templates | `GET /templates` |
 | Branching | `POST /branching/{project_id}/branch`, `POST /branching/{project_id}/merge/{branch_id}`, `GET /branching/{project_id}/branches`, `GET /branching/{project_id}/compare/{branch_id}` |
 | Integrations | `GET /integrations`, `GET /integrations/{provider}/auth`, `POST /integrations/{provider}/callback`, `DELETE /integrations/{provider}`, `POST /integrations/{provider}/push/{project_id}` |

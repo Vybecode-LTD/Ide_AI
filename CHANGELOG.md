@@ -8,6 +8,26 @@ _Nothing yet._
 
 ---
 
+## [2026-05-23] — Realtime Inbox
+
+### Added
+- **Realtime inbox stream** at `GET /api/v1/inbox/stream` — Server-Sent Events, Redis pub/sub backed. Pushes `hello` (initial count) on connect, then `update` events on every mutation (added / promoted / deleted). Replaces the previous 60s polling.
+- **`app/services/inbox_pubsub.py`** — module-level helpers (`publish_event`, `subscribe`, `is_available`) using `redis.asyncio` pub/sub on channel `inbox:user:{user_id}`. Lazy-initialized client. Graceful no-op when `REDIS_URL` is empty.
+- **`REDIS_URL`** env var added to `config.py` (optional in dev — empty disables realtime and the stream endpoint returns 503)
+- **Instrumented mutation paths** to publish events: `POST /inbox`, `POST /inbox/{id}/promote`, `DELETE /inbox/{id}`, `POST /webhooks/inbound-email`
+- **Frontend stream client** in `inboxStore.ts` — `connectStream()` opens an authenticated fetch+reader to the SSE endpoint, parses SSE event blocks, updates count via `refresh()` (idempotent — sidesteps race with same-tab `adjust()` calls). Auto-reconnect with exponential backoff (1s → 30s cap). Server-said-no (503) latches `_giveUp` so the client doesn't hammer.
+
+### Changed
+- **Sidebar.tsx**: removed the 60s `setInterval` polling loop. `useEffect` now calls `connectStream()` on mount and `disconnectStream()` on unmount. Mount-time `refresh()` retained for an instant count before the stream's hello arrives.
+- **`webhooks.py`**: inbound-email handler now refreshes the persisted item and publishes the event AFTER the DB commit (best-effort — doesn't extend the transaction window).
+- **`pyproject.toml`**: added `redis>=5.0,<6.0` dependency.
+- `CLAUDE.md` → 2.2.0: feature 19 (Idea Inbox) expanded with realtime architecture, env var docs, and the new `/inbox/stream` endpoint
+
+### Deployment note
+- **Railway**: add a Redis service to the project and set `REDIS_URL` on the backend service. The backend will start fine without it (stream returns 503, badge updates on page navigation only).
+
+---
+
 ## [2026-05-23] — Roadmap Refresh
 
 ### Changed

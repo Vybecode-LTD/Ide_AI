@@ -54,7 +54,6 @@ const ACTIVE_PROJECT_KEY = 'ideai_active_project'
 const ACTIVE_PROJECT_PATH_KEY = 'ideai_active_path'
 const ACTIVE_PROJECT_TS_KEY = 'ideai_active_ts'
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
-const INBOX_POLL_MS = 60_000 // Refresh inbox count every 60s
 
 export function Sidebar({ projectId }: { projectId?: string }) {
   const location = useLocation()
@@ -66,25 +65,29 @@ export function Sidebar({ projectId }: { projectId?: string }) {
   const { isSignedIn } = useAuth()
   const inboxCount = useInboxStore((s) => s.count)
   const refreshInboxCount = useInboxStore((s) => s.refresh)
+  const connectInboxStream = useInboxStore((s) => s.connectStream)
+  const disconnectInboxStream = useInboxStore((s) => s.disconnectStream)
 
   // Fetch user + pathways on mount (deduped inside stores)
   useEffect(() => { fetchUser() }, [fetchUser])
   useEffect(() => { fetchPathways() }, [fetchPathways])
 
   // ── Inbox unread badge ─────────────────────────────────────────
-  // Polls every 60s (only when signed in), and refreshes on transitions
-  // AWAY from /inbox (where the user likely modified items).
-  // Inbox page itself calls store.refresh() / store.adjust() after mutations
-  // for instant feedback.
+  // Realtime stream via /inbox/stream (Redis pub/sub backed). The stream's
+  // initial "hello" event seeds the count, then "update" events trigger
+  // a refresh. If Redis isn't configured the stream 503s — the store sets
+  // _giveUp and we fall back to a one-shot refresh on mount.
   useEffect(() => {
     if (!isSignedIn) return
-    refreshInboxCount()
-    const id = setInterval(refreshInboxCount, INBOX_POLL_MS)
-    return () => clearInterval(id)
-  }, [isSignedIn, refreshInboxCount])
+    refreshInboxCount()  // immediate count while the stream opens
+    connectInboxStream().catch(() => { /* store handles its own retries */ })
+    return () => {
+      disconnectInboxStream()
+    }
+  }, [isSignedIn, refreshInboxCount, connectInboxStream, disconnectInboxStream])
 
-  // Track previous path so we only refresh on actual /inbox → other transitions,
-  // not on every render or every route change.
+  // Refresh on transition AWAY from /inbox (covers the rare case where the
+  // user modified items just before the SSE stream reconnected).
   const prevPathRef = useRef(location.pathname)
   useEffect(() => {
     const prev = prevPathRef.current

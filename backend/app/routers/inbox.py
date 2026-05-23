@@ -1,10 +1,15 @@
 """
 inbox.py — Idea Inbox router. Lets users capture quick ideas (manual or email),
-list them, promote to projects, and delete.
+list them, promote to projects, and delete. Also exposes a /stream SSE endpoint
+that pushes realtime events (added/promoted/deleted) via Redis pub/sub.
 """
+import asyncio
+import json
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +21,10 @@ from app.models.idea_inbox import IdeaInbox
 from app.models.project import Project
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.services import inbox_pubsub
 from app.services.entitlement_service import require_project_slot
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -88,7 +96,7 @@ async def create_inbox_item(
     )
     db.add(item)
     await db.flush()
-    return InboxItemRead(
+    response = InboxItemRead(
         id=item.id,
         subject=item.subject,
         body=item.body,
@@ -97,6 +105,12 @@ async def create_inbox_item(
         project_id=item.project_id,
         created_at=item.created_at.isoformat(),
     )
+    # Notify any open /inbox/stream subscribers (best-effort, no-op without Redis)
+    await inbox_pubsub.publish_event(
+        current_user.id,
+        {"type": "added", "id": str(item.id), "subject": item.subject},
+    )
+    return response
 
 
 @router.post("/{item_id}/promote", status_code=status.HTTP_200_OK)
@@ -144,6 +158,11 @@ async def promote_to_project(
     item.project_id = project.id
     await db.flush()
 
+    await inbox_pubsub.publish_event(
+        current_user.id,
+        {"type": "promoted", "id": str(item.id), "project_id": str(project.id)},
+    )
+
     return {"project_id": str(project.id), "name": project.name}
 
 
@@ -161,6 +180,10 @@ async def delete_inbox_item(
     if not item:
         raise HTTPException(status_code=404, detail="Inbox item not found")
     await db.delete(item)
+    await inbox_pubsub.publish_event(
+        current_user.id,
+        {"type": "deleted", "id": str(item_id)},
+    )
 
 
 @router.get("/count")
@@ -175,3 +198,67 @@ async def inbox_count(
     )
     count = result.scalar() or 0
     return {"count": count}
+
+
+# ── Realtime stream ─────────────────────────────────────────────────
+
+
+@router.get("/stream")
+async def inbox_stream(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE stream of inbox events for the current user.
+
+    Yields one ``event: hello`` with the initial count, then pushes one
+    ``event: update`` per inbox mutation (added / promoted / deleted) as
+    they happen.
+
+    Returns 503 if Redis is not configured — the frontend falls back to
+    polling in that case.
+    """
+    if not inbox_pubsub.is_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Realtime inbox is not configured (REDIS_URL missing)",
+        )
+
+    # Initial count snapshot so the client doesn't have to fetch separately
+    count_result = await db.execute(
+        select(sa_func.count(IdeaInbox.id)).where(
+            IdeaInbox.user_id == current_user.id,
+            IdeaInbox.project_id.is_(None),
+        )
+    )
+    initial_count = count_result.scalar() or 0
+
+    user_id = current_user.id  # capture before request scope closes
+
+    async def event_stream():
+        # Initial hello so the client knows the channel is open + has the current count
+        yield f"event: hello\ndata: {json.dumps({'count': initial_count})}\n\n"
+
+        try:
+            subscription = inbox_pubsub.subscribe(user_id)
+            async for event in subscription:
+                if await request.is_disconnected():
+                    break
+                payload = json.dumps(event)
+                yield f"event: update\ndata: {payload}\n\n"
+        except asyncio.CancelledError:
+            # Client disconnected — let the generator end cleanly
+            raise
+        except Exception as exc:
+            logger.warning("inbox stream errored for user %s: %s", user_id, exc)
+            yield f"event: error\ndata: {json.dumps({'message': 'stream interrupted'})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable Caddy/nginx buffering
+        },
+    )

@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.0.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See `TODO.md` for concrete actionable items and `CHANGELOG.md` for what already shipped.
 
@@ -8,6 +8,7 @@
 
 ## ✅ Recently Shipped (2026-05-23)
 
+- **Realtime inbox** — SSE stream at `/inbox/stream` backed by Redis pub/sub. Replaces 60s polling. Auto-reconnect with exponential backoff. Graceful 503 fallback when `REDIS_URL` is empty.
 - **Admin dashboard** at hidden `/admin` route — user search, plan controls, entitlement overrides, audit log (commit `3747eac`)
 - **Toast migration** — ~40 silent failures surfaced via `react-hot-toast` across 18 components (commit `28ead2d`)
 - **Doc-versioning system** — SemVer per doc, root CHANGELOG, Stop hook, project memory (commits `6599cd1`, `4032cbc`)
@@ -47,9 +48,8 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions:
 
-1. **Realtime inbox** — replace 60s Sidebar polling with push-based updates. Reuse FastAPI SSE infra (already proven in Discovery + Modules + Market). See [Medium-Term Features → Discovery experience](#-medium-term-features-next-5-10-sessions).
-2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
-3. _(open — pick from Medium-Term Features below)_
+1. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
+2. _(open — pick from Medium-Term Features below)_
 
 ---
 
@@ -58,7 +58,6 @@ User-prioritized order for the next sessions:
 The toast migration + fetchPathway wraps are done. Remaining polish items:
 
 ### UX
-- **Cross-tab inbox badge sync** — Sidebar polls every 60s but ignores `storage` events / BroadcastChannel. Add a `storage` listener so tab A adding an idea immediately bumps tab B's badge. _(May become moot once realtime inbox ships)_
 - **Empty-state illustrations** on Blocks / Pipeline / PromptKit when no data exists yet
 - **Keyboard shortcuts** — Cmd+K command palette for navigating between project sections
 - **Sidebar inbox badge animation** — pulse on count increase
@@ -82,7 +81,6 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 ## 🎁 Medium-Term Features (Next 5-10 sessions)
 
 ### Discovery experience
-- **Realtime inbox via WebSocket or SSE** _(queued next — see Up Next)_
 - **Voice transcript export** — capture full voice input as part of transcript metadata
 - **AI partner mid-session preview** — show what the next AI response would look like in each partner's voice before switching
 - **Discovery progress bar** — visualize stage progression more prominently than the side stepper
