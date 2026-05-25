@@ -16,6 +16,7 @@ from app.schemas.market_analysis import MarketAnalysisGenerate, MarketAnalysisRe
 from app.services import market_service
 from app.services import market_export_service
 from app.services.entitlement_service import require_feature_usage
+from app.services.export_service import safe_filename_slug
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -143,7 +144,7 @@ async def export_market_analysis(
     if isinstance(content, str):
         content = content.encode("utf-8")
 
-    slug = project.name.lower().replace(" ", "-")[:30] if project.name else "project"
+    slug = safe_filename_slug(project.name or "", fallback="project")
     ext_filename = f"{slug}-{filename}"
 
     return Response(

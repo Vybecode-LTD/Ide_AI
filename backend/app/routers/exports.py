@@ -93,7 +93,7 @@ async def export_project(
     if isinstance(content, str):
         content = content.encode("utf-8")
 
-    slug = project.name.lower().replace(" ", "-")[:30] if project.name else "project"
+    slug = export_service.safe_filename_slug(project.name or "", fallback="project")
     ext_filename = f"{slug}-{filename}"
 
     return Response(
@@ -187,7 +187,7 @@ async def export_prompt_package(
     zip_bytes = prompt_package_service.build_zip(package_data, project_data, platform)
 
     platform_label = prompt_package_service.SUPPORTED_PLATFORMS.get(platform, platform)
-    slug = project.name.lower().replace(" ", "-")[:30]
+    slug = export_service.safe_filename_slug(project.name or "", fallback="project")
     filename = f"{slug}-{platform}-prompts.zip"
 
     return Response(

@@ -4,6 +4,16 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fix PDF transcript export + safe filenames (2026-05-25)
+
+### Fixed
+- **PDF transcript export "Network Error"** — Project names containing Unicode characters (em-dashes, quotes, slashes, emoji) were passed unsanitized into `Content-Disposition` headers, corrupting the HTTP response and causing mobile browsers to report a network error. Introduced `safe_filename_slug()` utility that strips everything except `[a-z0-9-]`.
+- **All 7 export endpoints hardened** — Applied `safe_filename_slug()` across discovery transcript, design kit export, prompt package, market analysis, library `.ideai`, sprint CSV, and sharing CSV exports.
+
+### Added
+- **`export_service.safe_filename_slug()`** — Shared ASCII-safe slug generator for `Content-Disposition` filenames. Replaces 7 separate inline `name.lower().replace(" ", "-")[:30]` patterns.
+- **Try/except wrapper on PDF generation** — Transcript PDF endpoint now returns a proper 500 JSON error instead of crashing the response stream.
+
 ### Chip relevance overhaul (2026-05-25)
 
 ### Fixed

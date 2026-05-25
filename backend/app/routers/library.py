@@ -21,6 +21,7 @@ from app.routers.auth import get_current_user
 from app.schemas.project_snapshot import LibraryProjectRead, SnapshotCreate, SnapshotSummary
 from app.services import library_service
 from app.services.entitlement_service import require_project_slot
+from app.services.export_service import safe_filename_slug
 
 router = APIRouter(prefix="/library", tags=["library"])
 
@@ -214,7 +215,7 @@ async def export_ideai_file(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     content = await library_service.export_ideai_file(project, db)
-    slug = project.name.lower().replace(" ", "-")[:30]
+    slug = safe_filename_slug(project.name or "", fallback="project")
     filename = f"{slug}.ideai"
 
     return Response(

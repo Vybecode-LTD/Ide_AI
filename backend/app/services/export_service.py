@@ -6,6 +6,7 @@ Handles Unicode-safe PDF generation and resilient ZIP bundling.
 import io
 import json
 import logging
+import re
 import zipfile
 from pathlib import Path
 
@@ -15,6 +16,16 @@ logger = logging.getLogger(__name__)
 
 TEMPLATE_DIR = Path(__file__).parent.parent.parent / "templates" / "exports"
 env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=False)
+
+
+def safe_filename_slug(name: str, fallback: str = "export", max_len: int = 30) -> str:
+    """Build an ASCII-only, filename-safe slug from an arbitrary name.
+
+    Strips everything except ``[a-z0-9-]``, collapses runs of dashes, and
+    trims to *max_len* characters.  Returns *fallback* if the result is empty.
+    """
+    slug = re.sub(r'[^a-z0-9]+', '-', (name or "").lower()).strip('-')[:max_len]
+    return slug or fallback
 
 
 def _sanitize_latin1(text: str) -> str:

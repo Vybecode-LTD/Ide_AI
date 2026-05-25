@@ -22,6 +22,7 @@ from app.models.share_rating import ShareRating
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.services import sharing_service
+from app.services.export_service import safe_filename_slug
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +283,7 @@ async def export_shared_csv(
     return Response(
         content=csv_content.encode("utf-8"),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{project_name}-linear-export.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{safe_filename_slug(project_name)}-linear-export.csv"'},
     )
 
 

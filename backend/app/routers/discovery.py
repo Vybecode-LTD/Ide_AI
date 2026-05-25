@@ -19,6 +19,7 @@ from app.routers.auth import get_current_user
 from app.schemas.session import MessagePayload, PartnerUpdatePayload, ProgressPayload, SessionCreate, SessionRead
 from app.schemas.design_sheet import DesignSheetRead
 from app.services import discovery_service, ai_service, modular_pathway_service, transcript_service
+from app.services.export_service import safe_filename_slug
 
 logger = logging.getLogger(__name__)
 
@@ -539,9 +540,17 @@ async def export_transcript(
     messages = session.messages or []
     project_name = project.name
 
+    slug = safe_filename_slug(project_name, fallback="transcript")
+
     if format == "pdf":
-        content = transcript_service.format_as_pdf(messages, project_name)
-        slug = project_name.lower().replace(" ", "-")[:30]
+        try:
+            content = transcript_service.format_as_pdf(messages, project_name)
+        except Exception as exc:
+            logger.error("PDF transcript generation failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to generate PDF transcript",
+            )
         return Response(
             content=content,
             media_type="application/pdf",
@@ -549,7 +558,6 @@ async def export_transcript(
         )
     elif format == "md":
         content = transcript_service.format_as_markdown(messages, project_name)
-        slug = project_name.lower().replace(" ", "-")[:30]
         return Response(
             content=content.encode("utf-8"),
             media_type="text/markdown; charset=utf-8",
@@ -557,7 +565,6 @@ async def export_transcript(
         )
     else:
         content = transcript_service.format_as_text(messages, project_name)
-        slug = project_name.lower().replace(" ", "-")[:30]
         return Response(
             content=content.encode("utf-8"),
             media_type="text/plain; charset=utf-8",

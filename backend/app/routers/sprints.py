@@ -15,6 +15,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.services import sprint_service
 from app.services.entitlement_service import require_feature_usage
+from app.services.export_service import safe_filename_slug
 
 router = APIRouter(prefix="/sprints", tags=["sprints"])
 
@@ -124,7 +125,7 @@ async def export_sprint_csv(
 
     csv_content = sprint_service.export_as_csv(plan, project.name)
 
-    slug = project.name.lower().replace(" ", "-")[:30]
+    slug = safe_filename_slug(project.name or "", fallback="project")
     return Response(
         content=csv_content.encode("utf-8"),
         media_type="text/csv",
