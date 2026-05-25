@@ -86,7 +86,11 @@ function ModuleCard({
   const handleSave = async () => {
     setSaving(true)
     try {
-      await onSave(mod.module_id, draft)
+      const schemaKeys = new Set(mod.fields.map((f) => f.key))
+      const payload = Object.fromEntries(
+        Object.entries(draft).filter(([k]) => schemaKeys.has(k)),
+      )
+      await onSave(mod.module_id, payload)
       setEditing(false)
     } finally {
       setSaving(false)

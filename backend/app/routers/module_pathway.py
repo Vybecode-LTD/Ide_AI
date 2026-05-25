@@ -254,6 +254,8 @@ async def add_pathway_modules(
     module_ids = payload.get("module_ids")
     if not module_ids or not isinstance(module_ids, list):
         raise HTTPException(status_code=400, detail="module_ids must be a non-empty list")
+    if len(module_ids) > 20:
+        raise HTTPException(status_code=400, detail="Cannot add more than 20 modules at once")
 
     # Validate all IDs exist in the library
     invalid = [mid for mid in module_ids if not get_module_definition(mid)]
