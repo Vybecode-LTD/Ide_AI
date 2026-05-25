@@ -156,7 +156,8 @@ export function Landing() {
       <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo-landing.png" alt="Ide/AI" className="h-11 md:h-[50px]" />
+            <img src="/brandmark.png" alt="Ide/AI" className="h-9 md:h-11 w-9 md:w-11 object-contain" />
+            <span className="ml-2 text-xl md:text-2xl font-black text-white tracking-tight">Ide<span className="text-accent">/AI</span></span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm text-text-muted">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -194,7 +195,7 @@ export function Landing() {
             variants={fadeUp}
             custom={0}
           >
-            <img src="/logo-landing.png" alt="Ide/AI" className="w-[320px] md:w-[400px] mx-auto mb-[18px] relative -left-[25px]" />
+            <img src="/brandmark.png" alt="Ide/AI" className="h-20 md:h-28 w-20 md:w-28 mx-auto mb-6 object-contain drop-shadow-[0_0_30px_rgba(0,229,255,0.25)]" />
           </motion.div>
 
           <motion.h1
@@ -610,7 +611,8 @@ export function Landing() {
       <footer className="py-10 px-4 border-t border-white/10">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/logo-landing.png" alt="Ide/AI" className="h-6" />
+            <img src="/brandmark.png" alt="Ide/AI" className="h-6 w-6 object-contain" />
+            <span className="ml-1.5 text-sm font-bold text-white tracking-tight">Ide<span className="text-accent">/AI</span></span>
             <span className="text-xs text-text-muted">&copy; {new Date().getFullYear()} Ide/AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-text-muted">

@@ -196,7 +196,8 @@ export function Sidebar({ projectId }: { projectId?: string }) {
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[232px] bg-surface border-r border-border z-50 flex-col overflow-hidden">
         <Link to="/home" className="px-4 py-3 flex items-center border-b border-border">
-          <img src="/logo.png" alt="Ide/AI — Home" className="w-[200px] object-contain" />
+          <img src="/brandmark.png" alt="Ide/AI — Home" className="h-9 w-9 object-contain" />
+          <span className="ml-2 text-lg font-black text-white tracking-tight">Ide<span className="text-accent">/AI</span></span>
         </Link>
 
         <nav className="flex-1 py-4 flex flex-col gap-1">
@@ -366,7 +367,8 @@ export function Sidebar({ projectId }: { projectId?: string }) {
             onKeyDown={(e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }}
           >
             <div className="px-4 py-2 flex items-center border-b border-border mb-2">
-              <img src="/logo.png" alt="Ide/AI" className="w-[120px] object-contain" />
+              <img src="/brandmark.png" alt="Ide/AI" className="h-7 w-7 object-contain" />
+              <span className="ml-2 text-sm font-black text-white tracking-tight">Ide<span className="text-accent">/AI</span></span>
             </div>
             {mobileOverflowItems.map((item) => {
               const showInboxBadge = item.path === '/inbox' && inboxCount > 0
