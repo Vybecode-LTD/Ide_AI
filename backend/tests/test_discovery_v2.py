@@ -514,3 +514,141 @@ class TestBuildUnifiedGreetingPrompt:
         )
         # Preview line should show "plus 3 more" (8 total - 5 shown)
         assert "plus 3 more" in prompt
+
+
+# ── 7. Session resume regression (audit fix verification) ──────────────
+
+
+class TestSessionResumeRegression:
+    """Regression tests for the scope-aware session resume logic.
+
+    Verifies that the `scope_module_ids.is_(None)` filters added to
+    `get_latest_active_session_for_project` and the orphan cleanup don't
+    break the non-scoped (main-flow) paths.
+    """
+
+    @pytest.mark.asyncio
+    async def test_resume_returns_existing_active_session(self, db_session, v2_project):
+        """Basic resume: second call returns the same session."""
+        s1, created1 = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+        assert created1 is True
+
+        s2, created2 = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+        assert created2 is False
+        assert s2.id == s1.id
+
+    @pytest.mark.asyncio
+    async def test_scoped_session_always_creates_new(self, db_session, v2_project, seeded_pathway):
+        """Scoped calls never resume — each one creates a fresh session."""
+        mod_id = seeded_pathway.modules[0]
+
+        s1, c1 = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+        assert c1 is True
+
+        s2, c2 = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+        assert c2 is True
+        assert s2.id != s1.id
+
+    @pytest.mark.asyncio
+    async def test_scoped_session_does_not_pollute_main_resume(self, db_session, v2_project, seeded_pathway):
+        """Creating scoped sessions doesn't affect main-flow resume."""
+        mod_id = seeded_pathway.modules[0]
+
+        # Create main session
+        main, _ = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+
+        # Create scoped sessions
+        await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+        await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+
+        # Main-flow resume should still return the original session
+        resumed, created = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+        assert created is False
+        assert resumed.id == main.id
+
+    @pytest.mark.asyncio
+    async def test_get_latest_active_ignores_scoped(self, db_session, v2_project, seeded_pathway):
+        """get_latest_active_session_for_project never returns a scoped session."""
+        mod_id = seeded_pathway.modules[0]
+
+        # Create only scoped sessions — no main session
+        await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+        await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+
+        latest = await discovery_service.get_latest_active_session_for_project(
+            db_session, v2_project.id,
+        )
+        assert latest is None
+
+    @pytest.mark.asyncio
+    async def test_orphan_cleanup_skips_scoped_sessions(self, db_session, v2_project, seeded_pathway):
+        """Empty scoped sessions are NOT abandoned by the orphan cleanup."""
+        mod_id = seeded_pathway.modules[0]
+
+        # Create a main session with messages (so it gets selected as best)
+        main, _ = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+        main.messages = [{"role": "assistant", "content": "hi"}]
+        await db_session.flush()
+
+        # Create empty scoped sessions (0 messages)
+        scoped1, _ = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+        scoped2, _ = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+
+        # Trigger resume (which runs orphan cleanup internally)
+        await discovery_service.get_latest_active_session_for_project(
+            db_session, v2_project.id,
+        )
+        await db_session.flush()
+
+        # Scoped sessions should still be active — NOT abandoned
+        await db_session.refresh(scoped1)
+        await db_session.refresh(scoped2)
+        assert scoped1.status == "active"
+        assert scoped2.status == "active"
+
+    @pytest.mark.asyncio
+    async def test_force_new_still_works_alongside_scoped(self, db_session, v2_project, seeded_pathway):
+        """force_new creates a new main-flow session even when scoped sessions exist."""
+        mod_id = seeded_pathway.modules[0]
+
+        # Create main + scoped sessions
+        main, _ = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id,
+        )
+        await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, scope_module_ids=[mod_id],
+        )
+
+        # force_new should create a new main session
+        forced, created = await discovery_service.create_or_resume_session(
+            db_session, v2_project.id, force_new=True,
+        )
+        assert created is True
+        assert forced.id != main.id
+        assert forced.scope_module_ids is None

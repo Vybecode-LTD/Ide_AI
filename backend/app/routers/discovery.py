@@ -40,11 +40,36 @@ async def start_session(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # Validate scope_module_ids against the project's actual pathway
+    if payload.scope_module_ids:
+        if getattr(project, "flow_version", "v1") != "v2":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scoped sessions are only supported for v2 projects",
+            )
+        pw_result = await db.execute(
+            select(ModulePathway).where(ModulePathway.project_id == payload.project_id)
+        )
+        pathway = pw_result.scalar_one_or_none()
+        if not pathway or not pathway.modules:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Project has no module pathway",
+            )
+        valid_ids = {m if isinstance(m, str) else m.get("id", "") for m in pathway.modules}
+        invalid = set(payload.scope_module_ids) - valid_ids
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid module IDs in scope: {', '.join(sorted(invalid))}",
+            )
+
     try:
         session, created = await discovery_service.create_or_resume_session(
             db,
             payload.project_id,
             force_new=payload.force_new,
+            scope_module_ids=payload.scope_module_ids,
         )
 
         # Only set partner style for new sessions or legacy sessions missing it
@@ -94,6 +119,9 @@ async def init_greeting(
     # post-H1 fix in projects.py which downgrades empty v2 projects to v1).
     if getattr(project, "flow_version", "v1") == "v2":
         decorated = await discovery_service.load_decorated_pathway_modules(db, project.id)
+        if decorated and session.scope_module_ids:
+            scope_set = set(session.scope_module_ids)
+            decorated = [m for m in decorated if m["module_id"] in scope_set]
         if decorated:
             system_prompt = await ai_service.build_unified_greeting_prompt(
                 project_name=project.name,
@@ -235,6 +263,9 @@ async def send_message(
                     "has_output": bool(defn.get("has_output")),
                 })
 
+            if decorated and session.scope_module_ids:
+                scope_set = set(session.scope_module_ids)
+                decorated = [m for m in decorated if m["module_id"] in scope_set]
             if decorated:
                 use_v2_flow = True
                 pathway_modules = decorated
@@ -434,6 +465,9 @@ async def get_field_summary(
         )
 
     decorated = await discovery_service.load_decorated_pathway_modules(db, project.id)
+    if session.scope_module_ids:
+        scope_set = set(session.scope_module_ids)
+        decorated = [m for m in decorated if m["module_id"] in scope_set]
     summary = await discovery_service.compute_field_summary(db, project.id, decorated)
     return summary
 

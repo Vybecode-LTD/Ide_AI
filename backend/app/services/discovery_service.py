@@ -54,6 +54,7 @@ async def get_latest_active_session_for_project(
         .where(
             DiscoverySession.project_id == project_id,
             DiscoverySession.status == "active",
+            DiscoverySession.scope_module_ids.is_(None),
         )
         .order_by(
             # Non-empty sessions sort first (0 < 1)
@@ -71,6 +72,7 @@ async def get_latest_active_session_for_project(
             select(DiscoverySession).where(
                 DiscoverySession.project_id == project_id,
                 DiscoverySession.status == "active",
+                DiscoverySession.scope_module_ids.is_(None),
                 DiscoverySession.id != selected.id,
                 func.coalesce(func.jsonb_array_length(DiscoverySession.messages), 0) == 0,
             )
@@ -86,12 +88,20 @@ async def create_or_resume_session(
     project_id: uuid.UUID,
     *,
     force_new: bool = False,
+    scope_module_ids: list[str] | None = None,
 ) -> tuple[DiscoverySession, bool]:
     """Return an active session for the project, creating one only if needed.
+
+    Scoped sessions (scope_module_ids is not None) always create a new
+    session — they never resume an existing main-flow session.
 
     Returns:
         (session, created) — created is True when a new session was made.
     """
+    if scope_module_ids:
+        session = await create_session(db, project_id, scope_module_ids=scope_module_ids)
+        return session, True
+
     if not force_new:
         existing = await get_latest_active_session_for_project(db, project_id)
         if existing:
@@ -101,7 +111,12 @@ async def create_or_resume_session(
     return session, True
 
 
-async def create_session(db: AsyncSession, project_id: uuid.UUID) -> DiscoverySession:
+async def create_session(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    *,
+    scope_module_ids: list[str] | None = None,
+) -> DiscoverySession:
     """Create a new discovery session and initialize an empty design sheet."""
     # Verify project exists
     result = await db.execute(select(Project).where(Project.id == project_id))
@@ -110,12 +125,15 @@ async def create_session(db: AsyncSession, project_id: uuid.UUID) -> DiscoverySe
         raise ValueError(f"Project {project_id} not found")
 
     # Create session
-    session = DiscoverySession(
+    kwargs: dict = dict(
         project_id=project_id,
         status="active",
         stage="greeting",
         messages=[],
     )
+    if scope_module_ids:
+        kwargs["scope_module_ids"] = scope_module_ids
+    session = DiscoverySession(**kwargs)
     db.add(session)
 
     # Create design sheet if it doesn't exist

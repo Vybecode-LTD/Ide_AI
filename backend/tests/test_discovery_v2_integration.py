@@ -768,3 +768,412 @@ class TestAddPathwayModules:
             json={"module_ids": []},
         )
         assert resp.status_code == 400
+
+
+# ── 7. Scoped sessions (Phase 6) ────────────────────────────────────────
+
+
+class TestScopedSessions:
+    """Tests for mini-Discovery scoped session support (Phase 6)."""
+
+    def test_start_scoped_session_creates_new(self, client):
+        """Starting with scope_module_ids always creates a new session."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Scoped Session Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get a valid module ID from the assembled pathway
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        valid_module = pathway_resp.json()["modules"][0]
+
+        # Start a main-flow session first
+        main_resp = client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id},
+        )
+        assert main_resp.status_code == 201
+        main_session_id = main_resp.json()["id"]
+
+        # Start a scoped session for specific modules
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [valid_module],
+            },
+        )
+        assert scoped_resp.status_code == 201
+        scoped_body = scoped_resp.json()
+        assert scoped_body["id"] != main_session_id
+        assert scoped_body["scope_module_ids"] == [valid_module]
+
+    def test_scoped_session_does_not_hijack_main_resume(self, client):
+        """Resuming without scope_module_ids should not return a scoped session."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Scope Isolation Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get a valid module ID from the assembled pathway
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        valid_module = pathway_resp.json()["modules"][0]
+
+        # Create main-flow session
+        main_resp = client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id},
+        )
+        main_session_id = main_resp.json()["id"]
+
+        # Create a scoped session
+        client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [valid_module],
+            },
+        )
+
+        # Resume without scope — should get main session back
+        resume_resp = client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id},
+        )
+        assert resume_resp.status_code == 201
+        assert resume_resp.json()["id"] == main_session_id
+
+    def test_scoped_session_always_creates_new_even_with_existing_scope(self, client):
+        """Each scoped start creates a fresh session, never resumes a prior scoped one."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Scope No Resume",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get a valid module ID from the assembled pathway
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        valid_module = pathway_resp.json()["modules"][0]
+
+        # Create two scoped sessions for the same modules
+        s1 = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [valid_module],
+            },
+        )
+        s2 = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [valid_module],
+            },
+        )
+        assert s1.json()["id"] != s2.json()["id"]
+
+    def test_field_summary_respects_scope(self, client):
+        """GET /discovery/{session_id}/field-summary scopes to session modules."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Scope Summary Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get full pathway to compare
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        all_modules = pathway_resp.json()["modules"]
+        assert len(all_modules) > 1, "Need multiple modules to test scope filtering"
+
+        # Start main-flow session and get its field summary
+        main_resp = client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id},
+        )
+        main_sid = main_resp.json()["id"]
+        main_summary = client.get(f"/api/v1/discovery/{main_sid}/field-summary")
+        assert main_summary.status_code == 200
+        main_module_count = len(main_summary.json()["per_module"])
+
+        # Start scoped session with just 1 module
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [all_modules[0]],
+            },
+        )
+        scoped_sid = scoped_resp.json()["id"]
+        scoped_summary = client.get(f"/api/v1/discovery/{scoped_sid}/field-summary")
+        assert scoped_summary.status_code == 200
+        scoped_module_count = len(scoped_summary.json()["per_module"])
+
+        assert scoped_module_count == 1
+        assert scoped_module_count < main_module_count
+
+    def test_empty_scope_module_ids_behaves_as_unscoped(self, client):
+        """An empty scope_module_ids list is normalized to None (unscoped resume)."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Empty Scope Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Start a session
+        s1 = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        sid1 = s1.json()["id"]
+
+        # Start with empty scope — should resume the existing session
+        s2 = client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id, "scope_module_ids": []},
+        )
+        assert s2.status_code == 201
+        assert s2.json()["id"] == sid1
+        assert s2.json()["scope_module_ids"] is None
+
+    def test_scoped_session_with_nonexistent_module_ids(self, client):
+        """Scoped session with invalid module IDs returns 400."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Invalid Scope Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": ["totally_fake_module_xyz"],
+            },
+        )
+        assert scoped_resp.status_code == 400
+        assert "Invalid module IDs" in scoped_resp.json()["detail"]
+
+    def test_scoped_session_on_v1_project_rejected(self, client):
+        """Scoped sessions are rejected for v1 projects."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "V1 Scope Test",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": ["some_module"],
+            },
+        )
+        assert scoped_resp.status_code == 400
+        assert "v2" in scoped_resp.json()["detail"]
+
+    def test_scoped_session_with_multiple_module_ids(self, client):
+        """Scoped sessions work with multiple valid module IDs."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Multi Scope Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        all_modules = pathway_resp.json()["modules"]
+        assert len(all_modules) >= 2
+
+        scope = all_modules[:2]
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": scope,
+            },
+        )
+        assert scoped_resp.status_code == 201
+        assert set(scoped_resp.json()["scope_module_ids"]) == set(scope)
+
+        # Field summary should show exactly 2 modules
+        scoped_sid = scoped_resp.json()["id"]
+        summary = client.get(f"/api/v1/discovery/{scoped_sid}/field-summary")
+        assert summary.status_code == 200
+        assert len(summary.json()["per_module"]) == 2
+
+
+# ── 8. Regression tests for audit fixes ────────────────────────────────
+
+
+class TestAuditFixRegressions:
+    """Regression tests confirming audit fixes don't break existing behavior."""
+
+    def test_library_excludes_scoped_sessions_from_progress(self, client):
+        """Library endpoint should reflect main-flow session status, not scoped sessions."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Library Regression",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Create a main-flow session
+        client.post("/api/v1/discovery/start", json={"project_id": project_id})
+
+        # Create a scoped session
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        valid_module = pathway_resp.json()["modules"][0]
+        client.post(
+            "/api/v1/discovery/start",
+            json={"project_id": project_id, "scope_module_ids": [valid_module]},
+        )
+
+        # Library should still show the project — scope filter shouldn't hide it
+        lib_resp = client.get("/api/v1/library/projects")
+        assert lib_resp.status_code == 200
+        project_ids = [p["id"] for p in lib_resp.json()]
+        assert project_id in project_ids
+
+    def test_main_flow_start_still_resumes_after_scoped_sessions(self, client):
+        """Creating scoped sessions must not break normal session resume."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Resume Regression",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Start main session
+        s1 = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        main_id = s1.json()["id"]
+
+        # Create several scoped sessions
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        modules = pathway_resp.json()["modules"]
+        for mod_id in modules[:3]:
+            client.post(
+                "/api/v1/discovery/start",
+                json={"project_id": project_id, "scope_module_ids": [mod_id]},
+            )
+
+        # Resume should still return the original main session
+        s2 = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        assert s2.json()["id"] == main_id
+
+    def test_v1_project_discovery_unaffected_by_scope_validation(self, client):
+        """v1 projects (no primary_category) still work with normal discovery start."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "V1 Regression",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Normal start should work fine for v1
+        s1 = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        assert s1.status_code == 201
+        assert s1.json()["scope_module_ids"] is None
+
+        # Resume should also work
+        s2 = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        assert s2.status_code == 201
+        assert s2.json()["id"] == s1.json()["id"]
+
+    def test_mixed_valid_invalid_scope_ids_rejected(self, client):
+        """If any scope_module_id is invalid, the whole request is rejected."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Mixed IDs Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        valid_module = pathway_resp.json()["modules"][0]
+
+        # Mix valid + invalid
+        scoped_resp = client.post(
+            "/api/v1/discovery/start",
+            json={
+                "project_id": project_id,
+                "scope_module_ids": [valid_module, "totally_bogus_xyz"],
+            },
+        )
+        assert scoped_resp.status_code == 400
+        assert "totally_bogus_xyz" in scoped_resp.json()["detail"]
+
+    def test_scope_null_in_response_for_normal_sessions(self, client):
+        """Normal (unscoped) sessions always return scope_module_ids=null."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Null Scope Check",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        s = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        assert s.status_code == 201
+        assert s.json()["scope_module_ids"] is None
+
+    def test_field_summary_for_main_session_shows_all_modules(self, client):
+        """Main-flow field summary returns all pathway modules, not a filtered subset."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Summary Regression",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        total_modules = len(pathway_resp.json()["modules"])
+
+        s = client.post("/api/v1/discovery/start", json={"project_id": project_id})
+        summary = client.get(f"/api/v1/discovery/{s.json()['id']}/field-summary")
+        assert summary.status_code == 200
+        assert len(summary.json()["per_module"]) == total_modules

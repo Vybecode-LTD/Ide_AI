@@ -92,6 +92,7 @@ async def list_library_projects(
     )
 
     # Subquery: latest session per project (DISTINCT ON is PostgreSQL-specific)
+    # Exclude scoped sessions so mini-Discovery doesn't override main-flow status.
     latest_session_sq = (
         select(
             DiscoverySession.project_id,
@@ -99,6 +100,7 @@ async def list_library_projects(
             DiscoverySession.stage.label("discovery_stage"),
             DiscoverySession.messages.label("session_messages"),
         )
+        .where(DiscoverySession.scope_module_ids.is_(None))
         .distinct(DiscoverySession.project_id)
         .order_by(DiscoverySession.project_id, DiscoverySession.updated_at.desc())
         .subquery()

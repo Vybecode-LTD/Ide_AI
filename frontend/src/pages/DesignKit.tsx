@@ -680,6 +680,20 @@ export function DesignKit() {
   const totalFields = data.modules.reduce((sum, m) => sum + m.fields.length, 0)
   const overallPct = totalFields > 0 ? Math.round((totalFilled / totalFields) * 100) : 0
 
+  // Modules with unfilled required fields — candidates for "Continue Discovery"
+  const unfilledModules = data.modules.filter((m) => {
+    const requiredFields = m.fields.filter((f) => f.required)
+    return requiredFields.some((f) => {
+      const val = m.responses[f.key]
+      return val === undefined || val === null || val === ''
+    })
+  })
+
+  const handleContinueDiscovery = () => {
+    const scopeIds = unfilledModules.map((m) => m.module_id)
+    navigate(`/discovery/${projectId}?scope=${scopeIds.join(',')}`)
+  }
+
   return (
     <div className="flex h-dvh">
       <Sidebar />
@@ -704,6 +718,14 @@ export function DesignKit() {
               >
                 + Add Modules
               </button>
+              {unfilledModules.length > 0 && (
+                <button
+                  onClick={handleContinueDiscovery}
+                  className="text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 px-3 py-2 rounded-lg transition-colors"
+                >
+                  Continue Discovery ({unfilledModules.length})
+                </button>
+              )}
               <button
                 onClick={() => navigate(`/exports/${projectId}`)}
                 className="text-xs font-medium text-white bg-accent/20 hover:bg-accent/30 border border-accent/40 px-3 py-2 rounded-lg transition-colors"

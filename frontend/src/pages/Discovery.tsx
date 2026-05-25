@@ -3,7 +3,7 @@
  * @module pages/Discovery
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
 import { ChatThread } from '../components/discovery/ChatThread'
@@ -52,6 +52,9 @@ const AUTO_SAVE_INTERVAL_MS = 30_000
 export function Discovery() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const scopeParam = searchParams.get('scope')
+  const scopeModuleIds = scopeParam ? scopeParam.split(',').filter(Boolean) : null
   const { active: activePathway, fetchPathways, setActiveByProject } = usePathwayStore()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -268,7 +271,9 @@ export function Discovery() {
         }
 
         // Step 2: start session
-        const { data } = await apiClient.post('/discovery/start', { project_id: projectId })
+        const startPayload: Record<string, unknown> = { project_id: projectId }
+        if (scopeModuleIds) startPayload.scope_module_ids = scopeModuleIds
+        const { data } = await apiClient.post('/discovery/start', startPayload)
         if (cancelled) return
         setSessionId(data.id)
         if (data.ai_partner_style) setPartnerStyle(data.ai_partner_style)
@@ -301,7 +306,7 @@ export function Discovery() {
     init()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, scopeParam])
 
   const sendMessage = useCallback(async (content: string) => {
     if (!sessionId || !content.trim() || isStreaming) return
@@ -373,7 +378,7 @@ export function Discovery() {
             stage progression in the unified flow (session.stage stays at
             "greeting" forever). The progress % is shown via the mobile badge
             and the right-side ProgressPanel instead. */}
-        <TopBar title="Discovery" subtitle={flowVersion === 'v2' ? undefined : `Stage: ${stage}`}>
+        <TopBar title={scopeModuleIds ? 'Continue Discovery' : 'Discovery'} subtitle={flowVersion === 'v2' ? (scopeModuleIds ? `${scopeModuleIds.length} module${scopeModuleIds.length > 1 ? 's' : ''} scoped` : undefined) : `Stage: ${stage}`}>
           {/* Active partner badge */}
           <ActivePartnerBadge partner={partnerMeta} onClick={() => setShowPartnerPicker(true)} />
           {/* Save Place button — visible once conversation has started */}
@@ -474,7 +479,7 @@ export function Discovery() {
                       onClick={() => navigate(`/design-kit/${projectId}`)}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors flex items-center justify-center gap-2"
                     >
-                      <span>Proceed to Design Kit</span>
+                      <span>{scopeModuleIds ? 'Back to Design Kit' : 'Proceed to Design Kit'}</span>
                       {short && (
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300">
                           {requiredPct}% required — keep going?

@@ -4,13 +4,21 @@ session.py — Pydantic v2 schemas for Discovery Session and message payloads.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class SessionCreate(BaseModel):
     """Schema for starting or resuming a discovery session."""
     project_id: uuid.UUID
     force_new: bool = False
+    scope_module_ids: list[str] | None = None
+
+    @field_validator("scope_module_ids", mode="before")
+    @classmethod
+    def normalize_empty_scope(cls, v: list[str] | None) -> list[str] | None:
+        if isinstance(v, list) and len(v) == 0:
+            return None
+        return v
 
 
 class SessionRead(BaseModel):
@@ -21,6 +29,7 @@ class SessionRead(BaseModel):
     stage: str
     ai_partner_style: str = "strategist"
     messages: list = []
+    scope_module_ids: list[str] | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
