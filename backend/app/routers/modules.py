@@ -425,3 +425,78 @@ async def list_module_responses(
         select(ModuleResponse).where(ModuleResponse.project_id == project_id)
     )
     return mr_result.scalars().all()
+
+
+@router.patch("/{project_id}/{module_id}/responses", response_model=ModuleResponseRead)
+async def update_module_responses(
+    project_id: uuid.UUID,
+    module_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Partial-update field values on a module response.
+
+    Validates keys against the module's field schema (rejects unknown keys)
+    and coerces values to declared types (same defense as apply_extracted_module_fields).
+    """
+    from app.services.discovery_service import _coerce_field_value
+
+    # Ownership check
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+    )
+    if not proj_result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Load module definition for schema validation
+    defn = get_module_definition(module_id)
+    if not defn:
+        raise HTTPException(status_code=404, detail="Module not found in library")
+
+    fields = defn.get("fields") or []
+    valid_keys = {f["key"]: f.get("type", "text") for f in fields if f.get("key")}
+
+    # Validate + coerce each incoming field
+    coerced: dict = {}
+    rejected: list[str] = []
+    for key, value in payload.items():
+        if key not in valid_keys:
+            rejected.append(key)
+            continue
+        result = _coerce_field_value(value, valid_keys[key])
+        if result is not None:
+            coerced[key] = result
+
+    if rejected:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown field keys: {', '.join(rejected)}",
+        )
+
+    if not coerced:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    # Upsert: find existing response or create new one
+    mr_result = await db.execute(
+        select(ModuleResponse).where(
+            ModuleResponse.project_id == project_id,
+            ModuleResponse.module_id == module_id,
+        )
+    )
+    mr = mr_result.scalar_one_or_none()
+
+    if mr:
+        mr.responses = {**(mr.responses or {}), **coerced}
+    else:
+        mr = ModuleResponse(
+            project_id=project_id,
+            module_id=module_id,
+            responses=coerced,
+            status="active",
+        )
+        db.add(mr)
+
+    await db.commit()
+    await db.refresh(mr)
+    return mr

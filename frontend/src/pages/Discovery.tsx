@@ -442,8 +442,7 @@ export function Discovery() {
                 v1: confidence_score >= 70 → /pathway-review/{id}
                 v2: always available once a summary exists with required fields;
                     shows a warning chip when <80% of required fields are filled.
-                    Routes to /exports/{id} as an interim destination until the
-                    Phase 5 /design-kit/{id} page ships. */}
+                    Routes to /design-kit/{id}. */}
             {projectId && flowVersion === 'v1' && sheet.confidence_score >= 70 && (
               <div className="px-3 md:px-4 py-2 shrink-0">
                 <PulseBeacon id="discovery:proceed">
@@ -472,7 +471,7 @@ export function Discovery() {
                   <PulseBeacon id="discovery:proceed">
                     <button
                       type="button"
-                      onClick={() => navigate(`/exports/${projectId}`)}
+                      onClick={() => navigate(`/design-kit/${projectId}`)}
                       className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors flex items-center justify-center gap-2"
                     >
                       <span>Proceed to Design Kit</span>

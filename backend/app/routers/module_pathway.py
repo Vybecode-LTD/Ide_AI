@@ -234,3 +234,47 @@ async def lock_pathway(
     await db.refresh(pathway)
 
     return pathway
+
+
+@router.get("/{project_id}/design-kit")
+async def get_design_kit(
+    project_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the full design kit: decorated modules with field schemas + current values.
+
+    Only valid for v2 projects. Returns 409 for v1 projects.
+    """
+    from app.services.discovery_service import load_decorated_pathway_modules
+
+    project = await _get_project(project_id, current_user, db)
+    if getattr(project, "flow_version", "v1") != "v2":
+        raise HTTPException(status_code=409, detail="Design kit only available for v2 projects")
+
+    modules = await load_decorated_pathway_modules(db, project_id)
+    if not modules:
+        raise HTTPException(status_code=404, detail="No pathway modules assembled")
+
+    # Fetch all module responses for this project
+    resp_result = await db.execute(
+        select(ModuleResponse).where(ModuleResponse.project_id == project_id)
+    )
+    by_mid = {r.module_id: r for r in resp_result.scalars().all()}
+
+    # Merge field values into each module
+    kit_modules = []
+    for mod in modules:
+        mid = mod["module_id"]
+        resp = by_mid.get(mid)
+        kit_modules.append({
+            **mod,
+            "responses": resp.responses if resp else {},
+            "status": resp.status if resp else "pending",
+        })
+
+    return {
+        "project_id": str(project_id),
+        "project_name": project.name,
+        "modules": kit_modules,
+    }

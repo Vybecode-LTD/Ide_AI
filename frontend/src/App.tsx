@@ -36,6 +36,7 @@ const PathwayReview = lazy(() => import('./pages/PathwayReview').then(m => ({ de
 const PathwayExecute = lazy(() => import('./pages/PathwayExecute').then(m => ({ default: m.PathwayExecute })))
 const ModuleSessionPage = lazy(() => import('./pages/ModuleSession').then(m => ({ default: m.ModuleSession })))
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })))
+const DesignKit = lazy(() => import('./pages/DesignKit').then(m => ({ default: m.DesignKit })))
 
 /**
  * Component registry — maps component_key (from pathway modules) to lazy components.
@@ -178,6 +179,12 @@ export default function App() {
         <Route
           path="/admin"
           element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><Admin /></Suspense></ProtectedRoute>}
+        />
+
+        {/* Design Kit (v2 final destination) */}
+        <Route
+          path="/design-kit/:projectId"
+          element={<ProtectedRoute><Suspense fallback={<ModuleLoading />}><DesignKit /></Suspense></ProtectedRoute>}
         />
 
         {/* Modular pathway routes */}

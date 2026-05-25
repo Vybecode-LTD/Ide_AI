@@ -366,28 +366,43 @@ class TestTemplateFlowVersion:
 class TestLibraryResumeRouting:
     """Verifies _compute_resume_path branches on flow_version."""
 
-    def test_v2_project_resumes_to_discovery(self):
+    def test_v2_in_progress_resumes_to_discovery(self):
         from app.routers.library import _compute_resume_path
         pid = uuid.uuid4()
 
-        # Various v1-style states should all collapse to /discovery for v2
-        for session_status in ("active", "completed", None):
-            for discovery_stage in ("greeting", "confirm", "complete", None):
-                for block_count in (0, 5):
-                    for pathway_status in (None, "pending", "active", "complete"):
-                        path = _compute_resume_path(
-                            pid,
-                            session_status=session_status,
-                            discovery_stage=discovery_stage,
-                            block_count=block_count,
-                            pathway_status=pathway_status,
-                            flow_version="v2",
-                        )
-                        assert path == f"/discovery/{pid}", (
-                            f"v2 always routes to /discovery — got {path} for "
-                            f"session={session_status} stage={discovery_stage} "
-                            f"blocks={block_count} pathway={pathway_status}"
-                        )
+        # In-progress v2 projects route to /discovery
+        for session_status in ("active", None):
+            for pathway_status in (None, "pending", "active"):
+                path = _compute_resume_path(
+                    pid,
+                    session_status=session_status,
+                    discovery_stage="greeting",
+                    block_count=0,
+                    pathway_status=pathway_status,
+                    flow_version="v2",
+                )
+                assert path == f"/discovery/{pid}", (
+                    f"in-progress v2 routes to /discovery — got {path} for "
+                    f"session={session_status} pathway={pathway_status}"
+                )
+
+    def test_v2_completed_resumes_to_design_kit(self):
+        from app.routers.library import _compute_resume_path
+        pid = uuid.uuid4()
+
+        # Completed session → /design-kit
+        path = _compute_resume_path(
+            pid, session_status="completed", discovery_stage="confirm",
+            block_count=0, pathway_status="active", flow_version="v2",
+        )
+        assert path == f"/design-kit/{pid}"
+
+        # Pathway complete → /design-kit
+        path = _compute_resume_path(
+            pid, session_status="active", discovery_stage="greeting",
+            block_count=0, pathway_status="complete", flow_version="v2",
+        )
+        assert path == f"/design-kit/{pid}"
 
     def test_v1_routing_unchanged(self):
         from app.routers.library import _compute_resume_path
@@ -504,3 +519,116 @@ class TestProjectReadShape:
         assert body["flow_version"] == "v2"
         assert body["primary_category"] == "software_tech"
         assert isinstance(body["pathway_locked"], bool)
+
+
+# ── 7. Design Kit endpoint ──────────────────────────────────────────────
+
+
+class TestDesignKitEndpoint:
+    """Verifies GET /projects/{project_id}/design-kit and
+    PATCH /modules/{project_id}/{module_id}/responses."""
+
+    def test_design_kit_returns_modules_with_fields(self, client):
+        # Create a v2 project (triggers pathway assembly)
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Design Kit Test",
+                "description": "Test the design-kit endpoint",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        assert resp.status_code == 201
+        project_id = resp.json()["id"]
+
+        resp = client.get(f"/api/v1/projects/{project_id}/design-kit")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["project_id"] == project_id
+        assert body["project_name"] == "Design Kit Test"
+        assert isinstance(body["modules"], list)
+        assert len(body["modules"]) > 0
+
+        # Each module has expected shape
+        mod = body["modules"][0]
+        for key in ("module_id", "label", "description", "group", "has_output", "fields", "responses", "status"):
+            assert key in mod, f"missing {key} in design-kit module"
+        assert isinstance(mod["fields"], list)
+        assert isinstance(mod["responses"], dict)
+
+    def test_design_kit_rejects_v1_project(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={"name": "v1 project", "description": "no category"},
+        )
+        assert resp.status_code == 201
+        project_id = resp.json()["id"]
+
+        resp = client.get(f"/api/v1/projects/{project_id}/design-kit")
+        assert resp.status_code == 409
+
+    def test_patch_module_responses_validates_keys(self, client):
+        # Create v2 project
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "PATCH Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get first module from design-kit to know a valid module_id
+        kit_resp = client.get(f"/api/v1/projects/{project_id}/design-kit")
+        first_module = kit_resp.json()["modules"][0]
+        module_id = first_module["module_id"]
+        valid_key = first_module["fields"][0]["key"]
+
+        # PATCH with valid field
+        resp = client.patch(
+            f"/api/v1/modules/{project_id}/{module_id}/responses",
+            json={valid_key: "test value"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["responses"][valid_key] == "test value"
+        assert resp.json()["module_id"] == module_id
+
+    def test_patch_module_responses_rejects_unknown_keys(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "PATCH Reject Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        kit_resp = client.get(f"/api/v1/projects/{project_id}/design-kit")
+        module_id = kit_resp.json()["modules"][0]["module_id"]
+
+        resp = client.patch(
+            f"/api/v1/modules/{project_id}/{module_id}/responses",
+            json={"completely_fake_key_xyz": "value"},
+        )
+        assert resp.status_code == 422
+        assert "Unknown field keys" in resp.json()["detail"]
+
+    def test_patch_module_responses_rejects_unknown_module(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "PATCH Unknown Module",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        resp = client.patch(
+            f"/api/v1/modules/{project_id}/fake_module_xyz/responses",
+            json={"field": "value"},
+        )
+        assert resp.status_code == 404

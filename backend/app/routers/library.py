@@ -35,10 +35,9 @@ def _compute_resume_path(
 ) -> str:
     """Determine the best page to resume working on a project.
 
-    v2 projects always route to Discovery (unified Discovery is the only
-    surface — PathwayReview/PathwayExecute/per-module sessions are not part
-    of the v2 flow). When Phase 5 ships ``/design-kit/{pid}``, completed-
-    discovery v2 projects will route there instead.
+    v2 routing:
+    - Session completed or pathway status "complete" → ``/design-kit/{pid}``
+    - Otherwise → ``/discovery/{pid}`` (unified Discovery is the only surface)
 
     v1 (legacy) routing:
     - Discovery still in progress → ``/discovery/{pid}``
@@ -52,9 +51,11 @@ def _compute_resume_path(
     """
     pid = str(project_id)
 
-    # v2 projects: Discovery is the unified surface. Always send them back
-    # there until Phase 5 ships the Design Kit view.
     if flow_version == "v2":
+        # Route to design-kit when discovery session is marked completed
+        # or pathway status is "complete". Otherwise keep them in Discovery.
+        if session_status == "completed" or pathway_status == "complete":
+            return f"/design-kit/{pid}"
         return f"/discovery/{pid}"
 
     # ── v1 legacy routing ──
