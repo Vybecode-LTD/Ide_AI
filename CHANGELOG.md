@@ -4,6 +4,16 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Chip relevance overhaul (2026-05-25)
+
+### Fixed
+- **Quick-reply chips showed generic "Yes exactly" / "Not quite" responses** — Replaced the keyword-bucket fallback system with an AI-powered chip generator that asks Claude to produce 3 contextual answer options matching the actual question asked. Generic chips are now impossible.
+- **All 4 prompt variants** (v1 system, v1 greeting, v2 system, v2 greeting) now include a FORBIDDEN list of banned chip texts ("Yes exactly", "Not quite", "Tell me more", etc.) so the AI avoids generating them in the first place.
+
+### Added
+- **`__type_your_answer__` sentinel chip** — When a question is too open-ended for preset answers, the backend sends this sentinel. The frontend renders a distinct amber "Type your answer below" indicator (non-clickable, `role=status`) instead of useless generic options.
+- **Generic-chip filter** — Strategy 1 (parse `[CHIPS:]` tag) now validates extracted chips against a blocklist of known generic responses and falls through to AI generation if all chips are generic.
+
 ### Production bug fixes — mobile overflow, proceed gate, extraction (2026-05-25)
 
 ### Fixed

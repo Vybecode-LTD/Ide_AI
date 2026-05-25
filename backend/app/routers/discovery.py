@@ -149,8 +149,6 @@ async def init_greeting(
     # The AI speaks first — no user message in the history
     claude_messages = [{"role": "user", "content": f"I want to build: {project.description or project.name}"}]
 
-    _CHIP_FALLBACK = ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]
-
     async def event_stream():
         full_response = []
 
@@ -180,16 +178,16 @@ async def init_greeting(
                 ai_text, stage=session.stage or "greeting"
             )
             if not chips:
-                chips = _CHIP_FALLBACK
+                chips = [ai_service.CHIP_TYPE_YOUR_ANSWER]
         except Exception as exc:
             logger.error("generate_quick_chips raised (init): %s", exc)
-            chips = _CHIP_FALLBACK
+            chips = [ai_service.CHIP_TYPE_YOUR_ANSWER]
 
         try:
             yield f"data: {json.dumps({'type': 'done', 'stage': session.stage, 'chips': chips})}\n\n"
         except Exception as exc:
             logger.error("Failed to emit done event (init): %s", exc)
-            yield 'data: {"type": "done", "stage": "", "chips": ["Yes, exactly", "Not quite", "I have a different angle"]}\n\n'
+            yield f'data: {json.dumps({"type": "done", "stage": "", "chips": [ai_service.CHIP_TYPE_YOUR_ANSWER]})}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -308,9 +306,9 @@ async def send_message(
         for m in (session.messages or [])
     ]
 
-    # Generic 3-item fallback used when chip generation itself fails so the
-    # UI never ends up with an empty chip list.
-    _CHIP_FALLBACK = ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]
+    # Fallback used when chip generation itself fails — directs the user to
+    # type their answer manually instead of showing irrelevant generic chips.
+    _CHIP_FALLBACK = [ai_service.CHIP_TYPE_YOUR_ANSWER]
 
     async def event_stream():
         full_response = []
@@ -425,7 +423,7 @@ async def send_message(
         except Exception as exc:
             logger.error("Failed to emit done event: %s", exc)
             # Last-ditch fallback — minimal done sentinel so the client unsticks
-            yield 'data: {"type": "done", "stage": "", "chips": ["Yes, exactly", "Not quite", "I have a different angle"]}\n\n'
+            yield f'data: {json.dumps({"type": "done", "stage": "", "chips": [ai_service.CHIP_TYPE_YOUR_ANSWER]})}\n\n'
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

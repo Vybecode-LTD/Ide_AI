@@ -290,16 +290,18 @@ Turn count: {message_count} messages so far.
 
     parts.append("""
 QUICK REPLY CHIPS (MANDATORY — never skip this):
-When you ask a question, embed 2-3 specific answer options that directly answer YOUR question.
-Place them on the very last line in this exact format: [CHIPS: answer1 | answer2 | answer3]
+End every response with exactly one [CHIPS: ...] line as the very last line.
+Format: [CHIPS: answer1 | answer2 | answer3]
 
-Rules for good chips:
+CRITICAL chip rules:
 - Each chip must be a DIRECT, COMPLETE answer to the question you just asked
+- Re-read your question, then write 3 plausible answers a user would tap
+- 3-10 words per chip — specific and tappable
+- FORBIDDEN chip texts: "Yes exactly", "Not quite", "Tell me more", "Let me explain",
+  "I have a different angle", "Let's move on", or any meta-response about the conversation
 - If you ask "Who is this for?" → [CHIPS: Small business owners | College students | Enterprise teams]
 - If you ask "What's the core problem?" → [CHIPS: People waste hours on manual data entry | Teams can't collaborate in real-time | No affordable option exists]
-- NEVER use vague chips like "Tell me more" or "Let's move on" — those are useless
-- Chips should be 3-10 words each — short enough to tap, specific enough to be a real answer
-- The [CHIPS: ...] line is hidden from the user and shown as clickable buttons. Do NOT include it in your visible message.""")
+- The [CHIPS: ...] line is hidden from the user and shown as clickable buttons""")
 
     return "\n".join(parts)
 
@@ -340,9 +342,10 @@ async def build_greeting_prompt(
 
     parts.append("""
 QUICK REPLY CHIPS (MANDATORY — never skip this):
-End your response with 2-3 specific answer options on the very last line.
+End your response with exactly one [CHIPS: ...] line as the very last line.
 Format: [CHIPS: answer1 | answer2 | answer3]
-Each chip must directly answer the question you asked. Never use vague options like "Tell me more".
+CRITICAL: each chip must directly answer the question you asked. 3-10 words per chip.
+FORBIDDEN: "Yes exactly", "Not quite", "Tell me more", "I have a different angle", or any meta-response.
 Example: If you ask "What kind of product?" → [CHIPS: A marketplace connecting buyers and sellers | A productivity tool for remote teams | A social platform for hobbyists]""")
 
     return "\n".join(parts)
@@ -466,13 +469,18 @@ Turn count so far: {message_count}
 
     parts.append("""
 QUICK REPLY CHIPS (MANDATORY — never skip)
-End every response with 2-3 specific answer options on the very last line.
+End every response with exactly one [CHIPS: ...] line as the very last line.
 Format: [CHIPS: answer1 | answer2 | answer3]
 
-Each chip must be a DIRECT, COMPLETE answer to the question you just asked.
-- 3-10 words per chip
-- Specific and tappable (e.g. "Solo founder, no team" not "Tell me more")
-- The [CHIPS: ...] line is stripped from the displayed message and rendered as buttons.""")
+CRITICAL chip rules:
+- Each chip must be a DIRECT, COMPLETE answer to the question you just asked
+- Re-read your question, then write 3 plausible answers a user would tap
+- 3-10 words per chip — specific and tappable
+- FORBIDDEN chip texts: "Yes exactly", "Not quite", "Tell me more", "Let me explain",
+  "I have a different angle", "Let's move on", or any meta-response about the conversation
+- If you asked "What's the most important room?" → [CHIPS: The kitchen and dining area | A flexible living room | A home office space]
+- If you asked "Who are you building this for?" → [CHIPS: Young professionals in cities | Families with small children | Retirees downsizing]
+- The [CHIPS: ...] line is hidden from the user and shown as clickable buttons""")
 
     return "\n".join(parts)
 
@@ -550,9 +558,10 @@ OPENING TURN RULES
 
     parts.append("""
 QUICK REPLY CHIPS (MANDATORY — never skip this)
-End your response with 2-3 specific answer options on the very last line.
+End your response with exactly one [CHIPS: ...] line as the very last line.
 Format: [CHIPS: answer1 | answer2 | answer3]
-Each chip must directly answer the question you asked. Never use vague options like "Tell me more".""")
+CRITICAL: each chip must directly answer the question you asked. 3-10 words per chip.
+FORBIDDEN: "Yes exactly", "Not quite", "Tell me more", "I have a different angle", or any meta-response.""")
 
     return "\n".join(parts)
 
@@ -775,15 +784,64 @@ def _parse_json_from_text(text: str) -> dict | None:
     return None
 
 
+# Sentinel value: when included in the chips list, the frontend renders a
+# distinct "Type your answer below" indicator chip (not clickable) instead of
+# a text-based quick-reply chip.  Used for genuinely open-ended questions.
+CHIP_TYPE_YOUR_ANSWER = "__type_your_answer__"
+
+
+async def _generate_chips_from_question(question: str) -> list[str]:
+    """Use a fast Claude call to generate 3 contextual answer chips for *question*.
+
+    Returns 3 short, specific answer options that directly answer the question.
+    Falls back to a "type your answer" sentinel if the API call fails or the
+    question is too open-ended for multiple-choice options.
+    """
+    try:
+        response = await client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=150,
+            system=(
+                "You generate quick-reply chip options for a design-tool chatbot. "
+                "Given the AI's question, produce EXACTLY 3 short answer options "
+                "(3-10 words each) that a user might tap. Each must be a DIRECT, "
+                "SPECIFIC answer to the question — not meta-responses like "
+                "'Yes exactly' or 'Tell me more'. Separate with |. "
+                "If the question is so open-ended that no 3 answers could be "
+                "representative, return exactly: __open_ended__"
+            ),
+            messages=[{"role": "user", "content": f"Question: {question}"}],
+        )
+        raw = response.content[0].text.strip()
+
+        # If the model says the question is too open-ended, signal manual input
+        if "__open_ended__" in raw:
+            return [CHIP_TYPE_YOUR_ANSWER]
+
+        # Parse the pipe-separated chips
+        chips = [c.strip().strip('"').strip("'") for c in raw.split("|") if c.strip()]
+        # Validate: must have 2-4 chips, each under 60 chars
+        if 2 <= len(chips) <= 4 and all(len(c) < 60 for c in chips):
+            return chips
+
+        # Model returned something weird — fall back to manual-input sentinel
+        return [CHIP_TYPE_YOUR_ANSWER]
+    except Exception as exc:
+        logger.warning("Chip generation API call failed: %s", exc)
+        return [CHIP_TYPE_YOUR_ANSWER]
+
+
 async def generate_quick_chips(ai_response: str, stage: str = "greeting") -> list[str]:
     """Parse quick reply chips from AI response text.
 
     Strategy:
     1. Look for explicit [CHIPS: a | b | c] tag anywhere in the text (preferred)
-    2. Fallback: extract options from the AI's own question (e.g. "X, Y, or Z?")
-    3. Last resort: generate answer-starters based on the question
+    2. Fallback: extract options from the AI's own "X, Y, or Z?" patterns
+    3. AI-powered fallback: ask Claude to generate contextual chips from the
+       actual question (guarantees relevance for any question shape)
+    4. Last resort: if no question found at all, return a "type your answer"
+       sentinel so the frontend shows a manual-input indicator
     """
-    import re
 
     # ── Strategy 1: Parse explicit [CHIPS:] tag ──
     # Search anywhere in the text (not just line-start) and case-insensitive
@@ -792,49 +850,38 @@ async def generate_quick_chips(ai_response: str, stage: str = "greeting") -> lis
         inner = chips_match.group(1)
         chips = [c.strip().strip('"').strip("'") for c in inner.split("|") if c.strip()]
         if chips:
-            return chips
+            # Validate: reject chips that are generic meta-responses even when
+            # the AI explicitly placed them in [CHIPS:] tags.  This catches
+            # models that ignore the "no vague chips" instruction.
+            _GENERIC_CHIPS = {
+                "yes, exactly", "not quite", "tell me more",
+                "i have a different angle", "let me explain",
+                "not quite — let me explain", "not quite — here's what i mean...",
+                "i'm still figuring that out", "let's move on",
+            }
+            non_generic = [c for c in chips if c.lower().strip('."\'') not in _GENERIC_CHIPS]
+            if non_generic:
+                return non_generic
+            # All chips were generic — fall through to AI generation
 
     # ── Strategy 2: Extract options from "X, Y, or Z?" patterns ──
-    # Find the last question in the response
     sentences = re.split(r'(?<=[.!?])\s+', ai_response.strip())
     questions = [s for s in sentences if '?' in s]
     if questions:
         last_q = questions[-1]
-        # Match "A, B, or C" pattern (with or without Oxford comma)
         or_match = re.search(r'([\w\s\-\']+),\s+([\w\s\-\']+),?\s+or\s+([\w\s\-\']+)', last_q)
         if or_match:
             chips = [g.strip().capitalize() for g in or_match.groups() if g.strip()]
             if chips and all(len(c) < 60 for c in chips):
                 return chips
 
-    # ── Strategy 3: Generate answer-starters from the question ──
+    # ── Strategy 3: AI-powered contextual chip generation ──
+    # Extract the last question from the response and ask Claude to generate
+    # answer options for it.  This replaces the old keyword-bucket approach
+    # which produced irrelevant chips for domain-specific questions.
     if questions:
-        last_q = questions[-1].strip().rstrip('?').lower()
-        if any(w in last_q for w in ['who', 'audience', 'user', 'customer', 'target', 'people', 'demographic']):
-            return ["Individual consumers", "Small businesses", "Enterprise teams"]
-        if any(w in last_q for w in ['what problem', 'pain point', 'challenge', 'struggle', 'frustrat', 'difficult']):
-            return ["It's too slow and manual", "Existing tools are too expensive", "Nothing good exists yet"]
-        if any(w in last_q for w in ['how', 'currently', 'today', 'right now', 'existing', 'already']):
-            return ["Spreadsheets and manual work", "Cobbled-together free tools", "Expensive enterprise software"]
-        if any(w in last_q for w in ['feature', 'must-have', 'capability', 'function', 'need', 'essential']):
-            return ["Real-time collaboration", "Automated workflows", "Analytics and reporting"]
-        if any(w in last_q for w in ['budget', 'cost', 'spend', 'price', 'invest', 'afford']):
-            return ["Under $100/month", "$100-500/month", "Whatever it takes to do it right"]
-        if any(w in last_q for w in ['timeline', 'launch', 'deadline', 'when', 'soon', 'time frame', 'hurry']):
-            return ["Within 1-2 months", "3-6 months", "No rush — quality first"]
-        if any(w in last_q for w in ['platform', 'device', 'where', 'deploy', 'host', 'run']):
-            return ["Web app (browser)", "Mobile app (iOS/Android)", "Desktop application"]
-        if any(w in last_q for w in ['tone', 'feel', 'vibe', 'style', 'brand', 'look']):
-            return ["Professional and polished", "Casual and friendly", "Minimal and clean"]
-        if any(w in last_q for w in ['revenue', 'monetiz', 'money', 'business model', 'charge', 'pay']):
-            return ["Subscription (monthly/yearly)", "One-time purchase", "Freemium with upgrades"]
-        if any(w in last_q for w in ['different', 'unique', 'stand out', 'competitor', 'advantage', 'better']):
-            return ["Simpler UX than competitors", "Lower price point", "Unique feature no one else has"]
-        if any(w in last_q for w in ['scale', 'grow', 'big', 'expand', 'future']):
-            return ["Start small, grow organically", "Aim for rapid growth", "Build for enterprise scale from day one"]
-        if any(w in last_q for w in ['important', 'priorit', 'focus', 'first', 'main', 'core']):
-            return ["Speed and simplicity", "Comprehensive feature set", "Beautiful design and UX"]
-        # Generic but contextual answer-starters
-        return ["Yes, exactly", "Not quite — here's what I mean...", "I'm still figuring that out"]
+        last_q = questions[-1].strip()
+        return await _generate_chips_from_question(last_q)
 
-    return ["Yes, exactly", "Not quite — let me explain", "I have a different angle"]
+    # No question found at all — tell the user to type manually
+    return [CHIP_TYPE_YOUR_ANSWER]
