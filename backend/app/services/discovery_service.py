@@ -409,6 +409,24 @@ async def compute_field_summary(
     )
     by_mid = {r.module_id: r for r in result.scalars().all()}
 
+    def _has_value(responses: dict, key: str) -> bool:
+        """Return True only if the key holds a meaningful (non-empty) value.
+
+        Key-existence alone is NOT enough — the AI extraction can write
+        empty strings, None, or empty containers which should not count
+        as "filled".
+        """
+        if key not in responses:
+            return False
+        val = responses[key]
+        if val is None:
+            return False
+        if isinstance(val, str) and not val.strip():
+            return False
+        if isinstance(val, (list, dict)) and len(val) == 0:
+            return False
+        return True
+
     per_module: list[dict] = []
     total_filled = 0
     total_fields = 0
@@ -421,13 +439,13 @@ async def compute_field_summary(
             continue
         fields = mod.get("fields") or []
         resp = by_mid.get(mid)
-        filled_keys = set((resp.responses if resp else {}).keys())
+        responses = dict(resp.responses) if resp and resp.responses else {}
 
         m_total = len(fields)
-        m_filled = sum(1 for f in fields if f.get("key") in filled_keys)
+        m_filled = sum(1 for f in fields if _has_value(responses, f.get("key", "")))
         m_req_total = sum(1 for f in fields if f.get("required"))
         m_req_filled = sum(
-            1 for f in fields if f.get("required") and f.get("key") in filled_keys
+            1 for f in fields if f.get("required") and _has_value(responses, f.get("key", ""))
         )
 
         per_module.append({

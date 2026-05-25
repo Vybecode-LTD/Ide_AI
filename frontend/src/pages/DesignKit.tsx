@@ -698,30 +698,33 @@ export function DesignKit() {
     <div className="flex h-dvh">
       <Sidebar />
       <main className="flex-1 overflow-y-auto pb-mobile-nav">
-        <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-white">{data.project_name}</h1>
-              <p className="text-xs text-text-muted mt-0.5">Design Kit</p>
-            </div>
+        <div className={`max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6 ${unfilledModules.length > 0 ? 'pb-28 md:pb-6' : ''}`}>
+          {/* Header — stacks vertically on mobile */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
-              <div className="text-right">
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-white truncate">{data.project_name}</h1>
+                <p className="text-xs text-text-muted mt-0.5">Design Kit</p>
+              </div>
+              <div className="text-right shrink-0">
                 <div className="text-lg font-bold text-accent">{overallPct}%</div>
                 <div className="text-[10px] text-text-muted">
                   {totalFilled}/{totalFields} fields
                 </div>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowAddModules(true)}
                 className="text-xs font-medium text-text-muted hover:text-white border border-border hover:border-accent/40 px-3 py-2 rounded-lg transition-colors"
               >
                 + Add Modules
               </button>
+              {/* Continue Discovery — hidden on mobile (sticky bar below handles it) */}
               {unfilledModules.length > 0 && (
                 <button
                   onClick={handleContinueDiscovery}
-                  className="text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 px-3 py-2 rounded-lg transition-colors"
+                  className="hidden md:inline-flex text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 px-3 py-2 rounded-lg transition-colors"
                 >
                   Continue Discovery ({unfilledModules.length})
                 </button>
@@ -764,6 +767,21 @@ export function DesignKit() {
           ))}
         </div>
       </main>
+
+      {/* Mobile sticky bottom bar — Continue Discovery CTA */}
+      {unfilledModules.length > 0 && (
+        <div className="md:hidden fixed bottom-16 left-0 right-0 z-30 px-4 pb-3 pt-2 bg-gradient-to-t from-[#0d0d12] via-[#0d0d12]/95 to-transparent">
+          <button
+            onClick={handleContinueDiscovery}
+            className="w-full py-3 rounded-xl text-sm font-semibold text-accent bg-accent/15 border border-accent/30 hover:bg-accent/25 transition-colors flex items-center justify-center gap-2"
+          >
+            Continue Discovery
+            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent/10 border border-accent/20">
+              {unfilledModules.length} module{unfilledModules.length > 1 ? 's' : ''}
+            </span>
+          </button>
+        </div>
+      )}
 
       {showAddModules && (
         <AddModulesModal

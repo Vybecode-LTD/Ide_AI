@@ -4,6 +4,15 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Proceed button + Design Kit mobile layout (2026-05-25)
+
+### Fixed
+- **Proceed button falsely enabled at 85%** — `compute_field_summary()` counted fields as "filled" based on key existence alone; empty strings, `None`, empty lists, and empty dicts all inflated the count. Added `_has_value()` validator that requires meaningful non-empty content. Additionally, the proceed button now gates on `overall_percent >= 100` (matching the visible header badge) instead of required-only percentage, eliminating the confusing mismatch.
+- **Design Kit "Continue Discovery" button cut off on mobile** — Header buttons were in a non-wrapping `flex` row that overflowed on narrow screens. Refactored to stack vertically on mobile with a dedicated sticky bottom bar for the primary "Continue Discovery" CTA. Added bottom padding to prevent content occlusion.
+
+### Added
+- **8 regression tests for `compute_field_summary`** — Validates that empty strings, None, empty lists, empty dicts, and whitespace-only values do NOT count as "filled"; genuine values DO count; missing keys and absent DB rows handled correctly.
+
 ### Fix PDF transcript export + safe filenames (2026-05-25)
 
 ### Fixed

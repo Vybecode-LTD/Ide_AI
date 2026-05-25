@@ -1,20 +1,23 @@
 # Ide/AI — TODO
 
-> **Version:** 3.5.2 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.6.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
 ---
 
-## 🔴 P0 — DO TODAY (before any new development)
+## 🔴 P0 — DO FIRST (before any new development)
 
-- [x] **`git push origin main`** — ✅ DONE 2026-05-23. 5 commits pushed (`b26837a` Phase 4, `ff212f3` audit closure, `57aa9d3` integration tests + H1 greenlet fix, `f8d3165` doc lockdown, `585cb7d` doc unification). Railway auto-deploys both services on push. **The H1 greenlet bug fix is now live — no more 500s on H1-downgraded projects.**
-- [ ] **Verify Railway deploy succeeded** — both backend + frontend services should be healthy. Backend: ~3-5 min to redeploy (Docker build + uvicorn restart). Frontend: ~2-3 min (vite build + Caddy reload). Check Railway dashboard for deploy status; watch for any build/runtime errors. If anything failed, investigate immediately.
+- [x] **`git push origin main`** — ✅ DONE 2026-05-23 (5 commits) + 2026-05-25 (5 more commits). Railway auto-deploys both services on push.
+- [ ] **Commit + push latest changes** — 6 files changed (proceed button _has_value fix, Design Kit mobile layout, 8 new tests, doc updates). Commit, push, verify Railway deploy.
 - [ ] **5-minute production smoke test** after Railway confirms healthy:
-  - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify the 2.2s module-preview overlay appears, ProgressPanel renders on the right of Discovery, AI greeting references modules, field_update fires after each user reply.
-  - H1 in the wild: check Railway logs for `MissingGreenlet` or `ResponseValidationError` over the past 48h. If anyone hit it pre-fix, they'll be there. (Now mitigated by `db.refresh(project)` in `projects.py`.)
-  - H2 in the wild: manually deep-link to `/pathway-execute/{any-v2-pid}` and confirm it redirects to `/discovery/`.
-- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), update Railway env vars, send a "Send example" webhook to each to verify it still validates (200 not 401).
+  - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify chips match the AI's question (not generic), ProgressPanel updates, field_update SSE fires.
+  - Proceed gate: confirm button stays disabled below 100% overall_percent. Badge shows `N% complete`.
+  - `__type_your_answer__` sentinel: for open-ended questions, verify the amber "Type your answer below" indicator appears.
+  - Design Kit mobile: verify "Continue Discovery" sticky bottom bar is visible, header buttons don't overflow.
+  - Export: verify PDF/TXT/MD transcript downloads without "Network Error".
+  - Check Railway logs for any 500s or errors.
+- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate), update Railway env vars, send a "Send example" → 200.
 
 ---
 
@@ -61,11 +64,12 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 ### Test coverage
 
-> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (150 tests across 5 backend files + 4 frontend files) and the explicit gaps. Avoid duplicating coverage.
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**188 backend tests across 7 files + 31 frontend tests across 4 files = 219 total**) and the explicit gaps. Avoid duplicating coverage.
 
-- [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE in commit `01af5a6`**. 31 tests: `extractError.test.ts` (14), `inboxStore.test.ts` (5), `useSSE.test.ts` (6), `ProgressPanel.test.tsx` (6). `adminStore` mutation tests still outstanding.
-- [x] ~~**Backend admin endpoint tests**~~ — **DONE**. `test_admin.py` (27 tests): require_admin 403, user list (pagination/search/filter), user detail + 404, plan update + audit log, same-plan no-op log, invalid plan 422, entitlement overrides (set/unlimited/clear + audit), admin flag (grant/revoke/self-revoke block), audit log (empty/after-change/filter-action/filter-target/email resolution).
-- [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE in commit `57aa9d3`**. `test_discovery_v2_integration.py` covers `GET /discovery/{session_id}/field-summary` (200/409/404 + cross-user 404), H1 fix (4 cases), Phase 3 hotfix template flag, Library resume routing matrix, ProjectRead shape, session ownership. Init/message SSE-streaming endpoints still uncovered — see new test-coverage debt item below.
+- [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE**. 31 tests across 4 files.
+- [x] ~~**Backend admin endpoint tests**~~ — **DONE**. 27 tests in `test_admin.py`.
+- [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE**. 34 tests in `test_discovery_v2_integration.py`.
+- [x] ~~**Chip relevance + export + field summary tests**~~ — **DONE 2026-05-25**. 38 tests in `test_chips_and_exports.py`: chip parsing (4), generic filter (3), fallback sentinel (2), AI fallback (2), safe slug (12), transcript PDF/TXT/MD (7), field summary _has_value (8).
 - [ ] **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` v2-vs-v1 prompt branching + `/discovery/{id}/message` field_update emission. Requires mocking `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h. Closes the last big v2 backend coverage gap.
 - [ ] **Discovery v2 upsert tests** — `apply_extracted_module_fields` ON CONFLICT path requires PostgreSQL — out-of-scope for the SQLite test harness. Either add a PG-backed integration test environment (testcontainers-python) or document as production-verified-only.
 
@@ -158,11 +162,29 @@ Last audited: 2026-05-23
 
 ---
 
-## ✅ Recently Done (2026-05-23 marathon session)
+## ✅ Recently Done (2026-05-25 production bug-fixing marathon)
 
-12 commits shipped today. See `CHANGELOG.md` for the full per-commit breakdown.
+### Production bug fixes — 7 bugs found + fixed during live testing
 
-### Discovery v2 overhaul (Phases 1-4 of 6 shipped + full audit closure)
+1. **Mobile horizontal overflow in Discovery** — `min-w-0` + `overflow-x-hidden` on flex containers in Discovery.tsx, ChatThread.tsx, QuickChips.tsx.
+2. **Premature proceed button** — gated on field completion percentage, disabled below threshold.
+3. **Extraction stalling at ~85%** — windowed to last 8 messages + aggressive extraction + "STILL MISSING" section.
+4. **Chip relevance overhaul** — replaced keyword-bucket fallback with AI-powered contextual chip generation. Generic-chip blocklist filter. `__type_your_answer__` sentinel. FORBIDDEN chip list in all 4 prompt variants.
+5. **PDF transcript export "Network Error"** — `safe_filename_slug()` utility on all 7 export endpoints + try/except on PDF generation.
+6. **Proceed button falsely enabled at 85%** — `_has_value()` validator in `compute_field_summary()` + proceed gate on `overall_percent >= 100`.
+7. **Design Kit "Continue Discovery" button cut off on mobile** — responsive header + sticky bottom bar + bottom padding.
+
+### 38 regression tests added (`test_chips_and_exports.py`)
+
+Chip parsing (4), generic filter (3), fallback sentinel (2), AI fallback (2), safe slug (12), transcript PDF/TXT/MD (7), field summary _has_value (8). **Total backend: 188/188 pass.**
+
+---
+
+## ✅ Earlier — 2026-05-23/24 marathon sessions
+
+12+ commits across 6 major workstreams. See `CHANGELOG.md` for the full per-commit breakdown.
+
+### Discovery v2 overhaul (Phases 1-6 all shipped + audit closure)
 - **Phase 1** (`fb840de`) — module field schemas (40 modules × 154 fields), `projects.flow_version` migration 029, up-front pathway assembly at project creation
 - **Phase 2** (`8cfc66a`) — unified discovery prompt + `extract_module_fields` extractor + `field_update` SSE event + service helpers
 - **Phase 2 hotfix** (`23f5e7d`) — migration 030 (shape backfill + UNIQUE constraint), race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`, SSE serialization safety, empty-pathway guard

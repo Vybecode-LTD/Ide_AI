@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.9.3 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.9.4 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -144,7 +144,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–023, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # 180 backend tests across 7 files
+│   ├── tests/                         # 188 backend tests across 7 files
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -596,8 +596,9 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 3. **Extraction stalling fix** — Windowed to last 8 messages + aggressive extraction + "STILL MISSING" section.
 4. **Chip relevance overhaul** — Replaced keyword-bucket fallback with AI-powered chip generation. Added generic-chip blocklist filter. New `__type_your_answer__` sentinel renders amber indicator in frontend. FORBIDDEN chip list in all 4 prompts.
 5. **PDF transcript export fix** — `safe_filename_slug()` utility strips Unicode from `Content-Disposition` headers across all 7 export endpoints. Try/except on PDF generation returns proper 500.
-6. **30 regression tests** (`test_chips_and_exports.py`) — chip parsing (4), generic filter (3), fallback (2), AI fallback (2), safe slug (12), transcript service (7).
+6. **38 regression tests** (`test_chips_and_exports.py`) — chip parsing (4), generic filter (3), fallback (2), AI fallback (2), safe slug (12), transcript service (7), field summary value checking (8).
+7. **Proceed button gate fix** — `compute_field_summary` now requires non-empty values via `_has_value()`. Proceed button gates on `overall_percent >= 100` (matching header badge). Design Kit mobile layout fixed with sticky bottom CTA.
 
 **Date:** 2026-05-25
-**Test coverage:** 180/180 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
+**Test coverage:** 188/188 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
 **Next:** P0 items: verify Railway deploy + smoke test + rotate webhook secrets. SSE streaming tests (~2h) deferred.

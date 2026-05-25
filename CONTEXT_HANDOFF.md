@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.5.3 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.6.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,28 +38,40 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-25) — Production bug fixes + push
+## Current Session (2026-05-25) — Production bug-fixing marathon (7 fixes + 38 tests)
 
-Pushed all pending commits to Railway. Live-tested the deployment and found 3 production bugs:
-1. **Mobile overflow** — AI messages went off-screen on phones (flex `min-width: auto` default)
-2. **Premature proceed button** — clickable at 35% instead of waiting for 100% required fields
-3. **Extraction stalling** — field extraction plateaued at ~85%, never reaching 100%
+User live-tested the Railway deployment and reported 7 production bugs across 2 sub-sessions. All fixed, regression-tested (188 backend + 31 frontend + 0 TS errors), committed and pushed.
 
-All 3 fixed, regression-tested (150 backend + 31 frontend + TypeScript clean), committed, and pushed.
+**Sub-session 1 — Initial 3 bugs + chip overhaul + PDF fix:**
+1. **Mobile overflow** — AI messages/chips went off-screen on phones (flex `min-width: auto` default). Fix: `min-w-0` + `overflow-x-hidden` on Discovery flex containers.
+2. **Premature proceed button** — "Proceed to Design Kit" clickable at any %. Fix: gated on field completion percentage.
+3. **Extraction stalling at ~85%** — Two root causes: full conversation history diluted extraction signal + conservative extraction rules. Fix: windowed to last 8 messages (`_EXTRACTION_WINDOW`) + aggressive extraction + "STILL MISSING" section.
+4. **Chip relevance overhaul** — Quick-reply chips showed generic "Yes exactly"/"Not quite" instead of matching the AI's question. Fix: replaced keyword-bucket fallback with AI-powered contextual chip generation via `_generate_chips_from_question()`. Added generic-chip blocklist filter. New `__type_your_answer__` sentinel (`CHIP_TYPE_YOUR_ANSWER`) renders as an amber non-clickable indicator in the frontend. FORBIDDEN chip list added to all 4 prompt variants.
+5. **PDF transcript export "Network Error"** — Unicode chars in `Content-Disposition` headers corrupted HTTP responses. Fix: `safe_filename_slug()` utility applied across all 7 export endpoints + try/except on PDF generation.
+
+**Sub-session 2 — Two more bugs found by user during live test:**
+6. **Proceed button falsely enabled at 85%** — Root cause: `compute_field_summary()` counted fields as "filled" based on key existence alone — empty strings, `None`, empty lists/dicts all inflated the count. Fix: added `_has_value()` validator in `discovery_service.py` that requires meaningful non-empty content. Additionally changed the proceed button to gate on `overall_percent >= 100` (matching the visible header badge) instead of required-only percentage, eliminating the confusing mismatch.
+7. **Design Kit "Continue Discovery" button cut off on mobile** — Header buttons were in a non-wrapping `flex` row that overflowed on narrow screens. Fix: refactored header to stack vertically on mobile (`flex-col` → `md:flex-row`), added `flex-wrap` to action buttons, added sticky bottom bar for "Continue Discovery" CTA on mobile (positioned at `bottom-16` above the nav), added `pb-28` extra bottom padding to prevent content occlusion.
 
 ### Commits this session
 
 | Hash | What |
 |------|------|
-| `b742f60` | test+fix: 27 admin endpoint tests + toast cleanup for Home/SprintPlanner |
-| `7c69e81` | feat(discovery v2): Phase 6 — scoped mini-Discovery sessions + audit hardening |
-| (pending) | fix: 3 production bugs — mobile overflow, proceed gate, extraction stalling |
+| `bb3c5bf` | fix: 3 production bugs — mobile overflow, proceed gate, extraction stalling |
+| `da31ad8` | fix: overhaul chip relevance — AI-powered fallback + type-your-answer indicator |
+| `8eaf247` | fix: PDF transcript export — safe filename slugs across all 7 export endpoints |
+| `806dd1d` | test: 30 regression tests for chip relevance + safe filename slugs |
+| `8168282` | docs: bump CLAUDE.md 2.9.3 — test count 180, last completed task |
+| _(uncommitted)_ | fix: proceed button _has_value + Design Kit mobile layout + 8 tests + doc update |
 
-### Previous session (2026-05-23) — Marathon Day
+### Previous sessions
 
-Landed 11+ commits across 6 major workstreams (Phases 1-4, audit closure, integration tests, doc lockdown). See CHANGELOG for full list.
+- **2026-05-24**: Admin tests (27) + toast cleanup (Home/SprintPlanner). Phase 6 mini-Discovery scoped sessions + audit hardening (16 regression tests).
+- **2026-05-23 marathon**: Phases 1-4 + audit closure + integration tests + doc lockdown. 11+ commits across 6 workstreams.
 
 ### Most important things to know for the next session
+
+**All phases shipped + production hardened.** The codebase is in a stable, tested state. All user-reported bugs from live testing are fixed. The main outstanding items are deployment verification and security hygiene.
 
 **Discovery v2 overhaul is COMPLETE** — all 6 phases shipped. Two flow versions coexist:
 - **v1 (legacy projects + template projects)** — `projects.flow_version = 'v1'`. Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
@@ -221,15 +233,19 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 - **Production hardening** — Railway env vars set (CORS_ORIGINS, CLERK_ISSUER, CLERK_AUTHORIZED_PARTIES, REDIS_URL), sign-in + realtime inbox both verified end-to-end
 - **Admin dashboard** — `/admin` route gated by `users.is_admin`; plan/override/admin-flag mutations all working; audit log records every action; user has tested it
 - **Realtime inbox** — Redis pub/sub backed SSE stream verified delivering events under 1-2s; auto-reconnect + 503 fallback in place
-- **Discovery SSE robustness** — `done` event always fires (try/except wrapped at every yield), assistant message persists in its own transaction (resume bug fixed), chip generator has a 3-item fallback chain
+- **Discovery SSE robustness** — `done` event always fires (try/except wrapped at every yield), assistant message persists in its own transaction (resume bug fixed), chip generator has a 4-stage pipeline: (1) parse `[CHIPS:]` tag → (2) "X, Y, or Z" pattern → (3) AI-powered contextual generation → (4) `__type_your_answer__` sentinel fallback
+- **Quick-reply chip relevance** — Generic-chip blocklist filter rejects "Yes exactly"/"Not quite" etc. AI-powered `_generate_chips_from_question()` generates contextual options matching the AI's actual question. FORBIDDEN chip list in all 4 prompt variants. Frontend renders `__type_your_answer__` sentinel as amber non-clickable indicator.
 - **Discovery v1 (legacy projects)** — Unchanged: state machine stages → design-sheet extraction → sheet_update event → PathwayReview → PathwayExecute → per-module sessions
-- **Discovery v2 backend foundation** — Up-front pathway assembly at project creation, unified prompt targeting all module field schemas, `field_update` SSE event, race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`
-- **Discovery v2 frontend (Phase 4)** — `ProgressPanel` swaps for `DesignSheetPanel` on v2 projects; mobile badge + Proceed button gate also branch on `flow_version`; v2 Proceed routes to `/exports/{id}` until Phase 5 ships
+- **Discovery v2 backend** — Up-front pathway assembly at project creation, unified prompt targeting all module field schemas, `field_update` SSE event, race-safe ON CONFLICT upsert, type coercion via `_coerce_field_value`, extraction windowed to last 8 messages (`_EXTRACTION_WINDOW`)
+- **Discovery v2 frontend** — `ProgressPanel` swaps for `DesignSheetPanel` on v2 projects; mobile badge + Proceed button gate also branch on `flow_version`; v2 Proceed routes to `/design-kit/{id}` with `overall_percent >= 100` gate; `min-w-0` + `overflow-x-hidden` on all flex containers for mobile safety
+- **Field summary accuracy** — `compute_field_summary()` uses `_has_value()` validator that rejects empty strings, None, empty lists/dicts, whitespace-only — no more inflated counts from AI extraction writing empty placeholders
+- **Design Kit mobile** — Header stacks vertically on mobile, buttons wrap, sticky bottom bar for "Continue Discovery" CTA above the nav, `pb-28` prevents content occlusion
+- **Export safety** — `safe_filename_slug()` strips Unicode from `Content-Disposition` headers across all 7 export endpoints; try/except on PDF generation returns proper 500
 - **Module-preview overlay a11y** — `role="alertdialog"`, labelledby/describedby, Esc-to-skip, focus-on-mount, mobile max-h fix
 - **Audit-closure additions** — `GET /discovery/{session_id}/field-summary` endpoint, `build_unified_greeting_prompt` (v2-aware init), `_coerce_field_value` drop logging, defensive unknown-field-key rejection, ProgressPanel expanded-set cap (FIFO 3), recentUpdates 8s fade, stage UI hidden for v2, loadSheet skipped for v2, `_reset_module_library` test hook
-- **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output` for the Refresh affordance coming in Phase 5
-- **Backend test coverage on v2** — 75 tests across `test_discovery_v2.py` (41 service-layer) + `test_discovery_v2_integration.py` (34 HTTP-level). Integration tests caught the H1 greenlet bug and Phase 6 scope-isolation bugs. **123/123 backend tests pass.**
-- **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.4.1), CONTEXT_HANDOFF.md (3.0.0), TODO.md (2.0.0+), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.1.0) all carrying frontmatter
+- **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output`
+- **Backend test coverage** — **188/188 pass** across 7 test files. 75 tests on v2 (41 service-layer + 34 HTTP-level), 27 admin, 38 regression (chips/slug/transcript/field-summary), 9 entitlements, 28 partner styles, 4 discovery resume, plus 7 misc.
+- **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.9.4), CONTEXT_HANDOFF.md (3.6.0), TODO.md (3.6.0), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.3.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
 - **Migration chain** — Linear 001→030, all reversible cleanly
 - **Mobile viewport** — All 19 affected pages use `.h-dvh` + `.pb-mobile-nav`
@@ -239,40 +255,23 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What Still Needs Your Action
 
-### 🔴 P0 — Do today (before any new development)
+### 🔴 P0 — Do before any new development
 
-1. ✅ **`git push origin main` — DONE 2026-05-23.** 5 commits pushed (`b26837a` `ff212f3` `57aa9d3` `f8d3165` `585cb7d`). The H1 greenlet bug fix is now live on Railway.
-2. ⚠️ **Verify Railway deploy succeeded** — check the Railway dashboard for both backend + frontend services after the auto-deploy completes (~3-5 min). If anything failed, investigate immediately.
-3. ⚠️ **5-min smoke test** once deploy is healthy — happy v2 path, check Railway logs for `MissingGreenlet`/`ResponseValidationError` over past 48h (any pre-fix occurrences), verify `/pathway-execute/{v2-pid}` redirects.
-4. ⚠️ **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` (exposed in chat earlier today).
+1. ⚠️ **Push latest commits to Railway** — uncommitted changes need to be committed + pushed. Then verify Railway deploy succeeded for both backend + frontend services (~3-5 min).
+2. ⚠️ **5-min smoke test** once deploy is healthy:
+   - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify chips match the AI's question, field_update SSE events fire, ProgressPanel updates.
+   - Proceed button: confirm it stays disabled below 100% overall_percent. Confirm `__type_your_answer__` amber indicator appears for open-ended questions.
+   - Design Kit: on mobile, verify "Continue Discovery" sticky bottom bar is visible. Verify header buttons don't overflow.
+   - Export transcript: verify PDF/TXT/MD all download without "Network Error" (safe_filename_slug fix).
+   - Check Railway logs for any 500s or `MissingGreenlet` errors.
+3. ⚠️ **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were exposed in chat. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Regenerate), update Railway env vars, verify with "Send example" → 200.
 
-See [`TODO.md`](TODO.md) P0 block for full smoke-test checklist.
-
-### 🚦 Phase 5 next steps (Design Kit page at /design-kit/{projectId})
-
-The canonical 7-item Phase 5 list lives in [`TODO.md`](TODO.md) Phase 5 section with full detail per item, dependencies, and required test additions. Summary:
-
-1. **`pages/DesignKit.tsx` + route** at `/design-kit/:projectId` — module cards using `field_summary` shape for hydration
-2. **Per-module Edit affordance** — inline form per module schema, dispatches PATCH on save
-3. **Backend `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — partial-update with schema validation. **Must reuse `_coerce_field_value` AND the defensive unknown-field-key rejection pattern from `apply_extracted_module_fields`** (audit-closure defense, two surfaces)
-4. **Refresh affordance** on the 6 `has_output` modules — new backend `POST /api/v1/modules/{project_id}/{module_id}/refresh-output`
-5. **"Add Modules" button** + category-filtered picker — new backend `POST /api/v1/projects/{project_id}/pathway/modules` for the append
-6. **Swap v2 Proceed destination** from `/exports/{id}` to `/design-kit/{id}` in `Discovery.tsx`
-7. **Update `_compute_resume_path`** in `backend/app/routers/library.py` so highly-completed v2 projects resume to `/design-kit/{id}`
-
-_Note: `GET /discovery/{session_id}/field-summary` already shipped in commit `ff212f3` (audit M6 closure)._
-
-**Recommended sequencing** (see [`TODO.md`](TODO.md) Phase 5 section for full detail):
-1. Land Vitest scaffold + 4-5 frontend tests FIRST (before Phase 5 polish) so Edit/Refresh forms are testable from day one
-2. Design Kit page shell + Edit + PATCH endpoint (items 1-3)
-3. Proceed destination swap + Library resume update (items 6-7)
-4. Refresh + Add Modules polish (items 4-5)
-
-For every new endpoint, add a matching integration test in `backend/tests/test_discovery_v2_integration.py` BEFORE declaring done. The integration suite caught the H1 greenlet bug — keep that habit. See the **Regression Test Matrix** section below for the full code-path → test-file map.
+See [`TODO.md`](TODO.md) P0 block for full checklist.
 
 ### 🔐 Security hygiene (recommended but not blocking)
 
-- **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat earlier today. Roll each in its origin dashboard, update Railway, test with "Send example".
+- **Rotate 3 webhook signing secrets** — see P0 item 3 above.
+- **Orphan user row** — one DB row with `is_admin=TRUE` but no `clerk_user_id` from early debug. Safe to leave or `DELETE`.
 
 ### 🧹 Code follow-ups (low priority)
 
@@ -438,7 +437,14 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 | Frontend: inbox store | `inboxStore.test.ts` | 5 |
 | Frontend: SSE hook | `useSSE.test.ts` | 6 |
 | Frontend: ProgressPanel rendering | `ProgressPanel.test.tsx` | 6 |
-| **Total** | | **181** (150 backend + 31 frontend) |
+| Chip parsing ([CHIPS:] tag) | `test_chips_and_exports.py::TestChipParsing` | 4 |
+| Generic chip filter (blocklist) | `test_chips_and_exports.py::TestGenericChipFilter` | 3 |
+| Chip fallback sentinel | `test_chips_and_exports.py::TestChipFallback` | 2 |
+| AI-powered chip generation | `test_chips_and_exports.py::TestChipAIFallback` | 2 |
+| Safe filename slug utility | `test_chips_and_exports.py::TestSafeFilenameSlug` | 12 |
+| Transcript service (PDF/TXT/MD) | `test_chips_and_exports.py::TestTranscriptService` | 7 |
+| Field summary _has_value accuracy | `test_chips_and_exports.py::TestFieldSummaryHasValue` | 8 |
+| **Total** | | **219** (188 backend + 31 frontend) |
 
 **Known gaps (no test exists):**
 - PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added.
@@ -476,26 +482,26 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 
 ---
 
-## Code Quality Snapshot (2026-05-24 — post-admin tests + toast cleanup)
+## Code Quality Snapshot (2026-05-25 — post production bug-fixing marathon)
 
 - ✅ TypeScript: zero compilation errors
-- ✅ Backend Python: 150/150 tests pass (41 service-layer v2 + 34 integration v2 + 27 admin + 48 existing). Syntax validated on all touched files.
+- ✅ Backend Python: **188/188 tests pass** across 7 files (41 service-layer v2 + 34 integration v2 + 27 admin + 38 chips/slug/transcript/field-summary + 9 entitlements + 28 partner styles + 4 discovery resume + 7 misc). Syntax validated on all touched files.
 - ✅ Frontend: 31/31 Vitest tests pass across 4 files
 - ✅ Migration chain: linear 001→031, all reversible
 - ✅ Auth: production-hardened with issuer + audience + azp enforcement; race-handling consolidated with INSERT ON CONFLICT
-- ✅ SSE: always emits `done`; v2 emits `field_update` before done with default=str safety; frontend `useSSE` parses `field_update` via `onFieldUpdate`
+- ✅ SSE: always emits `done`; v2 emits `field_update` before done with default=str safety; frontend `useSSE` parses `field_update` via `onFieldUpdate`; chip pipeline is 4-stage (parse → pattern → AI → sentinel)
 - ✅ Discovery v1: backward-compat fully preserved (v1 regression tests pass; scoped-session validation explicitly rejects v1 projects)
-- ✅ Discovery v2 backend: all 6 phases shipped + audit-hardened. Scope validation, orphan safety, library isolation all regression-tested.
-- ✅ Discovery v2 frontend: ProgressPanel, DesignKit (Edit/Refresh/Add Modules), scoped Discovery, scope-aware dep array
+- ✅ Discovery v2 backend: all 6 phases shipped + audit-hardened + production bug-fixed. Scope validation, orphan safety, library isolation, field-summary value checking all regression-tested.
+- ✅ Discovery v2 frontend: ProgressPanel, DesignKit (Edit/Refresh/Add Modules + mobile sticky CTA), scoped Discovery, scope-aware dep array, proceed gate on overall_percent, mobile overflow protection
 - ✅ Phase 6 scoped sessions: scope validation against pathway, empty-scope normalization, v1 rejection, library/resume isolation — 16 regression tests
-- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities
+- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities; Discovery has `min-w-0`/`overflow-x-hidden`; DesignKit has responsive header + sticky CTA
 - ✅ Error UX: ~40 silent failures surface via toast
-- ✅ Admin system: live + user-tested
+- ✅ Export safety: `safe_filename_slug()` on all 7 export endpoints; PDF try/except
+- ✅ Admin system: live + user-tested + 27 endpoint tests
 - ✅ Realtime inbox: Redis pub/sub verified end-to-end in production
 - ✅ Railway: all env vars set including REDIS_URL
 - ✅ Doc versioning: convention live + Stop hook nags on missing CHANGELOG
-- ⚠️ Webhook secrets: 3 exposed in chat earlier — rotate when convenient
+- ⚠️ Webhook secrets: 3 exposed in chat — rotate when convenient
 - ⚠️ One orphan user row in DB (no clerk_user_id) — leftover from debug
 - ⚠️ JSONB `||` shallow merge known limitation for dict-typed fields (M1) — mitigated via extraction-prompt instruction to return whole dicts; not yet enforced server-side
-- ❌ Backend admin endpoint tests: no pytest coverage yet
 - ❌ Discovery v2 upsert ON CONFLICT path not testable under SQLite — verified in production by manual smoke; PG-backed integration test environment would close this

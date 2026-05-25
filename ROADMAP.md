@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.2.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.3.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
@@ -57,12 +57,10 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the concrete actionable breakdown of each item.
 
-0. ✅ **PUSHED 2026-05-23.** All 5 v2-overhaul + doc commits are on `origin/main` and have triggered Railway auto-deploy. **Now verify the deploy is healthy, run the 5-min smoke test, and rotate the 3 exposed webhook secrets.** (Detail in [`TODO.md`](TODO.md) `🔴 P0 — DO TODAY` block.)
-1. **Unified Discovery overhaul Phases 5-6** — Phases 1-4 + audit closure all shipped today. Remaining:
-   - **Phase 5:** new `/design-kit/{projectId}` page with Edit + Refresh per module + Add Modules button. Includes new backend endpoints `PATCH /modules/{pid}/{mid}/responses` and `POST /modules/{pid}/{mid}/refresh-output`. Recommended sequence: Vitest scaffold + first frontend tests → Design Kit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume update → Refresh + Add Modules polish. (Full breakdown in [`TODO.md`](TODO.md) Phase 5 section.)
-   - **Phase 6:** Additional discovery flow for newly-added modules (mini unified-Discovery scoped to just newly-added unfilled fields)
-2. **Vitest frontend test scaffold** — currently zero frontend tests; should land EARLY in Phase 5 work so subsequent forms/optimistic-updates/refresh-affordances are testable. First tests: `useSSE` field_update parsing, `ProgressPanel` rendering + FIFO cap, `Discovery` flow_version branching, `extractError`.
-3. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
+0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, integration tests, frontend tests, and 7 production bug fixes all landed. 188/188 backend + 31/31 frontend tests pass.
+1. ⚠️ **Deploy verification + security hygiene** — commit + push latest changes, verify Railway deploy, 5-min smoke test (chips, proceed gate, Design Kit mobile, export), rotate 3 webhook secrets. (Detail in [`TODO.md`](TODO.md) `🔴 P0` block.)
+2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
+3. **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` + `/message` mock coverage. ~2h. Last big backend test gap.
 4. _(open — pick from Medium-Term Features below)_
 
 ---

@@ -9,7 +9,7 @@ Covers:
 - Transcript PDF endpoint: safe headers, error handling
 """
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -274,3 +274,238 @@ class TestTranscriptService:
         assert "**AI:**" in result
         assert "> Hello!" in result
         assert "**You:**" in result
+
+
+# ===================================================================
+# Field summary — _has_value correctness
+# ===================================================================
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.discovery_service import compute_field_summary
+
+
+class TestFieldSummaryHasValue:
+    """Verify compute_field_summary only counts fields with meaningful values."""
+
+    @pytest.mark.asyncio
+    async def test_empty_string_not_counted(self):
+        """A response with an empty string should NOT count as filled."""
+        # Mock the DB query to return a response with empty value
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"name": "", "description": "Real value"}
+
+        with patch(
+            "app.services.discovery_service.select",
+        ) as mock_select:
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test Module",
+                "fields": [
+                    {"key": "name", "required": True, "label": "Name"},
+                    {"key": "description", "required": False, "label": "Desc"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            # "name" is empty string → not filled. "description" has value → filled.
+            assert summary["total_filled"] == 1
+            assert summary["total_fields"] == 2
+            assert summary["required_filled"] == 0
+            assert summary["required_total"] == 1
+
+    @pytest.mark.asyncio
+    async def test_none_not_counted(self):
+        """A response with None value should NOT count as filled."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"target": None, "budget": "5000"}
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "target", "required": True, "label": "Target"},
+                    {"key": "budget", "required": True, "label": "Budget"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["required_filled"] == 1  # Only "budget"
+            assert summary["required_total"] == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_list_not_counted(self):
+        """A response with an empty list should NOT count as filled."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"features": [], "name": "Real"}
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "features", "required": True, "label": "Features", "type": "list"},
+                    {"key": "name", "required": True, "label": "Name"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["total_filled"] == 1
+            assert summary["required_filled"] == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_dict_not_counted(self):
+        """A response with an empty dict should NOT count as filled."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"tech_stack": {}, "name": "Valid"}
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "tech_stack", "required": False, "label": "Stack", "type": "dict"},
+                    {"key": "name", "required": True, "label": "Name"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["total_filled"] == 1  # Only "name"
+            assert summary["overall_percent"] == 50
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_not_counted(self):
+        """A response with only whitespace should NOT count as filled."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"name": "   \n  ", "desc": "Real value"}
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "name", "required": True, "label": "Name"},
+                    {"key": "desc", "required": False, "label": "Desc"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["required_filled"] == 0  # whitespace-only not counted
+            assert summary["total_filled"] == 1  # only "desc"
+
+    @pytest.mark.asyncio
+    async def test_real_values_counted(self):
+        """Fields with genuine values must count as filled."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {
+            "name": "My Project",
+            "audience": "Developers",
+            "features": ["Auth", "Dashboard"],
+            "config": {"theme": "dark"},
+        }
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "name", "required": True, "label": "Name"},
+                    {"key": "audience", "required": True, "label": "Audience"},
+                    {"key": "features", "required": False, "label": "Features", "type": "list"},
+                    {"key": "config", "required": False, "label": "Config", "type": "dict"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["total_filled"] == 4
+            assert summary["total_fields"] == 4
+            assert summary["required_filled"] == 2
+            assert summary["required_total"] == 2
+            assert summary["overall_percent"] == 100
+
+    @pytest.mark.asyncio
+    async def test_missing_key_not_counted(self):
+        """Keys not present in responses at all should not count."""
+        mock_response = MagicMock()
+        mock_response.module_id = "mod1"
+        mock_response.responses = {"name": "Filled"}
+
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = [mock_response]
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "name", "required": True, "label": "Name"},
+                    {"key": "missing_field", "required": True, "label": "Missing"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["total_filled"] == 1
+            assert summary["required_filled"] == 1
+            assert summary["required_total"] == 2
+
+    @pytest.mark.asyncio
+    async def test_no_responses_record(self):
+        """Module with no DB row at all → zero filled."""
+        with patch("app.services.discovery_service.select"):
+            mock_db = AsyncMock(spec=AsyncSession)
+            mock_result = MagicMock()
+            mock_result.scalars.return_value.all.return_value = []  # no rows
+            mock_db.execute.return_value = mock_result
+
+            modules = [{
+                "module_id": "mod1",
+                "label": "Test",
+                "fields": [
+                    {"key": "name", "required": True, "label": "Name"},
+                    {"key": "desc", "required": False, "label": "Desc"},
+                ],
+            }]
+
+            summary = await compute_field_summary(mock_db, uuid.uuid4(), modules)
+            assert summary["total_filled"] == 0
+            assert summary["required_filled"] == 0
+            assert summary["overall_percent"] == 0

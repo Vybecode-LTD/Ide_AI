@@ -463,13 +463,11 @@ export function Discovery() {
             )}
             {projectId && flowVersion === 'v2' && fieldSummary && fieldSummary.total_fields > 0 && (() => {
               // Gate: button is visible once we know about fields, but DISABLED
-              // until ALL required fields are filled (100%). Pathways with zero
-              // required fields (all-optional) are always ready.
-              const hasRequired = fieldSummary.required_total > 0
-              const requiredPct = hasRequired
-                ? Math.round((fieldSummary.required_filled / fieldSummary.required_total) * 100)
-                : 100
-              const ready = requiredPct >= 100
+              // until overall progress hits 100% (all fields filled with
+              // meaningful values). Uses overall_percent to match the header
+              // badge so the user sees a single consistent number.
+              const pct = fieldSummary.overall_percent
+              const ready = pct >= 100
               return (
                 <div className="px-3 md:px-4 py-2 shrink-0">
                   <PulseBeacon id="discovery:proceed">
@@ -484,9 +482,9 @@ export function Discovery() {
                       }`}
                     >
                       <span>{scopeModuleIds ? 'Back to Design Kit' : 'Proceed to Design Kit'}</span>
-                      {!ready && hasRequired && (
+                      {!ready && (
                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 border border-border text-text-muted">
-                          {requiredPct}% complete
+                          {pct}% complete
                         </span>
                       )}
                     </button>
