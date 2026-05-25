@@ -313,6 +313,81 @@ def cross_populate_fields(
     return pre_populated
 
 
+async def generate_module_output(
+    module_id: str,
+    field_values: dict,
+    project_name: str = "",
+) -> dict:
+    """
+    Generate a rich formatted output for a has_output module.
+
+    Uses the module's field values + label/description to produce a structured
+    document (e.g. a Brand Identity Framework, Business Model Canvas, Investor
+    Deck Outline). Returns a dict with 'title', 'content' (markdown string),
+    and 'generated_at' (ISO timestamp).
+    """
+    import datetime
+
+    defn = get_module_definition(module_id)
+    if not defn:
+        return {"error": "Module not found"}
+
+    label = defn["label"]
+    description = defn.get("description", "")
+    fields = defn.get("fields") or []
+
+    # Build a field summary for the prompt
+    field_lines = []
+    for f in fields:
+        key = f.get("key", "")
+        f_label = f.get("label", key)
+        val = field_values.get(key)
+        if val is not None:
+            if isinstance(val, list):
+                val_str = ", ".join(str(v) for v in val)
+            elif isinstance(val, dict):
+                val_str = "; ".join(f"{k}: {v}" for k, v in val.items())
+            else:
+                val_str = str(val)
+            field_lines.append(f"- **{f_label}**: {val_str}")
+        else:
+            field_lines.append(f"- **{f_label}**: (not provided)")
+
+    field_summary = "\n".join(field_lines)
+    project_ctx = f" for the project '{project_name}'" if project_name else ""
+
+    try:
+        response = await client.messages.create(
+            model=settings.CLAUDE_MODEL,
+            max_tokens=2048,
+            system=(
+                f"You are generating a polished '{label}' document{project_ctx}.\n"
+                f"Module purpose: {description}\n\n"
+                "Using the field values provided, produce a well-structured document in Markdown format.\n"
+                "Be specific and actionable — this is a working document the user will export and reference.\n"
+                "Use headers, bullet points, and bold text for readability.\n"
+                "Do NOT include meta-commentary — just produce the document content.\n"
+            ),
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Generate the {label} document based on these inputs:\n\n"
+                    f"{field_summary}\n\n"
+                    "Produce a complete, actionable document."
+                ),
+            }],
+        )
+        content = response.content[0].text.strip()
+    except Exception:
+        content = f"# {label}\n\n*Output generation failed. Please try again.*"
+
+    return {
+        "title": label,
+        "content": content,
+        "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+    }
+
+
 def is_module_complete(response_text: str) -> bool:
     """Check if the AI has signalled module completion."""
     return "[MODULE_COMPLETE]" in response_text

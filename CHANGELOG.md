@@ -4,6 +4,24 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Phase 5 Design Kit + Vitest scaffold (2026-05-24)
+
+### Added
+- **`frontend/src/pages/DesignKit.tsx`** — Full Design Kit page with ModuleCard components, FieldEditor (type-aware: text/longtext/list-as-chips/dict-as-key-value), FieldDisplay, grouped by module group, overall progress bar, Export button. Route at `/design-kit/:projectId`.
+- **`backend/app/routers/module_pathway.py` — `GET /{project_id}/design-kit`** endpoint returning decorated modules + field schemas + current response values.
+- **`backend/app/routers/modules.py` — `PATCH /{project_id}/{module_id}/responses`** partial-update endpoint with schema validation + `_coerce_field_value` + unknown-key rejection.
+- **Vitest scaffold** — `vite.config.ts` test config, `@testing-library/react` + `@testing-library/jest-dom`, setup file.
+- **31 frontend tests** across 4 files: `extractError.test.ts` (14), `inboxStore.test.ts` (5), `useSSE.test.ts` (6), `ProgressPanel.test.tsx` (6).
+- **5 backend integration tests** in `TestDesignKitEndpoint` class covering GET design-kit + PATCH responses (happy path, unknown key rejection, non-v2 project rejection, cross-user 404).
+- **Library resume routing** for v2 — completed sessions or pathways route to `/design-kit/{pid}`.
+- **Refresh output for `has_output` modules** — `POST /modules/{project_id}/{module_id}/refresh-output` generates a formatted document from field values via AI. Frontend: "Generate Output" / "Regenerate" buttons on DesignKit module cards. Output stored in `responses.__generated_output`. 3 integration tests.
+- **Add Modules picker** — "Add Modules" button in DesignKit header opens a category-filtered modal showing all library modules not yet in the pathway. `POST /projects/{project_id}/pathway/modules` appends selected IDs with dedup + unknown-ID validation. 3 integration tests.
+
+### Changed
+- **Discovery.tsx** — v2 Proceed button now routes to `/design-kit/${projectId}` instead of `/exports/${id}`.
+- **`_compute_resume_path`** in `library.py` — v2 projects with completed session or pathway status "complete" resume to `/design-kit/{pid}`.
+- **CLAUDE.md → 2.8.0**, **CONTEXT_HANDOFF.md → 3.4.0**, **TODO.md → 3.4.0** (MINOR bumps — new feature).
+
 ### Post-push doc refresh (2026-05-23, end-of-session)
 
 All 5 v2-overhaul + doc commits (`b26837a` `ff212f3` `57aa9d3` `f8d3165` `585cb7d`) pushed to `origin/main`. Railway auto-deploy triggered for both backend + frontend services.

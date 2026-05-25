@@ -500,3 +500,65 @@ async def update_module_responses(
     await db.commit()
     await db.refresh(mr)
     return mr
+
+
+@router.post("/{project_id}/{module_id}/refresh-output")
+async def refresh_module_output(
+    project_id: uuid.UUID,
+    module_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate or regenerate rich output for a has_output module.
+
+    Uses the module's current field values to produce a formatted document.
+    Returns 400 if the module doesn't have has_output: true.
+    """
+    from app.services.module_service import generate_module_output
+
+    # Ownership check
+    proj_result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+    )
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    defn = get_module_definition(module_id)
+    if not defn:
+        raise HTTPException(status_code=404, detail="Module not found in library")
+
+    if not defn.get("has_output"):
+        raise HTTPException(status_code=400, detail="Module does not support output generation")
+
+    # Get current field values
+    mr_result = await db.execute(
+        select(ModuleResponse).where(
+            ModuleResponse.project_id == project_id,
+            ModuleResponse.module_id == module_id,
+        )
+    )
+    mr = mr_result.scalar_one_or_none()
+    field_values = (mr.responses or {}) if mr else {}
+
+    output = await generate_module_output(
+        module_id=module_id,
+        field_values=field_values,
+        project_name=project.name,
+    )
+
+    # Store the generated output alongside field values
+    if mr:
+        mr.responses = {**(mr.responses or {}), "__generated_output": output}
+    else:
+        mr = ModuleResponse(
+            project_id=project_id,
+            module_id=module_id,
+            responses={"__generated_output": output},
+            status="active",
+        )
+        db.add(mr)
+
+    await db.commit()
+    await db.refresh(mr)
+    return output

@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.3.4 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.4.0 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,28 +38,20 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-23) — Marathon Day
+## Current Session (2026-05-24) — Phase 5 Core + Vitest
 
-Single massive session that landed 11 commits across 6 major workstreams. Foundation is now ready for Phase 5 of the unified-Discovery overhaul.
+Built on the Phase 1-4 foundation. Landed the Vitest scaffold (31 tests, zero-to-one frontend coverage) and the Phase 5 Design Kit page core (items 1-3, 6-7 from TODO). Remaining: items 4-5 (Refresh + Add Modules polish).
 
-### Commits this session (11, all pushed to main, in chronological order)
+### Commits this session (2, all pushed to main)
 
 | Hash | What |
 |------|------|
-| `28ead2d` | fix: toast migration across 18 components (~40 silent errors surfaced) |
-| `3747eac` | feat: admin dashboard at hidden `/admin` (users, plans, overrides, audit log) |
-| `6599cd1` | docs: adopt SemVer-per-doc + CHANGELOG.md + frontmatter |
-| `4032cbc` | docs: enforce doc-versioning via CLAUDE.md prominence + Stop hook |
-| `ec1e0a2` | docs: refresh ROADMAP with shipped work + Up Next queue |
-| `64a87bf` | feat: realtime inbox via SSE stream + Redis pub/sub (verified) |
-| `e33c7a6` | fix: Discovery SSE always emits done; assistant msg persists independently |
-| `fb840de` | feat(discovery v2): Phase 1 — module field schemas + up-front pathway assembly |
-| `8cfc66a` | feat(discovery v2): Phase 2 — unified prompt + field_update event |
-| `23f5e7d` | fix(discovery v2): Phase 2 hotfix — shape fix + race-safe upsert + type coercion |
-| `94102cb` + `a7257e0` | feat(discovery v2): Phase 3 + hotfix — Home reorder + post-create overlay + 5 audit fixes |
-| _(Phase 4)_ | feat(discovery v2): Phase 4 — ProgressPanel + v2 Proceed gate + overlay a11y |
-| _(prev commit)_ | feat(discovery v2): Phase 4 audit closure — H1+H2+M8+M6+M3+M7+M1+M2+M4+M5+L1+L2+L5+I4 (14 fixes/additions) |
-| _(this commit)_ | test(discovery v2): 15 HTTP integration tests + H1 greenlet-bug fix in projects.py |
+| `01af5a6` | test(frontend): add Vitest scaffold + 31 first tests |
+| `f6682cd` | feat(discovery v2): Phase 5 — Design Kit page + Edit endpoint + routing |
+
+### Previous session (2026-05-23) — Marathon Day
+
+Landed 11+ commits across 6 major workstreams (Phases 1-4, audit closure, integration tests, doc lockdown). See CHANGELOG for full list.
 
 ### Most important things to know for the next session
 

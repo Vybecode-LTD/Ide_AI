@@ -236,6 +236,51 @@ async def lock_pathway(
     return pathway
 
 
+@router.post("/{project_id}/pathway/modules")
+async def add_pathway_modules(
+    project_id: uuid.UUID,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Append modules to an existing pathway. Rejects unknown IDs and duplicates.
+
+    Body: {"module_ids": ["module_a", "module_b"]}
+    """
+    from app.services.modular_pathway_service import get_module_definition
+
+    project = await _get_project(project_id, current_user, db)
+
+    module_ids = payload.get("module_ids")
+    if not module_ids or not isinstance(module_ids, list):
+        raise HTTPException(status_code=400, detail="module_ids must be a non-empty list")
+
+    # Validate all IDs exist in the library
+    invalid = [mid for mid in module_ids if not get_module_definition(mid)]
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"Unknown module IDs: {', '.join(invalid)}")
+
+    result = await db.execute(
+        select(ModulePathway).where(ModulePathway.project_id == project_id)
+    )
+    pathway = result.scalar_one_or_none()
+    if not pathway:
+        raise HTTPException(status_code=404, detail="No pathway assembled yet")
+
+    # Deduplicate: only add IDs not already present
+    existing_set = set(pathway.modules or [])
+    to_add = [mid for mid in module_ids if mid not in existing_set]
+
+    if not to_add:
+        return {"added": [], "modules": pathway.modules}
+
+    pathway.modules = list(pathway.modules or []) + to_add
+    await db.commit()
+    await db.refresh(pathway)
+
+    return {"added": to_add, "modules": pathway.modules}
+
+
 @router.get("/{project_id}/design-kit")
 async def get_design_kit(
     project_id: uuid.UUID,

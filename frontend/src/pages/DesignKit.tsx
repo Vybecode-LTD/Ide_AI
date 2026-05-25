@@ -6,6 +6,13 @@ import apiClient from '../lib/apiClient'
 import { extractError } from '../lib/extractError'
 import { Sidebar } from '../components/layout/Sidebar'
 
+interface ModuleLibraryItem {
+  id: string
+  label: string
+  group: string
+  description: string
+}
+
 interface FieldSchema {
   key: string
   label: string
@@ -35,16 +42,37 @@ function titleize(s: string): string {
   return s.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+interface GeneratedOutput {
+  title: string
+  content: string
+  generated_at: string
+}
+
 function ModuleCard({
   mod,
   onSave,
+  onRefreshOutput,
 }: {
   mod: DesignKitModule
   onSave: (moduleId: string, fields: Record<string, unknown>) => Promise<void>
+  onRefreshOutput?: (moduleId: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const generatedOutput = (mod.responses.__generated_output as GeneratedOutput | undefined) || null
+
+  const handleRefresh = async () => {
+    if (!onRefreshOutput) return
+    setRefreshing(true)
+    try {
+      await onRefreshOutput(mod.module_id)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const filledCount = mod.fields.filter((f) => f.key in mod.responses).length
   const totalCount = mod.fields.length
@@ -158,6 +186,44 @@ function ModuleCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Generated output section for has_output modules */}
+      {mod.has_output && (
+        <div className="border-t border-border px-4 py-3">
+          {generatedOutput ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-wider text-accent/80 font-semibold">
+                  Generated Output
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-text-muted">
+                    {new Date(generatedOutput.generated_at).toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="text-[10px] text-accent hover:text-accent/80 font-medium px-1.5 py-0.5 rounded hover:bg-accent/10 transition-colors disabled:opacity-50"
+                  >
+                    {refreshing ? 'Generating...' : 'Regenerate'}
+                  </button>
+                </div>
+              </div>
+              <div className="text-xs text-white/80 whitespace-pre-wrap bg-white/[0.02] rounded-lg p-3 border border-border max-h-64 overflow-y-auto">
+                {generatedOutput.content}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="w-full text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 rounded-lg px-3 py-2.5 transition-colors disabled:opacity-50"
+            >
+              {refreshing ? 'Generating output...' : 'Generate Output'}
+            </button>
+          )}
+        </div>
+      )}
     </motion.div>
   )
 }
@@ -366,6 +432,115 @@ function FieldDisplay({ type, value }: { type: string; value: unknown }) {
   return <span className="text-xs text-white/80">{String(value)}</span>
 }
 
+function AddModulesModal({
+  existingIds,
+  onAdd,
+  onClose,
+}: {
+  existingIds: Set<string>
+  onAdd: (ids: string[]) => void
+  onClose: () => void
+}) {
+  const [modules, setModules] = useState<ModuleLibraryItem[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [filter, setFilter] = useState('')
+
+  useEffect(() => {
+    apiClient.get<ModuleLibraryItem[]>('/meta/modules').then(({ data }) => {
+      setModules(data.filter((m) => !existingIds.has(m.id)))
+    })
+  }, [existingIds])
+
+  const filtered = modules.filter(
+    (m) =>
+      m.label.toLowerCase().includes(filter.toLowerCase()) ||
+      m.group.toLowerCase().includes(filter.toLowerCase()),
+  )
+
+  const groups = filtered.reduce<Record<string, ModuleLibraryItem[]>>((acc, m) => {
+    ;(acc[m.group] ??= []).push(m)
+    return acc
+  }, {})
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-[#1a1a22] border border-border rounded-xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white">Add Modules</h3>
+          <button onClick={onClose} className="text-text-muted hover:text-white text-lg leading-none">&times;</button>
+        </div>
+        <div className="px-4 py-2 border-b border-border">
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search modules..."
+            className="w-full bg-white/[0.04] border border-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          {Object.entries(groups).map(([group, items]) => (
+            <div key={group}>
+              <h4 className="text-[10px] uppercase tracking-wider text-text-muted font-semibold mb-1.5">{group}</h4>
+              <div className="space-y-1">
+                {items.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex items-start gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                      selected.has(m.id) ? 'bg-accent/10 border border-accent/30' : 'hover:bg-white/[0.03] border border-transparent'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(m.id)}
+                      onChange={() => toggle(m.id)}
+                      className="mt-0.5 accent-[#00E5FF]"
+                    />
+                    <div>
+                      <span className="text-xs text-white font-medium">{m.label}</span>
+                      <p className="text-[10px] text-text-muted">{m.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-xs text-text-muted text-center py-4">No modules available to add.</p>
+          )}
+        </div>
+        <div className="px-4 py-3 border-t border-border flex items-center justify-between">
+          <span className="text-[10px] text-text-muted">{selected.size} selected</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="text-xs text-text-muted hover:text-white px-3 py-1.5 rounded">
+              Cancel
+            </button>
+            <button
+              onClick={() => { onAdd(Array.from(selected)); onClose() }}
+              disabled={selected.size === 0}
+              className="text-xs font-medium text-white bg-accent/20 hover:bg-accent/30 border border-accent/40 px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+            >
+              Add {selected.size > 0 ? `(${selected.size})` : ''}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DesignKit() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
@@ -417,6 +592,49 @@ export function DesignKit() {
       } catch (err) {
         toast.error(extractError(err, 'Failed to save'))
         throw err
+      }
+    },
+    [projectId],
+  )
+
+  const handleRefreshOutput = useCallback(
+    async (moduleId: string) => {
+      if (!projectId) return
+      try {
+        const { data: output } = await apiClient.post(
+          `/modules/${projectId}/${moduleId}/refresh-output`,
+        )
+        setData((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            modules: prev.modules.map((m) =>
+              m.module_id === moduleId
+                ? { ...m, responses: { ...m.responses, __generated_output: output } }
+                : m,
+            ),
+          }
+        })
+        toast.success('Output generated')
+      } catch (err) {
+        toast.error(extractError(err, 'Failed to generate output'))
+      }
+    },
+    [projectId],
+  )
+
+  const [showAddModules, setShowAddModules] = useState(false)
+
+  const handleAddModules = useCallback(
+    async (moduleIds: string[]) => {
+      if (!projectId || moduleIds.length === 0) return
+      try {
+        await apiClient.post(`/projects/${projectId}/pathway/modules`, { module_ids: moduleIds })
+        const { data: kit } = await apiClient.get<DesignKitData>(`/projects/${projectId}/design-kit`)
+        setData(kit)
+        toast.success(`Added ${moduleIds.length} module${moduleIds.length > 1 ? 's' : ''}`)
+      } catch (err) {
+        toast.error(extractError(err, 'Failed to add modules'))
       }
     },
     [projectId],
@@ -477,6 +695,12 @@ export function DesignKit() {
                 </div>
               </div>
               <button
+                onClick={() => setShowAddModules(true)}
+                className="text-xs font-medium text-text-muted hover:text-white border border-border hover:border-accent/40 px-3 py-2 rounded-lg transition-colors"
+              >
+                + Add Modules
+              </button>
+              <button
                 onClick={() => navigate(`/exports/${projectId}`)}
                 className="text-xs font-medium text-white bg-accent/20 hover:bg-accent/30 border border-accent/40 px-3 py-2 rounded-lg transition-colors"
               >
@@ -507,13 +731,21 @@ export function DesignKit() {
               </h2>
               <div className="space-y-3">
                 {modules.map((mod) => (
-                  <ModuleCard key={mod.module_id} mod={mod} onSave={handleSave} />
+                  <ModuleCard key={mod.module_id} mod={mod} onSave={handleSave} onRefreshOutput={handleRefreshOutput} />
                 ))}
               </div>
             </section>
           ))}
         </div>
       </main>
+
+      {showAddModules && (
+        <AddModulesModal
+          existingIds={new Set(data.modules.map((m) => m.module_id))}
+          onAdd={handleAddModules}
+          onClose={() => setShowAddModules(false)}
+        />
+      )}
     </div>
   )
 }

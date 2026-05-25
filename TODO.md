@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.3.3 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.4.0 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -31,13 +31,13 @@ Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the 
 
 For each new endpoint added in Phase 5, **add a matching integration test in `test_discovery_v2_integration.py`** before declaring the task done. The integration suite caught the H1 greenlet bug — keep that habit.
 
-- [ ] **1. `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Each assembled module renders as a card with its current field values + an Edit button. Use the `field_summary` shape from M6 endpoint to hydrate.
-- [ ] **2. Per-module Edit affordance** — inline form per module showing every field schema (label / type / required indicator). Save dispatches PATCH to the new backend endpoint that writes into `module_responses.responses`. Field-type-aware inputs (text/longtext/list-as-chips/dict-as-key-value-rows).
-- [ ] **3. Backend: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — partial-update fields on a module response. Validates keys against the module's `fields` schema. **Must reuse `_coerce_field_value` for type safety AND the defensive unknown-field-key rejection pattern added in `apply_extracted_module_fields`** — same defense, two surfaces.
-- [ ] **4. Refresh affordance for `has_output` modules** — 6 of the 40 modules have `has_output: true`. UI: "Regenerate output" button per such module card. Backend: `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` runs the existing module-output prompt builder against the current responses. Returns 400 for non-has_output modules.
-- [ ] **5. "Add Modules" button** at the top — opens a category-filtered picker (reuses the module library data via existing endpoint). Selected modules append to `module_pathways.modules`. New backend: `POST /api/v1/projects/{project_id}/pathway/modules` for the append operation. Phase 6 picks up newly-added unfilled modules.
-- [ ] **6. Swap the v2 Proceed destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once item 1 lands. Existing M8 test covers Proceed rendering — no new test needed.
-- [ ] **7. Update Library resume routing** in `backend/app/routers/library.py:_compute_resume_path` — v2 projects whose pathway has all-required fields filled should resume to `/design-kit/{id}` instead of `/discovery/{id}`. Extend `TestLibraryResumeRouting.test_v2_project_resumes_to_discovery` with completed-summary cases routing to design-kit.
+- [x] **1. `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. ✅ DONE in `f6682cd`. ModuleCard components, FieldEditor (type-aware), FieldDisplay, grouped by module group, overall progress bar, Export button.
+- [x] **2. Per-module Edit affordance** — ✅ DONE in `f6682cd`. Inline form per module with field-type-aware inputs (text/longtext/list-as-chips/dict-as-key-value-rows).
+- [x] **3. Backend: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — ✅ DONE in `f6682cd`. Validates keys against schema, reuses `_coerce_field_value` + unknown-key rejection. 5 integration tests.
+- [x] **4. Refresh affordance for `has_output` modules** — ✅ DONE. `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` generates formatted output from field values via AI. Returns 400 for non-has_output modules. Frontend: "Generate Output" / "Regenerate" button on DesignKit module cards. Output stored in `responses.__generated_output`. 3 integration tests.
+- [x] **5. "Add Modules" button** — ✅ DONE. Category-filtered picker modal in DesignKit. Backend: `POST /api/v1/projects/{project_id}/pathway/modules` appends, validates IDs, deduplicates. 3 integration tests.
+- [x] **6. Swap the v2 Proceed destination** — ✅ DONE in `f6682cd`. Discovery.tsx v2 Proceed now routes to `/design-kit/${projectId}`.
+- [x] **7. Update Library resume routing** — ✅ DONE in `f6682cd`. v2 completed sessions/pathways resume to `/design-kit/{pid}`. Split integration test into in-progress vs completed cases.
 
 ---
 
@@ -68,7 +68,7 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 > Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (91 tests across 4 files) and the explicit gaps. Avoid duplicating coverage.
 
-- [ ] **Frontend tests** — Vitest setup + first tests for `extractError`, `inboxStore.adjust(-1)` clamping, `adminStore` mutation behaviour, `useSSE` safety-net `onDone`, `useSSE` `field_update` parsing, `ProgressPanel` expanded-set FIFO cap. **Land this BEFORE Phase 5 polish** (see Phase 5 recommended sequencing above) so subsequent Phase 5 frontend work is testable from day one.
+- [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE in commit `01af5a6`**. 31 tests: `extractError.test.ts` (14), `inboxStore.test.ts` (5), `useSSE.test.ts` (6), `ProgressPanel.test.tsx` (6). `adminStore` mutation tests still outstanding.
 - [ ] **Backend admin endpoint tests** — `require_admin` rejection on non-admin user; `update_user_plan` audit log entry; `update_user_admin_flag` self-revoke block; entitlement override merge logic.
 - [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE in commit `57aa9d3`**. `test_discovery_v2_integration.py` covers `GET /discovery/{session_id}/field-summary` (200/409/404 + cross-user 404), H1 fix (4 cases), Phase 3 hotfix template flag, Library resume routing matrix, ProjectRead shape, session ownership. Init/message SSE-streaming endpoints still uncovered — see new test-coverage debt item below.
 - [ ] **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` v2-vs-v1 prompt branching + `/discovery/{id}/message` field_update emission. Requires mocking `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h. Closes the last big v2 backend coverage gap.
@@ -113,11 +113,12 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 - [ ] Test `/inbox/count` returns correct unpromoted count
 - [ ] Test SSE event ordering: `sheet_update` fires before `done` when extraction succeeds
 
-### Frontend (currently zero tests)
-- [ ] Vitest setup + first test (extractError function — pure, no UI)
-- [ ] `inboxStore.adjust(-1)` clamps at 0 (no negative counts)
-- [ ] `useSSE` hook safety-net fires `onDone` when stream ends without done event
+### Frontend (31 tests landed in `01af5a6`)
+- [x] ~~Vitest setup + first test (extractError function — pure, no UI)~~ — 14 tests
+- [x] ~~`inboxStore.adjust(-1)` clamps at 0 (no negative counts)~~ — 5 tests
+- [x] ~~`useSSE` hook safety-net fires `onDone` when stream ends without done event~~ — 6 tests
 - [ ] `PathwayReview.init()` 404 path doesn't show error toast
+- [ ] `DesignKit.tsx` edit/save flow + field-type rendering
 
 ### Manual smoke (post-deploy)
 - [ ] iOS Safari: Discovery viewport doesn't cut off above keyboard

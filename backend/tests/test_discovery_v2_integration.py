@@ -632,3 +632,139 @@ class TestDesignKitEndpoint:
             json={"field": "value"},
         )
         assert resp.status_code == 404
+
+
+class TestRefreshOutput:
+    """Tests for POST /modules/{project_id}/{module_id}/refresh-output."""
+
+    def test_refresh_output_rejects_non_has_output_module(self, client):
+        """Modules without has_output: true should return 400."""
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Refresh Reject",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Find a module that does NOT have has_output
+        kit_resp = client.get(f"/api/v1/projects/{project_id}/design-kit")
+        modules = kit_resp.json()["modules"]
+        non_output_mod = next((m for m in modules if not m["has_output"]), None)
+        assert non_output_mod is not None, "Should have at least one non-has_output module"
+
+        resp = client.post(
+            f"/api/v1/modules/{project_id}/{non_output_mod['module_id']}/refresh-output",
+        )
+        assert resp.status_code == 400
+        assert "does not support output generation" in resp.json()["detail"]
+
+    def test_refresh_output_rejects_unknown_module(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Refresh Unknown",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        resp = client.post(
+            f"/api/v1/modules/{project_id}/fake_module_xyz/refresh-output",
+        )
+        assert resp.status_code == 404
+
+    def test_refresh_output_rejects_nonexistent_project(self, client):
+        """Should return 404 for a project that doesn't exist."""
+        import uuid as _uuid
+        fake_pid = str(_uuid.uuid4())
+
+        resp = client.post(
+            f"/api/v1/modules/{fake_pid}/brand_identity_framework/refresh-output",
+        )
+        assert resp.status_code == 404
+
+
+class TestAddPathwayModules:
+    """Tests for POST /projects/{project_id}/pathway/modules."""
+
+    def test_add_modules_appends_and_deduplicates(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Add Modules Test",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        # Get current modules from pathway
+        pathway_resp = client.get(f"/api/v1/projects/{project_id}/pathway")
+        assert pathway_resp.status_code == 200
+        original_modules = pathway_resp.json()["modules"]
+
+        # Pick a module NOT already in the pathway to add
+        all_mods_resp = client.get("/api/v1/meta/modules")
+        all_ids = [m["id"] for m in all_mods_resp.json()]
+        existing_set = set(original_modules)
+        to_add = [mid for mid in all_ids if mid not in existing_set][:2]
+        assert len(to_add) > 0, "Should have modules available to add"
+
+        # Add the new modules
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/pathway/modules",
+            json={"module_ids": to_add},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert set(body["added"]) == set(to_add)
+        assert all(mid in body["modules"] for mid in to_add)
+        # Original modules still present
+        assert all(mid in body["modules"] for mid in original_modules)
+
+        # Adding same modules again should be a no-op (deduplication)
+        resp2 = client.post(
+            f"/api/v1/projects/{project_id}/pathway/modules",
+            json={"module_ids": to_add},
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["added"] == []
+
+    def test_add_modules_rejects_unknown_ids(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Add Unknown Modules",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/pathway/modules",
+            json={"module_ids": ["totally_fake_module_xyz"]},
+        )
+        assert resp.status_code == 422
+        assert "Unknown module IDs" in resp.json()["detail"]
+
+    def test_add_modules_rejects_empty_list(self, client):
+        resp = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Add Empty Modules",
+                "primary_category": "software_tech",
+                "ai_partner_style": "strategist",
+            },
+        )
+        project_id = resp.json()["id"]
+
+        resp = client.post(
+            f"/api/v1/projects/{project_id}/pathway/modules",
+            json={"module_ids": []},
+        )
+        assert resp.status_code == 400
