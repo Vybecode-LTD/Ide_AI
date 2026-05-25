@@ -72,7 +72,7 @@ export function SprintPlanner() {
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(0)
   const [statusMessage, setStatusMessage] = useState('')
-  const [errorMessage, setErrorMessage] = useState('')
+  // errorMessage state removed — errors now surface via toast
   const [activeView, setActiveView] = useState<ViewTab>('milestones')
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
 
@@ -97,7 +97,6 @@ export function SprintPlanner() {
     if (!projectId || generating) return
     setGenerating(true)
     setProgress(0)
-    setErrorMessage('')
     setStatusMessage('Analyzing project blocks...')
 
     const token = await getAuthToken()
@@ -165,7 +164,7 @@ export function SprintPlanner() {
                 setPlan(data.plan)
               }
             } else if (data.type === 'error') {
-              setErrorMessage(data.message || 'Generation failed')
+              toast.error(data.message || 'Generation failed')
             }
           } catch { /* skip malformed SSE line */ }
         }
@@ -179,7 +178,6 @@ export function SprintPlanner() {
       }
     } catch (err) {
       console.error('Sprint generation error:', err)
-      setErrorMessage('Generation failed. Please try again.')
       toast.error(extractError(err, "Couldn't generate sprint plan."))
     } finally {
       setGenerating(false)
@@ -260,13 +258,6 @@ export function SprintPlanner() {
                   style={{ width: `${Math.round(progress * 100)}%` }}
                 />
               </div>
-            </div>
-          )}
-
-          {/* Error banner */}
-          {errorMessage && !generating && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-red-400/10 border border-red-400/20 text-red-400 text-sm">
-              {errorMessage}
             </div>
           )}
 

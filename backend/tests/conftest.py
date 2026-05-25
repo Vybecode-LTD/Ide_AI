@@ -58,6 +58,7 @@ import app.models.project_template  # noqa: F401
 import app.models.module_pathway  # noqa: F401
 import app.models.module_response  # noqa: F401
 import app.models.project_snapshot  # noqa: F401
+import app.models.admin_audit_log  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # Engine + session factory (in-memory SQLite, one per test session)

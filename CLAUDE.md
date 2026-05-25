@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.8.0 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.9.2 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -144,7 +144,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–023, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # 24 unit tests + 4 integration tests
+│   ├── tests/                         # 150 backend tests across 5 files
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -500,6 +500,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 028 | Create `admin_audit_log` table (append-only admin action log) |
 | 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
 | 030 | Phase-2 hotfix — backfill `module_pathways.modules` shape, dedup `module_responses`, add UNIQUE(project_id, module_id) |
+| 031 | Add `sessions.scope_module_ids` (JSONB, nullable) for mini-Discovery scoped sessions |
 
 ---
 
@@ -588,16 +589,12 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Phase 5 complete — Design Kit page + Refresh output + Add Modules + Vitest scaffold.
+**Task:** Admin endpoint tests + toast cleanup + Phase 6 audit hardening.
 
-1. **Vitest scaffold** — configured Vitest in `vite.config.ts`, added `@testing-library/react` + `@testing-library/jest-dom`, created 31 tests across 4 files: `extractError.test.ts` (14), `inboxStore.test.ts` (5), `useSSE.test.ts` (6), `ProgressPanel.test.tsx` (6). Frontend went from zero to testable.
-2. **Design Kit page** — `pages/DesignKit.tsx` at `/design-kit/:projectId`. Shows assembled modules grouped by module group, per-module field values + Edit affordance with type-aware inputs (text/longtext/list-as-chips/dict-as-key-value). Overall progress bar + Export button.
-3. **Backend endpoints** — `GET /{project_id}/design-kit`, `PATCH /{project_id}/{module_id}/responses` (schema validation + coercion + unknown-key rejection), `POST /{project_id}/{module_id}/refresh-output` (AI-generated formatted document for `has_output` modules), `POST /{project_id}/pathway/modules` (append modules with dedup + validation). 11 integration tests total.
-4. **Routing updates** — Discovery v2 Proceed → `/design-kit/${projectId}`. Library resume routing: v2 completed → `/design-kit/{pid}`.
-5. **Refresh output** — "Generate Output" / "Regenerate" button on `has_output` module cards. Stores in `responses.__generated_output`.
-6. **Add Modules picker** — modal with category-filtered module library, checkbox selection, deduplication.
+1. **27 admin endpoint integration tests** (`test_admin.py`) — `require_admin` 403 gate, user list (pagination/search/plan filter), user detail + 404, plan update + audit log, same-plan no-op, invalid plan 422, entitlement overrides (set/unlimited/clear + audit), admin flag (grant/revoke/self-revoke block), audit log (list/filter-action/filter-target/email resolution).
+2. **Toast migrations** — `Home.tsx` replaced `createError` useState with `toast.error(extractError(...))`. `SprintPlanner.tsx` removed `errorMessage` useState and inline banner.
+3. **Phase 6 audit hardening** — Applied 9 fixes from 6-agent audit + added 16 regression tests (see CHANGELOG for details).
 
-**Date:** 2026-05-24
-**Test coverage:** 103/103 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
-**Commits:** `01af5a6` (Vitest scaffold + 31 tests), `f6682cd` (Phase 5 core), + pending commit (Refresh + Add Modules).
-**Next:** Phase 6 (mini-Discovery for newly-added modules). P0 items still open: verify Railway deploy + smoke test + rotate webhook secrets. See [`TODO.md`](TODO.md).
+**Date:** 2026-05-25
+**Test coverage:** 150/150 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
+**Next:** Git push → P0 items: verify Railway deploy + smoke test + rotate webhook secrets. SSE streaming tests (~2h) deferred.

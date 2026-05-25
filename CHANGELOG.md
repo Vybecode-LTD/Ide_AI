@@ -4,6 +4,47 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Admin tests + toast cleanup (2026-05-24)
+
+### Added
+- **27 admin endpoint integration tests** in `test_admin.py` — `require_admin` 403 gate (3 tests), user list pagination/search/filter (4), user detail + 404 (2), plan update + audit log creation (4), entitlement override merge into effective limits (4), admin flag grant/revoke + self-revoke block (5), audit log listing with filters + email resolution (5).
+- **`admin_audit_log` model import** in `conftest.py` so the test harness creates the table.
+
+### Changed
+- **`Home.tsx`** — replaced `createError` useState + inline error banner with `toast.error(extractError(...))`.
+- **`SprintPlanner.tsx`** — removed `errorMessage` useState + inline error banner, unified on `toast.error(...)`.
+- **TODO.md → 3.5.2**, **CONTEXT_HANDOFF.md → 3.5.2**, **CLAUDE.md → 2.9.2** (PATCH bumps — tests + cleanup).
+
+### Phase 6 audit fix + regression hardening (2026-05-24)
+
+### Fixed
+- **Library `latest_session_sq` picked up scoped sessions** — Added `scope_module_ids.is_(None)` filter to the DISTINCT ON subquery in `library.py` so mini-Discovery sessions don't override main-flow status in the Library view.
+- **Orphan cleanup abandoned scoped sessions** — Added `scope_module_ids.is_(None)` filter to the orphan-cleanup query in `get_latest_active_session_for_project` so freshly-created scoped sessions aren't retired as orphans.
+- **No validation on `scope_module_ids` entries** — `POST /discovery/start` now validates that all scope module IDs exist in the project's `ModulePathway.modules`. Returns 400 for invalid IDs and for scoped sessions on v1 projects.
+- **Empty `scope_module_ids=[]` treated as scoped** — Added Pydantic `field_validator` on `SessionCreate` to normalize empty lists to `None` (unscoped resume).
+- **Frontend `scopeModuleIds` not in `useEffect` deps** — Added `scopeParam` to the bootstrap effect's dependency array in Discovery.tsx so scope changes trigger re-initialization.
+- **DesignKit unfilled check only tested key existence** — `unfilledModules` filter now checks for `undefined`, `null`, and empty string values, not just missing keys.
+- **Migration 031 docstring** — Referenced "discovery_sessions" table but actual table is "sessions". Corrected.
+- **Model type annotation** — `scope_module_ids` was `Mapped[list | None]` (unparameterized); now `Mapped[list[str] | None]`.
+
+### Added
+- **4 audit-driven tests** in `TestScopedSessions`: empty scope normalization, nonexistent module ID rejection, v1 scoped session rejection, multi-module scope with field-summary filtering.
+- **6 regression tests** in `TestAuditFixRegressions` (integration): library excludes scoped sessions, main-flow resume survives multiple scoped sessions, v1 discovery unaffected by validation, mixed valid/invalid scope IDs rejected, null scope in normal responses, full-module field-summary on main sessions.
+- **6 service-layer regression tests** in `TestSessionResumeRegression`: basic resume, scoped always-create, scoped-doesn't-pollute-main, get-latest-ignores-scoped, orphan-cleanup-skips-scoped, force-new-alongside-scoped.
+
+### Phase 6 mini-Discovery scoped sessions (2026-05-24)
+
+### Added
+- **Migration 031** — `scope_module_ids` JSONB column on `discovery_sessions`. When non-null, the session is scoped to only those module IDs (mini-Discovery for newly-added modules).
+- **Scoped session create** — `POST /discovery/start` accepts `scope_module_ids` in the body. Scoped sessions always create new (never resume); main-flow resume excludes scoped sessions.
+- **Scoped init/message/field-summary** — `/discovery/{session_id}/init`, `/message`, `/field-summary` all filter decorated modules to the session's scope when set.
+- **"Continue Discovery" button** — DesignKit header shows a "Continue Discovery (N)" button when modules have unfilled required fields. Navigates to `/discovery/:projectId?scope=mod1,mod2,...`.
+- **Discovery scoped mode UI** — TopBar shows "Continue Discovery" title + "N modules scoped" subtitle. Proceed button reads "Back to Design Kit" instead of "Proceed to Design Kit".
+- **4 integration tests** in `TestScopedSessions`: scoped session creation, main-flow isolation, no resume into existing scoped sessions, field-summary scope filtering.
+
+### Fixed
+- **SQLite JSON NULL gotcha** — Explicitly passing `None` to a SQLAlchemy JSON column on SQLite stores JSON null (not SQL NULL), breaking `IS NULL` queries. Fixed `create_session` to omit `scope_module_ids` from the constructor when it's `None`.
+
 ### Phase 5 Design Kit + Vitest scaffold (2026-05-24)
 
 ### Added

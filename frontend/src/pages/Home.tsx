@@ -12,6 +12,7 @@ import { IdeaNebulaCanvas } from '../components/nebula/IdeaNebulaCanvas'
 import { TemplateGrid, type Template } from '../components/home/TemplateGrid'
 import { CategorySelect } from './CategorySelect'
 import type { PartnerStyleMeta } from '../types/project'
+import toast from 'react-hot-toast'
 import apiClient from '../lib/apiClient'
 import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
 import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
@@ -78,7 +79,7 @@ export function Home() {
   }, [])
   const [loading, setLoading] = useState(false)
   const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
-  const [createError, setCreateError] = useState('')
+  // createError state removed — errors now surface via toast
   const [modulePreview, setModulePreview] = useState<ModulePreview | null>(null)
 
   // Template state
@@ -204,13 +205,12 @@ export function Home() {
   const handleSubmit = async () => {
     if (!idea.trim() && !activeTemplate) return
     setLoading(true)
-    setCreateError('')
     try {
       await createProject()
     } catch (err) {
       const ent = getEntitlementDetail(err)
       if (ent) setUpgradeDetail(ent)
-      else setCreateError(extractError(err, 'Failed to create project. Please try again.'))
+      else toast.error(extractError(err, 'Failed to create project. Please try again.'))
       setLoading(false)
     }
   }
@@ -499,13 +499,6 @@ export function Home() {
               )}
             </AnimatePresence>
           </div>
-
-          {/* Error display */}
-          {createError && (
-            <div className="text-red-400 text-xs bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2 mb-3 max-w-md text-center">
-              {createError}
-            </div>
-          )}
 
           {/* Submit */}
           <PulseBeacon id="home:start">

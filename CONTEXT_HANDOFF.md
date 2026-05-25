@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.4.0 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.5.2 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,16 +38,20 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-24) — Phase 5 Core + Vitest
+## Current Session (2026-05-24) — Phase 5 + Phase 6 + Audit Hardening
 
-Built on the Phase 1-4 foundation. Landed the Vitest scaffold (31 tests, zero-to-one frontend coverage) and the Phase 5 Design Kit page core (items 1-3, 6-7 from TODO). Remaining: items 4-5 (Refresh + Add Modules polish).
+Built Phase 5 (Design Kit page, Edit, Refresh, Add Modules), Phase 6 (mini-Discovery scoped sessions), ran a 6-agent audit of Phase 6, and applied all fixes + 16 regression tests. All 6 phases of the v2 overhaul are now complete and audit-hardened.
 
-### Commits this session (2, all pushed to main)
+### Commits this session (pending push)
 
 | Hash | What |
 |------|------|
 | `01af5a6` | test(frontend): add Vitest scaffold + 31 first tests |
 | `f6682cd` | feat(discovery v2): Phase 5 — Design Kit page + Edit endpoint + routing |
+| `d329b6b` | feat(discovery v2): Phase 5 polish — Refresh output + Add Modules |
+| `69b3276` | fix: audit fixes for Phase 5 — filter draft keys + cap module additions |
+| (pending) | feat(discovery v2): Phase 6 — mini-Discovery scoped sessions |
+| (pending) | fix: Phase 6 audit — scope validation, orphan safety, 16 regression tests |
 
 ### Previous session (2026-05-23) — Marathon Day
 
@@ -55,9 +59,9 @@ Landed 11+ commits across 6 major workstreams (Phases 1-4, audit closure, integr
 
 ### Most important things to know for the next session
 
-**Discovery v2 overhaul is in flight** — Phases 1-4 of 6 shipped. Phase 5 is next. Two flow versions coexist:
+**Discovery v2 overhaul is COMPLETE** — all 6 phases shipped. Two flow versions coexist:
 - **v1 (legacy projects + template projects)** — `projects.flow_version = 'v1'`. Use Discovery → PathwayReview → PathwayExecute → per-module-sessions exactly as before. Untouched.
-- **v2 (new non-template projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. SSE event `field_update` carries per-module summary. Right side panel shows live progress meter (ProgressPanel). Proceed button always available once required fields exist, routes to `/exports/{id}` as interim Design Kit destination.
+- **v2 (new non-template projects, default)** — `projects.flow_version = 'v2'`. Pathway assembled UP FRONT at project creation (POST /projects). Unified Discovery prompt funnels toward filling all module field schemas. SSE event `field_update` carries per-module summary. Right side panel shows live progress meter (ProgressPanel). Proceed button routes to `/design-kit/{id}`. Design Kit page shows all modules, Edit/Refresh/Add Modules. "Continue Discovery" button launches a scoped mini-Discovery for modules with unfilled required fields.
 
 **Phase 4 + audit closure shipped** (this commit) — full frontend + backend parity for v2, plus all actionable audit findings resolved:
 
@@ -84,12 +88,11 @@ Audit closure (14 items addressed):
 - **I4** — new `test_discovery_v2.py` with 35 tests (76 total backend tests, all passing)
 - **Defensive bonus** — `apply_extracted_module_fields` now rejects unknown field keys (caught by the new tests)
 
-**Where Phase 5 picks up — Design Kit page at `/design-kit/{projectId}`:**
-- New top-level page that replaces `/exports/{id}` as the v2 Proceed destination
-- Per-module Edit affordance: inline form per module showing every field schema → updates `module_responses.responses` via PATCH
-- Refresh affordance on the 6 `has_output` modules — regenerate that module's structured output from the current field values
-- "Add Modules" button at the top opens a category-filtered picker; selected modules append to the pathway and Phase 6 will pick them up
-- Backend additions required: `PATCH /modules/{pid}/{mid}/responses` (Edit) + `POST /modules/{pid}/{mid}/refresh-output` (Refresh) + category-filtered library listing
+**Phase 5 + 6 COMPLETE + AUDIT-HARDENED — Design Kit + scoped mini-Discovery:**
+- Design Kit at `/design-kit/{projectId}` — v2 Proceed destination. Per-module Edit with type-aware inputs, Refresh output on `has_output` modules, Add Modules picker.
+- Phase 6: `scope_module_ids` JSONB on `discovery_sessions` (migration 031). Scoped sessions filter init/message/field-summary to only targeted modules. "Continue Discovery (N)" button in DesignKit navigates to `/discovery/:projectId?scope=mod1,mod2,...`.
+- **Phase 6 audit hardening:** 6-agent audit caught 6 HIGH-severity issues (library subquery scope leak, orphan cleanup scope leak, no scope ID validation, missing frontend dep, DesignKit unfilled-check logic, scoped sessions on v1 untested). All fixed. `POST /discovery/start` now validates scope IDs against the pathway and rejects scoped sessions on v1 projects. Empty `scope_module_ids=[]` normalized to `None` via Pydantic validator.
+- **Test coverage: 123 backend + 31 frontend.** 16 new regression tests: 4 audit-driven integration (empty scope, invalid IDs, v1 rejection, multi-module), 6 integration regression (library isolation, resume survival, v1 unaffected, mixed IDs, null scope, full summary), 6 service-layer regression (resume, scoped-create, scoped-doesn't-pollute, get-latest-ignores, orphan-skip, force-new).
 
 **Backend foundation is solid for v2:**
 - Module library has 40 modules with 154 fields total (52 required, 102 optional), 6 modules flagged `has_output`
@@ -223,7 +226,7 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 - **Module-preview overlay a11y** — `role="alertdialog"`, labelledby/describedby, Esc-to-skip, focus-on-mount, mobile max-h fix
 - **Audit-closure additions** — `GET /discovery/{session_id}/field-summary` endpoint, `build_unified_greeting_prompt` (v2-aware init), `_coerce_field_value` drop logging, defensive unknown-field-key rejection, ProgressPanel expanded-set cap (FIFO 3), recentUpdates 8s fade, stage UI hidden for v2, loadSheet skipped for v2, `_reset_module_library` test hook
 - **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output` for the Refresh affordance coming in Phase 5
-- **Backend test coverage on v2** — 50 new tests across `test_discovery_v2.py` (35 service-layer) + `test_discovery_v2_integration.py` (15 HTTP-level). Integration tests caught the H1 greenlet-during-serialization bug. **91/91 backend tests pass.**
+- **Backend test coverage on v2** — 75 tests across `test_discovery_v2.py` (41 service-layer) + `test_discovery_v2_integration.py` (34 HTTP-level). Integration tests caught the H1 greenlet bug and Phase 6 scope-isolation bugs. **123/123 backend tests pass.**
 - **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.4.1), CONTEXT_HANDOFF.md (3.0.0), TODO.md (2.0.0+), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.1.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
 - **Migration chain** — Linear 001→030, all reversible cleanly
@@ -275,7 +278,7 @@ For every new endpoint, add a matching integration test in `backend/tests/test_d
 - **`SprintPlanner.tsx errorMessage` state** — currently kept alongside toast for sticky display during 60s+ generation; could simplify to toast-only
 - **Duplicate `_partnerCache`** in Home.tsx and Inbox.tsx — hoist to `lib/partnerCache.ts`
 - **Orphan user row** — one row with `is_admin=TRUE` but no `clerk_user_id` from the early-session debug. Safe to leave or `DELETE`.
-- **Frontend tests** — none exist (TypeScript build is the only verification). Vitest scaffolding + first tests would be high-leverage.
+- **Frontend tests** — 31 Vitest tests across 4 files (`extractError`, `inboxStore`, `useSSE`, `ProgressPanel`). DesignKit edit/save flow still untested.
 - **Backend admin endpoint tests** — `require_admin` rejection, `update_user_plan` audit trail, `update_user_admin_flag` self-revoke block, entitlement override merge logic.
 
 ### 📋 Audit findings deferred from Phase 2 hotfix
@@ -313,7 +316,7 @@ For every new endpoint, add a matching integration test in `backend/tests/test_d
 
 ---
 
-## Database Migrations (linear chain: 001-028)
+## Database Migrations (linear chain: 001-031)
 
 | # | Description |
 |---|-------------|
@@ -338,6 +341,7 @@ For every new endpoint, add a matching integration test in `backend/tests/test_d
 | 028 | Create `admin_audit_log` table (append-only admin action log) |
 | 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
 | 030 | Phase-2 hotfix — backfill module_pathways.modules shape, dedup module_responses, UNIQUE(project_id, module_id) |
+| 031 | Add `sessions.scope_module_ids` (JSONB, nullable) for mini-Discovery scoped sessions |
 
 ---
 
@@ -391,7 +395,7 @@ python -m pytest tests/test_entitlements.py -v
 
 Required pip packages: `pytest pytest-asyncio aiosqlite sqlalchemy[asyncio] pydantic-settings python-dotenv fastapi anthropic`
 
-**Frontend has no test files** — verification is via `npx tsc -b --noEmit` only.
+**Frontend tests** — 31 tests across 4 files via Vitest. Run: `npx.cmd vitest run` from `frontend/`. TypeScript verification: `npx.cmd tsc -b --noEmit`.
 
 ---
 
@@ -408,21 +412,36 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 | v2 summary aggregation | `test_discovery_v2.py::TestComputeFieldSummary` | 4 |
 | v2 pathway decoration (list[str] + legacy list[dict]) | `test_discovery_v2.py::TestLoadDecoratedPathwayModules` | 4 |
 | `_reset_module_library` test hook | `test_discovery_v2.py::TestResetModuleLibrary` | 2 |
+| v2 session resume + scope isolation | `test_discovery_v2.py::TestSessionResumeRegression` | 6 |
 | H1 fix (v2 → v1 downgrade on failed assembly) | `test_discovery_v2_integration.py::TestCreateProjectH1` | 5 |
 | M6 endpoint (field-summary) | `test_discovery_v2_integration.py::TestFieldSummaryEndpoint` | 4 |
 | Phase 3 hotfix (template projects = v1) | `test_discovery_v2_integration.py::TestTemplateFlowVersion` | 1 |
 | Library resume routing v1/v2 | `test_discovery_v2_integration.py::TestLibraryResumeRouting` | 2 |
 | Discovery session-start + ownership | `test_discovery_v2_integration.py::TestDiscoveryStartV2` | 2 |
 | ProjectRead shape (frontend type dep) | `test_discovery_v2_integration.py::TestProjectReadShape` | 1 |
+| Design Kit endpoints (GET + PATCH) | `test_discovery_v2_integration.py::TestDesignKitEndpoint` | 5 |
+| Refresh output + Add Modules | `test_discovery_v2_integration.py::TestRefreshOutput` + `TestAddModules` | 6 |
+| Phase 6 scoped sessions (create, isolation, field-summary) | `test_discovery_v2_integration.py::TestScopedSessions` | 8 |
+| Phase 6 audit regression (library, resume, v1, validation) | `test_discovery_v2_integration.py::TestAuditFixRegressions` | 6 |
 | Entitlement gates | `test_entitlements.py` | 9 |
 | Partner styles + prompt composition | `test_partner_style.py` | 28 |
-| **Total** | | **91** |
+| Admin: require_admin gate | `test_admin.py::TestRequireAdmin` | 3 |
+| Admin: user list (paginate/search/filter) | `test_admin.py::TestUserList` | 4 |
+| Admin: user detail + 404 | `test_admin.py::TestUserDetail` | 2 |
+| Admin: plan update + audit log | `test_admin.py::TestPlanUpdate` | 4 |
+| Admin: entitlement override merge | `test_admin.py::TestEntitlementOverrides` | 4 |
+| Admin: admin flag grant/revoke/self-revoke | `test_admin.py::TestAdminFlag` | 5 |
+| Admin: audit log list + filters + emails | `test_admin.py::TestAuditLog` | 5 |
+| Frontend: error extraction | `extractError.test.ts` | 14 |
+| Frontend: inbox store | `inboxStore.test.ts` | 5 |
+| Frontend: SSE hook | `useSSE.test.ts` | 6 |
+| Frontend: ProgressPanel rendering | `ProgressPanel.test.tsx` | 6 |
+| **Total** | | **181** (150 backend + 31 frontend) |
 
 **Known gaps (no test exists):**
 - PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added.
-- SSE streaming routes (`/discovery/{id}/init` and `/message`) — would need to mock `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h of work; pairs well with adding Phase 5 endpoint tests.
-- Frontend behavior — zero Vitest coverage. `ProgressPanel` rendering, `useSSE.onFieldUpdate` parsing, `Discovery` `flow_version` branching, the module-preview overlay's Esc-to-skip, the H2 redirect on `PathwayExecute` are verified only by `tsc` + manual smoke testing.
-- Admin endpoints — `/admin/*` routes have no pytest coverage.
+- SSE streaming routes (`/discovery/{id}/init` and `/message`) — would need to mock `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h of work.
+- Frontend: DesignKit edit/save flow, Discovery flow_version branching, PathwayExecute v2 redirect — verified only by `tsc` + manual smoke testing.
 
 ---
 
@@ -455,26 +474,26 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 
 ---
 
-## Code Quality Snapshot (2026-05-23 — end of marathon session)
+## Code Quality Snapshot (2026-05-24 — post-admin tests + toast cleanup)
 
-- ✅ TypeScript: zero compilation errors (verified after Phase C audit closure)
-- ✅ Backend Python: 76/76 tests pass (35 new v2 + 41 existing). Syntax validated on all touched files.
-- ✅ Migration chain: linear 001→030, all reversible
+- ✅ TypeScript: zero compilation errors
+- ✅ Backend Python: 150/150 tests pass (41 service-layer v2 + 34 integration v2 + 27 admin + 48 existing). Syntax validated on all touched files.
+- ✅ Frontend: 31/31 Vitest tests pass across 4 files
+- ✅ Migration chain: linear 001→031, all reversible
 - ✅ Auth: production-hardened with issuer + audience + azp enforcement; race-handling consolidated with INSERT ON CONFLICT
 - ✅ SSE: always emits `done`; v2 emits `field_update` before done with default=str safety; frontend `useSSE` parses `field_update` via `onFieldUpdate`
-- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities; module-preview overlay has dynamic max-h for <360px viewports
-- ✅ Error UX: ~40 silent failures surface via toast; `_coerce_field_value` drops now logged with module/field context
-- ✅ Admin system: live + user-tested; entitlement overrides merge correctly
+- ✅ Discovery v1: backward-compat fully preserved (v1 regression tests pass; scoped-session validation explicitly rejects v1 projects)
+- ✅ Discovery v2 backend: all 6 phases shipped + audit-hardened. Scope validation, orphan safety, library isolation all regression-tested.
+- ✅ Discovery v2 frontend: ProgressPanel, DesignKit (Edit/Refresh/Add Modules), scoped Discovery, scope-aware dep array
+- ✅ Phase 6 scoped sessions: scope validation against pathway, empty-scope normalization, v1 rejection, library/resume isolation — 16 regression tests
+- ✅ Mobile: 19 pages use dynamic viewport + safe-area utilities
+- ✅ Error UX: ~40 silent failures surface via toast
+- ✅ Admin system: live + user-tested
 - ✅ Realtime inbox: Redis pub/sub verified end-to-end in production
-- ✅ Discovery v1: backward-compat fully preserved (verified by 2-agent audit + 41 existing tests still pass)
-- ✅ Discovery v2 backend: foundation solid + audit-closed (H1 stranded-state fix, defensive unknown-field-key rejection, M3 v2-aware greeting, M6 field-summary endpoint)
-- ✅ Discovery v2 frontend: ProgressPanel + v2 Proceed gate + stage UI hidden + loadSheet skipped + recentUpdates fade + expanded-set cap + field-summary hydration on mount
-- ✅ Backend test coverage on v2: 35 new tests in `test_discovery_v2.py`. Unknown-field-key defensive rejection was caught by the new suite.
 - ✅ Railway: all env vars set including REDIS_URL
 - ✅ Doc versioning: convention live + Stop hook nags on missing CHANGELOG
 - ⚠️ Webhook secrets: 3 exposed in chat earlier — rotate when convenient
 - ⚠️ One orphan user row in DB (no clerk_user_id) — leftover from debug
 - ⚠️ JSONB `||` shallow merge known limitation for dict-typed fields (M1) — mitigated via extraction-prompt instruction to return whole dicts; not yet enforced server-side
-- ❌ Frontend tests: none exist (Vitest scaffold deferred — high-leverage TODO)
 - ❌ Backend admin endpoint tests: no pytest coverage yet
 - ❌ Discovery v2 upsert ON CONFLICT path not testable under SQLite — verified in production by manual smoke; PG-backed integration test environment would close this

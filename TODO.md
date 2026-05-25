@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.4.0 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.5.2 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -22,14 +22,7 @@
 
 Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the final v2 destination — a per-project Design Kit view that replaces `/exports/{id}` as the Proceed target.
 
-**Recommended sequencing** (not a strict gate, but the order that protects you from regressions):
-
-1. **First, land the Vitest scaffold + 4-5 frontend tests** (currently in HIGH PRIORITY → Test coverage below). The Phase 5 forms + optimistic updates + refresh affordances are non-trivial frontend complexity, and there's zero Vitest coverage today. Landing the scaffold + first tests as item zero of Phase 5 means subsequent work is testable from day one. Skip this and you'll discover bugs only on Railway.
-2. **Then the Design Kit page shell + Edit affordance + PATCH endpoint** (items 1-3 below) — the core user-visible value.
-3. **Then swap the Proceed destination + update Library resume routing** (items 6-7) — small but visible. Do these together so v2 users immediately benefit.
-4. **Then Refresh + Add Modules** (items 4-5) — polish that completes Phase 5.
-
-For each new endpoint added in Phase 5, **add a matching integration test in `test_discovery_v2_integration.py`** before declaring the task done. The integration suite caught the H1 greenlet bug — keep that habit.
+**All items completed in order.** Vitest scaffold landed first (31 tests), then Design Kit + Edit + PATCH, then Proceed swap + Library routing, then Refresh + Add Modules. Every endpoint shipped with matching integration tests.
 
 - [x] **1. `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. ✅ DONE in `f6682cd`. ModuleCard components, FieldEditor (type-aware), FieldDisplay, grouped by module group, overall progress bar, Export button.
 - [x] **2. Per-module Edit affordance** — ✅ DONE in `f6682cd`. Inline form per module with field-type-aware inputs (text/longtext/list-as-chips/dict-as-key-value-rows).
@@ -41,11 +34,13 @@ For each new endpoint added in Phase 5, **add a matching integration test in `te
 
 ---
 
-## 🧭 Phase 6 — Additional Discovery for newly-added modules (after Phase 5)
+## 🧭 Phase 6 — Additional Discovery for newly-added modules ✅ DONE
 
-- [ ] **Mini-Discovery flow** scoped to just the new modules' unfilled fields. Reuses the unified-discovery prompt builder but filters `pathway_modules` to only the newly-added IDs.
-- [ ] **"Continue Discovery" button** on Design Kit when there are unfilled required fields on recently-added modules.
-- [ ] Field updates feed back into `module_responses` via the existing apply path — no new backend infra required.
+- [x] **Mini-Discovery flow** — scoped sessions via `scope_module_ids` JSONB on `discovery_sessions` (migration 031). `POST /discovery/start` accepts `scope_module_ids`; init/message/field-summary filter to scope. 4 integration tests.
+- [x] **"Continue Discovery" button** — DesignKit header shows "Continue Discovery (N)" when modules have unfilled required fields. Navigates to `/discovery/:projectId?scope=mod1,mod2,...`.
+- [x] **Session isolation** — scoped sessions never hijack main-flow resume. `get_latest_active_session_for_project` excludes scoped sessions via `scope_module_ids IS NULL` filter.
+- [x] **Frontend scoped mode** — Discovery.tsx reads `?scope=` param, passes to start endpoint, TopBar shows "Continue Discovery" + scope count, Proceed reads "Back to Design Kit".
+- [x] **Phase 6 audit hardening** — 6-agent audit found 6 HIGH + 8 MEDIUM + 8 LOW findings. Fixed: library subquery scope leak, orphan cleanup scope leak, scope ID validation against pathway, empty-scope normalization, frontend dep array, DesignKit unfilled-check logic, migration docstring, model type annotation. 16 regression tests added (4 audit + 6 integration + 6 service-layer). 123/123 backend, 31/31 frontend.
 
 ---
 
@@ -60,16 +55,16 @@ For each new endpoint added in Phase 5, **add a matching integration test in `te
 ### Remaining toast migrations (light)
 Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
-- [ ] **`Home.tsx`** — `createError` state on project creation (line 51) still uses inline. Convert to toast for consistency.
-- [ ] **`SprintPlanner.tsx`** — has `errorMessage` state kept alongside toast for sticky display during 60s+ generation. Consider whether to remove the sticky state now that toast is in place.
+- [x] ~~**`Home.tsx`** — `createError` state → `toast.error(extractError(...))`~~ — **DONE**.
+- [x] ~~**`SprintPlanner.tsx`** — removed `errorMessage` state, unified on `toast.error()`~~ — **DONE**.
 - [ ] **`pathwayStore.ts`** and **`ErrorBoundary.tsx`** intentionally left as `console.error` — both are framework-level, not user-facing. No change needed.
 
 ### Test coverage
 
-> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (91 tests across 4 files) and the explicit gaps. Avoid duplicating coverage.
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (150 tests across 5 backend files + 4 frontend files) and the explicit gaps. Avoid duplicating coverage.
 
 - [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE in commit `01af5a6`**. 31 tests: `extractError.test.ts` (14), `inboxStore.test.ts` (5), `useSSE.test.ts` (6), `ProgressPanel.test.tsx` (6). `adminStore` mutation tests still outstanding.
-- [ ] **Backend admin endpoint tests** — `require_admin` rejection on non-admin user; `update_user_plan` audit log entry; `update_user_admin_flag` self-revoke block; entitlement override merge logic.
+- [x] ~~**Backend admin endpoint tests**~~ — **DONE**. `test_admin.py` (27 tests): require_admin 403, user list (pagination/search/filter), user detail + 404, plan update + audit log, same-plan no-op log, invalid plan 422, entitlement overrides (set/unlimited/clear + audit), admin flag (grant/revoke/self-revoke block), audit log (empty/after-change/filter-action/filter-target/email resolution).
 - [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE in commit `57aa9d3`**. `test_discovery_v2_integration.py` covers `GET /discovery/{session_id}/field-summary` (200/409/404 + cross-user 404), H1 fix (4 cases), Phase 3 hotfix template flag, Library resume routing matrix, ProjectRead shape, session ownership. Init/message SSE-streaming endpoints still uncovered — see new test-coverage debt item below.
 - [ ] **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` v2-vs-v1 prompt branching + `/discovery/{id}/message` field_update emission. Requires mocking `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h. Closes the last big v2 backend coverage gap.
 - [ ] **Discovery v2 upsert tests** — `apply_extracted_module_fields` ON CONFLICT path requires PostgreSQL — out-of-scope for the SQLite test harness. Either add a PG-backed integration test environment (testcontainers-python) or document as production-verified-only.
