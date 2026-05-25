@@ -57,7 +57,7 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the concrete actionable breakdown of each item.
 
-0. **P0 — push the 4 unpushed commits to `main`** + smoke test + rotate exposed webhook secrets. The H1 fix in `57aa9d3` is a real production bug that's dormant until pushed. (Detail in [`TODO.md`](TODO.md) `🔴 P0 — DO TODAY` block.)
+0. ✅ **PUSHED 2026-05-23.** All 5 v2-overhaul + doc commits are on `origin/main` and have triggered Railway auto-deploy. **Now verify the deploy is healthy, run the 5-min smoke test, and rotate the 3 exposed webhook secrets.** (Detail in [`TODO.md`](TODO.md) `🔴 P0 — DO TODAY` block.)
 1. **Unified Discovery overhaul Phases 5-6** — Phases 1-4 + audit closure all shipped today. Remaining:
    - **Phase 5:** new `/design-kit/{projectId}` page with Edit + Refresh per module + Add Modules button. Includes new backend endpoints `PATCH /modules/{pid}/{mid}/responses` and `POST /modules/{pid}/{mid}/refresh-output`. Recommended sequence: Vitest scaffold + first frontend tests → Design Kit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume update → Refresh + Add Modules polish. (Full breakdown in [`TODO.md`](TODO.md) Phase 5 section.)
    - **Phase 6:** Additional discovery flow for newly-added modules (mini unified-Discovery scoped to just newly-added unfilled fields)

@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.3.3 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.4 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -244,11 +244,12 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ### 🔴 P0 — Do today (before any new development)
 
-1. **`git push origin main`** — 3 unpushed commits (`b26837a` Phase 4 features, `ff212f3` audit closure, `57aa9d3` integration tests + H1 greenlet bug fix). The H1 fix is a real production bug that's still affecting users until pushed. Railway auto-deploys both services.
-2. **5-min smoke test** — happy v2 path, check Railway logs for `MissingGreenlet`/`ResponseValidationError` over past 48h, verify `/pathway-execute/{v2-pid}` redirects.
-3. **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` (exposed in chat earlier).
+1. ✅ **`git push origin main` — DONE 2026-05-23.** 5 commits pushed (`b26837a` `ff212f3` `57aa9d3` `f8d3165` `585cb7d`). The H1 greenlet bug fix is now live on Railway.
+2. ⚠️ **Verify Railway deploy succeeded** — check the Railway dashboard for both backend + frontend services after the auto-deploy completes (~3-5 min). If anything failed, investigate immediately.
+3. ⚠️ **5-min smoke test** once deploy is healthy — happy v2 path, check Railway logs for `MissingGreenlet`/`ResponseValidationError` over past 48h (any pre-fix occurrences), verify `/pathway-execute/{v2-pid}` redirects.
+4. ⚠️ **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` (exposed in chat earlier today).
 
-See `TODO.md` P0 block for full smoke-test checklist.
+See [`TODO.md`](TODO.md) P0 block for full smoke-test checklist.
 
 ### 🚦 Phase 5 next steps (Design Kit page at /design-kit/{projectId})
 

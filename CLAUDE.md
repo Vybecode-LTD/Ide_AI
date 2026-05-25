@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.7.3 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.7.4 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -588,11 +588,15 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Admin system + error UX polish + doc versioning.
-1. **Admin dashboard** at hidden `/admin` route — Users tab with search + plan filter + drawer (plan toggle, entitlement override editor with Inherit/Unlimited/Custom modes per limit key, grant-admin toggle), Audit Log tab with paginated history. Backend `app/routers/admin.py` (require_admin dep), `app/services/audit_service.py`, migrations 027 + 028. Frontend `pages/Admin.tsx`, 3 components under `components/admin/`, `stores/adminStore.ts`. `entitlement_service.get_limits()` now merges per-user overrides over plan defaults.
-2. **react-hot-toast surfacing across 18 components** (~40 silent error sites converted), including 2 unhandled `fetchPathway()` rejection wraps. Inline error banners removed from Profile, CommentSection, StarRating, billing/UpgradeModal. SharedProject inline retained (full-page blocking errors).
-3. **Doc versioning system**: new DOC_VERSIONING.md convention, root CHANGELOG.md (Keep-a-Changelog format), frontmatter on all versioned docs.
-4. **Railway production hardening**: CORS_ORIGINS, CLERK_ISSUER, CLERK_AUTHORIZED_PARTIES env vars set; sign-in confirmed working post-hardening.
+**Task:** Discovery v2 overhaul — Phases 1-4 + audit closure + HTTP integration tests + doc unification — all shipped and pushed.
+
+1. **Phases 1-4** of the unified Discovery → Design Kit overhaul. Up-front pathway assembly at project creation, unified discovery prompt targeting all module field schemas, `field_update` SSE event, ProgressPanel replacing DesignSheetPanel for v2, module-preview overlay with full a11y (role=alertdialog, Esc-to-skip), `useSSE.onFieldUpdate`. Migrations 029 + 030.
+2. **Phase 4 audit closure** — 15 audit findings resolved (2 HIGH, 8 MEDIUM, 5 LOW + 1 defensive bonus). Notable: H1 (`projects.py` downgrades orphan v2 projects to v1), H2 (`PathwayExecute.tsx` v2 redirect), M3 (`build_unified_greeting_prompt` for v2 init), M6 (`GET /discovery/{session_id}/field-summary` endpoint), defensive unknown-field-key rejection in `apply_extracted_module_fields`.
+3. **35 service-layer tests** in `backend/tests/test_discovery_v2.py` covering `_coerce_field_value`, summary aggregation, prompt builders, validation logic, the `_reset_module_library` test hook.
+4. **15 HTTP integration tests** in `backend/tests/test_discovery_v2_integration.py` using FastAPI TestClient with dependency overrides. **Caught a real production bug** — the H1 downgrade in `projects.py` was expiring `updated_at` and FastAPI's response serializer tried to lazy-load it outside the greenlet context. Fixed with `await db.refresh(project)`. Every H1-downgraded project would have hit this in production.
+5. **Doc lockdown + unification** — P0 block, Phase 5 sequencing, Regression Test Matrix, MEMORY.md / ROADMAP.md staleness fixed, cross-references between TODO ↔ CONTEXT_HANDOFF ↔ MEMORY ↔ ROADMAP, deprecation banners on the pre-v2 MODULAR_PATHWAY_*.md specs.
 
 **Date:** 2026-05-23
-**Commits:** `28ead2d` (toast migration), `3747eac` (admin system) — both pushed to main
+**Test coverage:** 91/91 backend tests pass (41 existing + 35 v2 unit + 15 v2 integration). TypeScript build clean. Frontend has zero Vitest coverage — highest-leverage TODO before Phase 5 polish.
+**Commits (all pushed to `origin/main`):** `b26837a` (Phase 4 features), `ff212f3` (audit closure + 35 tests), `57aa9d3` (integration tests + H1 prod-bug fix), `f8d3165` (doc lockdown), `585cb7d` (doc unification), + this commit (post-push doc refresh).
+**Next:** verify Railway deploy + run smoke test + rotate webhook secrets (P0). Then Phase 5: Design Kit page at `/design-kit/{projectId}`. See [`TODO.md`](TODO.md).

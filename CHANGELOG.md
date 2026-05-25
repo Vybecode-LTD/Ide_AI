@@ -4,6 +4,18 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Post-push doc refresh (2026-05-23, end-of-session)
+
+All 5 v2-overhaul + doc commits (`b26837a` `ff212f3` `57aa9d3` `f8d3165` `585cb7d`) pushed to `origin/main`. Railway auto-deploy triggered for both backend + frontend services.
+
+### Changed
+- **TODO.md P0 block** — first item (`git push origin main`) marked DONE. Remaining P0 items adjusted: verify Railway deploy succeeded → 5-min smoke test → rotate 3 exposed webhook secrets.
+- **CONTEXT_HANDOFF.md P0 block** — push marked done with ✅, smoke + secret-rotation items kept as ⚠️.
+- **MEMORY.md "Most recent session signature"** — HEAD updated, "Unpushed: 4 commits" replaced with "All pushed to GitHub and have triggered Railway auto-deploy". P0 Next item simplified to "verify + smoke + rotate".
+- **ROADMAP.md "Up Next #0"** — push step marked ✅ DONE, refocused on deploy verification + smoke + secret rotation.
+- **CLAUDE.md "Last Completed Task"** — refreshed from the way-stale admin/error-UX/doc-versioning description to reflect the v2 overhaul + audit closure + integration tests + doc unification work that actually shipped this session. Lists all 5 commits.
+- **CLAUDE.md → 2.7.4**, **CONTEXT_HANDOFF.md → 3.3.4**, **TODO.md → 3.3.3** (PATCH bumps — post-push state reflection, no feature change).
+
 ### Doc unification pass — close drift + cross-reference gaps
 
 Follow-up to the previous doc-lockdown commit. Audit caught two real-staleness issues that would have actively misled the next session, plus 4 cross-reference gaps.

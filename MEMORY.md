@@ -152,23 +152,24 @@ cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\backend" && pip install
 
 ## Most recent session signature (what to expect when resuming)
 
-- **Date:** 2026-05-23 (end-of-day marathon session — Phases 1-4 of v2 overhaul shipped)
-- **HEAD:** `f8d3165`
+- **Date:** 2026-05-23 (end-of-day marathon session — Phases 1-4 of v2 overhaul shipped + pushed)
+- **HEAD:** `(latest doc-update commit — check git log)` — last v2 work commit is `585cb7d`
+- **Remote:** `origin/main` is in sync with local `main` as of 2026-05-23 end-of-session push. **All 5 v2-overhaul + doc commits are pushed to GitHub and have triggered Railway auto-deploy.**
 - **Branch:** `main` (working tree clean except long-standing untracked AGENTS.md and docs/claude-code-package/2026-05-21-post-update-audit/)
-- **Last commits (in order, oldest first):**
+- **Last commits (in order, oldest first — all PUSHED):**
   1. `a7257e0` — Phase 3 hotfix (5 audit-found bugs + doc sweep)
   2. `b26837a` — Phase 4 features (ProgressPanel + v2 Discovery wiring + module-preview a11y)
   3. `ff212f3` — Phase 4 audit closure (15 findings + 35 unit tests)
-  4. `57aa9d3` — HTTP integration tests + H1 greenlet bug fix
+  4. `57aa9d3` — HTTP integration tests + H1 greenlet bug fix (real production bug)
   5. `f8d3165` — Doc lockdown (P0 block + sequencing + regression matrix)
-- **State:** Phases 1-4 + audit closure + integration tests ALL shipped. 91/91 backend tests pass. TypeScript build clean. Discovery v2 fully functional end-to-end on the frontend.
-- **Unpushed:** 4 commits (`b26837a` `ff212f3` `57aa9d3` `f8d3165`) — the H1 fix in `57aa9d3` is a real production bug fix and should be pushed first thing.
+  6. `585cb7d` — Doc unification (closed staleness drift + cross-reference gaps)
+- **State:** Phases 1-4 + audit closure + integration tests + all docs ALL shipped and pushed. 91/91 backend tests pass. TypeScript build clean. Discovery v2 fully functional end-to-end on the frontend. Railway auto-deploy triggered on push.
 - **Next:**
-  1. **P0:** `git push origin main` → smoke test → rotate exposed webhook secrets (see TODO.md `🔴 P0 — DO TODAY`)
+  1. **P0 (now reduced):** verify Railway deploy succeeded (both services healthy), run 5-min smoke test on https://myide.ai, rotate the 3 exposed webhook secrets. See TODO.md `🔴 P0 — DO TODAY`.
   2. **Phase 5:** Design Kit page at `/design-kit/{projectId}` — see TODO.md Phase 5 (numbered 7 items with recommended sequencing) and CONTEXT_HANDOFF.md for the full picture. Recommended order: Vitest scaffold → DesignKit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume routing → Refresh + Add Modules polish.
   3. **Phase 6:** Additional Discovery for newly-added modules
 - **Key files added this session:**
   - `frontend/src/components/discovery/ProgressPanel.tsx`
   - `backend/tests/test_discovery_v2.py` (35 service-layer tests)
   - `backend/tests/test_discovery_v2_integration.py` (15 HTTP-route tests)
-  - Project memory: `discovery-v2-architecture.md` (auto-loaded; reflects Phases 1-4 shipped state)
+  - Project memory: `discovery-v2-architecture.md` (auto-loaded; reflects Phases 1-4 shipped + pushed state)

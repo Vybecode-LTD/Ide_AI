@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.3.2 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.3 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -8,12 +8,11 @@
 
 ## 🔴 P0 — DO TODAY (before any new development)
 
-These three items unblock production users. The first is the most urgent — until the commits are pushed, the H1 greenlet bug fix is dormant and any user creating a v2 project without a category hits a 500.
-
-- [ ] **`git push origin main`** — 3 commits sit locally on `main` (`b26837a` Phase 4 features, `ff212f3` audit closure + 35 tests, `57aa9d3` integration tests + H1 greenlet fix). Railway auto-deploys both services on push. The H1 fix is a real production bug — every H1-downgraded project (POST /projects without `primary_category`, or with a failing assembly) would have hit a 500 on the response. **Push before anything else.**
-- [ ] **5-minute production smoke test** after Railway deploys:
+- [x] **`git push origin main`** — ✅ DONE 2026-05-23. 5 commits pushed (`b26837a` Phase 4, `ff212f3` audit closure, `57aa9d3` integration tests + H1 greenlet fix, `f8d3165` doc lockdown, `585cb7d` doc unification). Railway auto-deploys both services on push. **The H1 greenlet bug fix is now live — no more 500s on H1-downgraded projects.**
+- [ ] **Verify Railway deploy succeeded** — both backend + frontend services should be healthy. Backend: ~3-5 min to redeploy (Docker build + uvicorn restart). Frontend: ~2-3 min (vite build + Caddy reload). Check Railway dashboard for deploy status; watch for any build/runtime errors. If anything failed, investigate immediately.
+- [ ] **5-minute production smoke test** after Railway confirms healthy:
   - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify the 2.2s module-preview overlay appears, ProgressPanel renders on the right of Discovery, AI greeting references modules, field_update fires after each user reply.
-  - H1 in the wild: check Railway logs for `MissingGreenlet` or `ResponseValidationError` over the past 48h. If anyone hit it pre-fix, they'll be there.
+  - H1 in the wild: check Railway logs for `MissingGreenlet` or `ResponseValidationError` over the past 48h. If anyone hit it pre-fix, they'll be there. (Now mitigated by `db.refresh(project)` in `projects.py`.)
   - H2 in the wild: manually deep-link to `/pathway-execute/{any-v2-pid}` and confirm it redirects to `/discovery/`.
 - [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), update Railway env vars, send a "Send example" webhook to each to verify it still validates (200 not 401).
 
