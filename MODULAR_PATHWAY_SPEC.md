@@ -1,5 +1,9 @@
 # Modular Dynamic Design Kit Pathway — Feature Specification
 
+> ⚠️ **STATUS: Historical reference (pre-2026-05-23)** — describes the v1 modular pathway flow (Discovery → PathwayReview → PathwayExecute → per-module sessions). v1 still works for legacy projects (`projects.flow_version='v1'`) and template-created projects, but new projects default to v2's unified Discovery → Design Kit flow.
+>
+> For current v2 architecture: see [`CLAUDE.md`](CLAUDE.md) feature 5 + the auto-loaded project memory `discovery-v2-architecture.md`. For Phase 5 (Design Kit page) requirements: see [`TODO.md`](TODO.md) Phase 5.
+
 ## Overview
 
 Instead of a single fixed pathway through the design kit, IdeaForge uses a

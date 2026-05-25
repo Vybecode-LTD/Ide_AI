@@ -4,6 +4,25 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Doc unification pass — close drift + cross-reference gaps
+
+Follow-up to the previous doc-lockdown commit. Audit caught two real-staleness issues that would have actively misled the next session, plus 4 cross-reference gaps.
+
+### Fixed
+- **`MEMORY.md` Most recent session signature** was severely stale — claimed HEAD was `fb1f1b8` (4+ commits behind reality, pre-Phase-1) and listed "Next: Railway env-var setup" as if that was still pending (long done). Since MEMORY.md is read 3rd in CLAUDE.md's Session Recovery order (right after CLAUDE.md + DOC_VERSIONING), this would have given the next Claude session an obsolete mental model from the start. Refreshed to reflect actual HEAD `f8d3165`, 4 unpushed commits (highlighting the H1 prod-bug fix in `57aa9d3`), and Phase 5 as next.
+- **`ROADMAP.md` Recently Shipped + Up Next** was partially stale — said "Phases 1-2 shipped today" and listed Phases 3-6 as remaining, but actually Phases 1-4 + audit closure are all shipped. Bumped to 2.2.0. Recently Shipped now covers all 9 v2-overhaul commits; Up Next opens with P0 (push + smoke + secrets), then Phases 5-6, then Vitest scaffold, then Notion integration.
+- **Phase 5 list drift** between TODO.md (7 items) and CONTEXT_HANDOFF.md (6 items) — CONTEXT was missing the Library resume routing item. Re-synced; CONTEXT now points readers to TODO.md as canonical.
+
+### Added
+- **Cross-references in `TODO.md` frontmatter** — explicitly points readers to ROADMAP.md, CONTEXT_HANDOFF.md (incl. the Regression Test Matrix), and MEMORY.md. Closes the gap where TODO.md never mentioned CONTEXT_HANDOFF.
+- **Cross-reference in `TODO.md` Test coverage section** — "before adding tests, check the Regression Test Matrix in CONTEXT_HANDOFF.md (91 tests across 4 files)". Marks the Discovery v2 endpoint integration tests TODO as DONE (commit `57aa9d3`). Adds new SSE-streaming-tests TODO item.
+- **Cross-references in `MEMORY.md` frontmatter** — explicitly points to CONTEXT_HANDOFF.md, TODO.md, CHANGELOG.md.
+- **Cross-references in `ROADMAP.md` frontmatter** — now includes CONTEXT_HANDOFF.md alongside the existing TODO.md and CHANGELOG.md.
+- **Deprecation notes on `MODULAR_PATHWAY_SPEC.md` + `MODULAR_PATHWAY_IMPLEMENTATION_PROMPT.md`** — these were pre-v2 specs with no "superseded" indicator. New banner at the top explains they describe the v1 per-module-session flow and points readers to CLAUDE.md feature 5 + the discovery-v2-architecture memory for the current architecture.
+
+### Changed
+- **CLAUDE.md → 2.7.3** (PATCH — doc reorganization, no feature change). **CONTEXT_HANDOFF.md → 3.3.3**. **TODO.md → 3.3.2**. **ROADMAP.md → 2.2.0** (MINOR — new content covering the v2 overhaul + restructured Up Next queue).
+
 ### Doc lockdown for fresh-session pickup
 
 Closed four gaps in the handoff docs identified when preparing to start a new Claude session — work that was real but only lived in chat history wasn't durable.

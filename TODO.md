@@ -1,8 +1,8 @@
 # Ide/AI — TODO
 
-> **Version:** 3.3.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.2 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
-> Concrete actionable items. See `ROADMAP.md` for strategic direction.
+> Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
 ---
 
@@ -66,10 +66,14 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 - [ ] **`pathwayStore.ts`** and **`ErrorBoundary.tsx`** intentionally left as `console.error` — both are framework-level, not user-facing. No change needed.
 
 ### Test coverage
-- [ ] **Frontend tests** — Vitest setup + first tests for `extractError`, `inboxStore.adjust(-1)` clamping, `adminStore` mutation behaviour, `useSSE` safety-net `onDone`, `useSSE` `field_update` parsing, `ProgressPanel` expanded-set FIFO cap.
+
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (91 tests across 4 files) and the explicit gaps. Avoid duplicating coverage.
+
+- [ ] **Frontend tests** — Vitest setup + first tests for `extractError`, `inboxStore.adjust(-1)` clamping, `adminStore` mutation behaviour, `useSSE` safety-net `onDone`, `useSSE` `field_update` parsing, `ProgressPanel` expanded-set FIFO cap. **Land this BEFORE Phase 5 polish** (see Phase 5 recommended sequencing above) so subsequent Phase 5 frontend work is testable from day one.
 - [ ] **Backend admin endpoint tests** — `require_admin` rejection on non-admin user; `update_user_plan` audit log entry; `update_user_admin_flag` self-revoke block; entitlement override merge logic.
-- [ ] **Discovery v2 endpoint integration tests** — `GET /discovery/{session_id}/field-summary` (200 for v2, 409 for v1, 404 for missing); init handler v2 vs v1 prompt branching; H1 fix: POST /projects without primary_category persists flow_version='v1'. Needs FastAPI TestClient setup.
-- [ ] **Discovery v2 upsert tests** — `apply_extracted_module_fields` ON CONFLICT path requires PostgreSQL — out-of-scope for the SQLite test harness. Either add a PG-backed integration test environment or document as production-verified-only.
+- [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE in commit `57aa9d3`**. `test_discovery_v2_integration.py` covers `GET /discovery/{session_id}/field-summary` (200/409/404 + cross-user 404), H1 fix (4 cases), Phase 3 hotfix template flag, Library resume routing matrix, ProjectRead shape, session ownership. Init/message SSE-streaming endpoints still uncovered — see new test-coverage debt item below.
+- [ ] **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` v2-vs-v1 prompt branching + `/discovery/{id}/message` field_update emission. Requires mocking `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h. Closes the last big v2 backend coverage gap.
+- [ ] **Discovery v2 upsert tests** — `apply_extracted_module_fields` ON CONFLICT path requires PostgreSQL — out-of-scope for the SQLite test harness. Either add a PG-backed integration test environment (testcontainers-python) or document as production-verified-only.
 
 ### DB cleanup
 - [ ] **Orphan user row** — one row exists with `is_admin = TRUE` but no `clerk_user_id`, from the dedupe debug. Safe to leave or `DELETE FROM users WHERE id = '<orphan_id>'`. Verify no FKs reference it first:

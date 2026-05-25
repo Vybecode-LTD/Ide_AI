@@ -1,24 +1,33 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.1.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.2.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
-> Forward-looking priorities. See `TODO.md` for concrete actionable items and `CHANGELOG.md` for what already shipped.
+> Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
 ---
 
-## ✅ Recently Shipped (2026-05-23)
+## ✅ Recently Shipped (2026-05-23 marathon session)
 
-- **Realtime inbox** — SSE stream at `/inbox/stream` backed by Redis pub/sub. Replaces 60s polling. Auto-reconnect with exponential backoff. Graceful 503 fallback when `REDIS_URL` is empty.
+**Discovery v2 overhaul — Phases 1-4 + audit closure + integration tests all shipped today.** This is the big-ticket item. v1 backward-compat fully preserved, 91/91 backend tests pass, frontend TypeScript build clean.
+
+- **Phase 1** (commit `fb840de`) — module field schemas (40 modules × 154 fields), `projects.flow_version` migration 029, up-front pathway assembly at project creation
+- **Phase 2** (commit `8cfc66a`) — unified discovery prompt + `extract_module_fields` extractor + `field_update` SSE event + service helpers
+- **Phase 2 hotfix** (commit `23f5e7d`) — migration 030 (shape backfill + UNIQUE constraint), race-safe ON CONFLICT upsert, type coercion, SSE serialization safety
+- **Phase 3** (commit `94102cb`) — Home reorder (TemplateGrid below partner picker), post-create module-preview overlay
+- **Phase 3 hotfix** (commit `a7257e0`) — 5 audit-found bugs closed (setTimeout leak, billing URL preservation, template v1 flag, Library resume branching, PathwayReview v2 redirect)
+- **Phase 4** (commit `b26837a`) — `ProgressPanel` for v2, `useSSE.onFieldUpdate`, Discovery branches on `flow_version`, v2 Proceed gate routes to `/exports/{id}`, module-preview overlay a11y
+- **Phase 4 audit closure** (commit `ff212f3`) — 15 audit findings resolved (H1+H2+M*+L*), 35 unit tests added, defensive unknown-field-key rejection
+- **HTTP integration tests + H1 prod-bug fix** (commit `57aa9d3`) — 15 FastAPI TestClient tests caught a real greenlet-during-serialization bug in `projects.py` H1 path (added `await db.refresh(project)` after the downgrade)
+- **Doc lockdown** (commit `f8d3165`) — P0 block + Phase 5 sequencing + regression test matrix for fresh-session pickup
+
+**Other 2026-05-23 wins (earlier in the session):**
+- **Realtime inbox** — SSE stream at `/inbox/stream` backed by Redis pub/sub. Replaces 60s polling. Graceful 503 fallback when `REDIS_URL` is empty.
 - **Admin dashboard** at hidden `/admin` route — user search, plan controls, entitlement overrides, audit log (commit `3747eac`)
 - **Toast migration** — ~40 silent failures surfaced via `react-hot-toast` across 18 components (commit `28ead2d`)
 - **Doc-versioning system** — SemVer per doc, root CHANGELOG, Stop hook, project memory (commits `6599cd1`, `4032cbc`)
 - **Railway production hardening** — `CORS_ORIGINS`, `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` env vars active; sign-in verified end-to-end
-- **Wrap unhandled `fetchPathway()` rejections** in ModuleSession + PathwayExecute
-- **Mobile viewport conformance** across 19 pages (`.h-dvh` + `.pb-mobile-nav`, safe-area-inset)
-- **PitchMode React Flow user-flow diagram** from MVP blocks
-- **Save Place button** in Discovery, voice mic in Discovery, drag-and-drop Blocks board
 
-See `CHANGELOG.md` for the full per-commit breakdown.
+See [`CHANGELOG.md`](CHANGELOG.md) for the full per-commit breakdown and [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for the current-state snapshot.
 
 ---
 
@@ -46,15 +55,15 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 ## 🚧 Up Next (Queue)
 
-User-prioritized order for the next sessions:
+User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the concrete actionable breakdown of each item.
 
-1. **Unified Discovery overhaul** — major restructure across 6 phases. Phases 1-2 shipped today (backend foundation + unified discovery prompt + field_update SSE event). Remaining phases:
-   - **Phase 3 (frontend):** Home category selector + brief module preview before Discovery starts
-   - **Phase 4 (frontend):** replace `DesignSheetPanel` with `ProgressPanel` (overall % + expandable per-module breakdown, Proceed always available, consumes the `field_update` event)
-   - **Phase 5 (frontend):** new `/design-kit/{projectId}` page with Edit + Refresh per module + Add Modules button
-   - **Phase 6 (full stack):** Additional discovery flow for newly-added modules
-2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
-3. _(open — pick from Medium-Term Features below)_
+0. **P0 — push the 4 unpushed commits to `main`** + smoke test + rotate exposed webhook secrets. The H1 fix in `57aa9d3` is a real production bug that's dormant until pushed. (Detail in [`TODO.md`](TODO.md) `🔴 P0 — DO TODAY` block.)
+1. **Unified Discovery overhaul Phases 5-6** — Phases 1-4 + audit closure all shipped today. Remaining:
+   - **Phase 5:** new `/design-kit/{projectId}` page with Edit + Refresh per module + Add Modules button. Includes new backend endpoints `PATCH /modules/{pid}/{mid}/responses` and `POST /modules/{pid}/{mid}/refresh-output`. Recommended sequence: Vitest scaffold + first frontend tests → Design Kit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume update → Refresh + Add Modules polish. (Full breakdown in [`TODO.md`](TODO.md) Phase 5 section.)
+   - **Phase 6:** Additional discovery flow for newly-added modules (mini unified-Discovery scoped to just newly-added unfilled fields)
+2. **Vitest frontend test scaffold** — currently zero frontend tests; should land EARLY in Phase 5 work so subsequent forms/optimistic-updates/refresh-affordances are testable. First tests: `useSSE` field_update parsing, `ProgressPanel` rendering + FIFO cap, `Discovery` flow_version branching, `extractError`.
+3. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
+4. _(open — pick from Medium-Term Features below)_
 
 ---
 

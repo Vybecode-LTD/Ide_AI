@@ -1,5 +1,9 @@
 # Developer Implementation Prompt — Modular Dynamic Design Kit Pathway
 
+> ⚠️ **STATUS: Historical (pre-2026-05-23 implementation prompt)** — this prompt drove the v1 implementation (per-module sessions). Phases 1-4 of the Discovery v2 overhaul have since superseded the v1 module-session flow for new projects. Don't re-execute this prompt as-is for new work.
+>
+> For current Phase 5 work (Design Kit page at `/design-kit/{projectId}`): see [`TODO.md`](TODO.md) Phase 5 section.
+
 Read MODULAR_PATHWAY_SPEC.md fully before doing anything.
 Read PRD.md, ARCHITECTURE.md, and FEATURE_SPEC.md for existing system context.
 

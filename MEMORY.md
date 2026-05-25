@@ -2,6 +2,7 @@
 
 > Long-term context that Claude Code sessions should remember.
 > Read after CLAUDE.md on every session start.
+> Cross-references: [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, [`TODO.md`](TODO.md) for next actions, [`CHANGELOG.md`](CHANGELOG.md) for change history.
 > **Last updated:** 2026-05-23
 
 ---
@@ -151,13 +152,23 @@ cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\backend" && pip install
 
 ## Most recent session signature (what to expect when resuming)
 
-- **Date:** 2026-05-23
-- **HEAD:** `fb1f1b8`
-- **Branch:** `main` (clean working tree except untracked AGENTS.md and docs/claude-code-package/)
-- **Last commits (in order):**
-  1. `9c5ef1c` — transcript fix + Save Place button
-  2. `5db42eb` — 5 critical spec gaps from audit
-  3. `253b30a` — 8 remaining audit findings with 2-agent verification
-  4. `fb1f1b8` — mobile viewport + Proceed button fixes
-- **State:** Codebase fully audited, mobile-ready, all known UX bugs from this session closed
-- **Next:** Railway env-var setup (see TODO.md BLOCKING section), then optional polish from TODO.md HIGH PRIORITY
+- **Date:** 2026-05-23 (end-of-day marathon session — Phases 1-4 of v2 overhaul shipped)
+- **HEAD:** `f8d3165`
+- **Branch:** `main` (working tree clean except long-standing untracked AGENTS.md and docs/claude-code-package/2026-05-21-post-update-audit/)
+- **Last commits (in order, oldest first):**
+  1. `a7257e0` — Phase 3 hotfix (5 audit-found bugs + doc sweep)
+  2. `b26837a` — Phase 4 features (ProgressPanel + v2 Discovery wiring + module-preview a11y)
+  3. `ff212f3` — Phase 4 audit closure (15 findings + 35 unit tests)
+  4. `57aa9d3` — HTTP integration tests + H1 greenlet bug fix
+  5. `f8d3165` — Doc lockdown (P0 block + sequencing + regression matrix)
+- **State:** Phases 1-4 + audit closure + integration tests ALL shipped. 91/91 backend tests pass. TypeScript build clean. Discovery v2 fully functional end-to-end on the frontend.
+- **Unpushed:** 4 commits (`b26837a` `ff212f3` `57aa9d3` `f8d3165`) — the H1 fix in `57aa9d3` is a real production bug fix and should be pushed first thing.
+- **Next:**
+  1. **P0:** `git push origin main` → smoke test → rotate exposed webhook secrets (see TODO.md `🔴 P0 — DO TODAY`)
+  2. **Phase 5:** Design Kit page at `/design-kit/{projectId}` — see TODO.md Phase 5 (numbered 7 items with recommended sequencing) and CONTEXT_HANDOFF.md for the full picture. Recommended order: Vitest scaffold → DesignKit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume routing → Refresh + Add Modules polish.
+  3. **Phase 6:** Additional Discovery for newly-added modules
+- **Key files added this session:**
+  - `frontend/src/components/discovery/ProgressPanel.tsx`
+  - `backend/tests/test_discovery_v2.py` (35 service-layer tests)
+  - `backend/tests/test_discovery_v2_integration.py` (15 HTTP-route tests)
+  - Project memory: `discovery-v2-architecture.md` (auto-loaded; reflects Phases 1-4 shipped state)

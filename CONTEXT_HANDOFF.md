@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.3.2 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.3 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -252,22 +252,25 @@ See `TODO.md` P0 block for full smoke-test checklist.
 
 ### 🚦 Phase 5 next steps (Design Kit page at /design-kit/{projectId})
 
-1. **New `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Replaces `/exports/{id}` as the v2 Proceed destination.
-2. **Per-module Edit affordance** — inline form rendering each module's `fields` schema. PATCH writes to `module_responses.responses`. (New backend endpoint required: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`.)
-3. **Refresh affordance on `has_output` modules** — regenerate that module's structured output (the 6 modules flagged `has_output: true` in `module_library.seed.json`). Backend: `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` calling the existing module-output prompt builder.
-4. **Add Modules button** at the top — opens a category-filtered picker; selected modules append to `module_pathways.modules`. Phase 6 will trigger an additional-discovery mini-session for any newly-added modules' unfilled required fields.
-5. **Swap the v2 Proceed button destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once the new page exists.
-6. **Update Library resume routing** (`_compute_resume_path`) — v2 projects with high field-completion could route to `/design-kit/{id}` rather than back to `/discovery/{id}`.
+The canonical 7-item Phase 5 list lives in [`TODO.md`](TODO.md) Phase 5 section with full detail per item, dependencies, and required test additions. Summary:
+
+1. **`pages/DesignKit.tsx` + route** at `/design-kit/:projectId` — module cards using `field_summary` shape for hydration
+2. **Per-module Edit affordance** — inline form per module schema, dispatches PATCH on save
+3. **Backend `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — partial-update with schema validation. **Must reuse `_coerce_field_value` AND the defensive unknown-field-key rejection pattern from `apply_extracted_module_fields`** (audit-closure defense, two surfaces)
+4. **Refresh affordance** on the 6 `has_output` modules — new backend `POST /api/v1/modules/{project_id}/{module_id}/refresh-output`
+5. **"Add Modules" button** + category-filtered picker — new backend `POST /api/v1/projects/{project_id}/pathway/modules` for the append
+6. **Swap v2 Proceed destination** from `/exports/{id}` to `/design-kit/{id}` in `Discovery.tsx`
+7. **Update `_compute_resume_path`** in `backend/app/routers/library.py` so highly-completed v2 projects resume to `/design-kit/{id}`
 
 _Note: `GET /discovery/{session_id}/field-summary` already shipped in commit `ff212f3` (audit M6 closure)._
 
-**Recommended sequencing** (see TODO.md Phase 5 section for full detail):
+**Recommended sequencing** (see [`TODO.md`](TODO.md) Phase 5 section for full detail):
 1. Land Vitest scaffold + 4-5 frontend tests FIRST (before Phase 5 polish) so Edit/Refresh forms are testable from day one
-2. Design Kit page shell + Edit + PATCH endpoint
-3. Proceed destination swap + Library resume update
-4. Refresh + Add Modules (polish)
+2. Design Kit page shell + Edit + PATCH endpoint (items 1-3)
+3. Proceed destination swap + Library resume update (items 6-7)
+4. Refresh + Add Modules polish (items 4-5)
 
-For every new endpoint, add a matching integration test in `test_discovery_v2_integration.py` BEFORE declaring done. The integration suite caught H1 — keep that habit.
+For every new endpoint, add a matching integration test in `backend/tests/test_discovery_v2_integration.py` BEFORE declaring done. The integration suite caught the H1 greenlet bug — keep that habit. See the **Regression Test Matrix** section below for the full code-path → test-file map.
 
 ### 🔐 Security hygiene (recommended but not blocking)
 
