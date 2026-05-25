@@ -224,7 +224,7 @@ export function ModuleSession() {
                       : 'bg-white/[0.05] text-white/90 rounded-bl-md'
                   }`}
                 >
-                  {msg.content.replace(/\[CHIPS:.*?\]\s*$/, '').trim()}
+                  {msg.content.replace(/\[CHIPS:.*?\]\s*$/i, '').replace(/\[MODULE_COMPLETE\]/g, '').trim()}
                 </div>
               </div>
             ))}
@@ -233,7 +233,7 @@ export function ModuleSession() {
             {streamingContent && (
               <div className="flex justify-start">
                 <div className="max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-2xl rounded-bl-md bg-white/[0.05] text-white/90 text-sm leading-relaxed">
-                  {streamingContent.replace(/\[CHIPS:.*?\]\s*$/, '').trim()}
+                  {streamingContent.replace(/\[CHIPS:.*?\]\s*$/i, '').replace(/\[MODULE_COMPLETE\]/g, '').trim()}
                   <span className="inline-block w-1.5 h-4 bg-accent/50 animate-pulse ml-0.5" />
                 </div>
               </div>

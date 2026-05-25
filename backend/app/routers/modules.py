@@ -25,7 +25,9 @@ from app.schemas.module_pathway import (
     ModuleSummaryResponse,
 )
 from app.services.module_service import (
+    _question_range,
     build_module_system_prompt,
+    count_questions_asked,
     cross_populate_fields,
     extract_module_output,
     generate_first_question,
@@ -175,6 +177,8 @@ async def start_module(
 
     mode = pathway.lite_deep_settings.get(module_id, "lite")
 
+    _min_q, max_q_start = _question_range(mode)
+
     # Resume: return existing active session messages instead of overwriting
     if module_resp and module_resp.status == "active":
         messages = (module_resp.responses or {}).get("messages", [])
@@ -183,7 +187,7 @@ async def start_module(
             "label": defn["label"],
             "messages": messages,
             "question_number": sum(1 for m in messages if m.get("role") == "assistant"),
-            "total_questions": 10 if mode == "deep" else 3,
+            "total_questions": max_q_start,
             "mode": mode,
             "resumed": True,
         }
@@ -228,7 +232,7 @@ async def start_module(
         "label": defn["label"],
         "question": first_question,
         "question_number": 1,
-        "total_questions": 10 if mode == "deep" else 3,
+        "total_questions": max_q_start,
         "mode": mode,
     }
 
@@ -276,7 +280,10 @@ async def respond_to_module(
     # Build Claude messages
     claude_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
 
-    # Build system prompt with cross-populated context
+    # Count questions already asked (assistant messages before this response)
+    questions_asked = count_questions_asked(messages)
+
+    # Build system prompt with cross-populated context + question count
     concept_sheet = await _get_concept_sheet_dict(project_id, db)
     completed_outputs = await _get_completed_module_outputs(project_id, db)
     pre_populated = cross_populate_fields(completed_outputs, module_id)
@@ -287,7 +294,10 @@ async def respond_to_module(
         ai_partner_style=project.ai_partner_style or "strategist",
         mode=mode,
         pre_populated=pre_populated,
+        questions_asked=questions_asked,
     )
+
+    _min_q, max_q = _question_range(mode)
 
     # Stream response
     async def event_stream():
@@ -298,6 +308,11 @@ async def respond_to_module(
 
         response_text = "".join(full_response)
         complete = is_module_complete(response_text)
+
+        # Force-complete if AI exceeded question limit without emitting marker
+        new_question_count = questions_asked + 1  # this response is another assistant turn
+        if not complete and new_question_count >= max_q:
+            complete = True
 
         # Store assistant message
         messages.append({"role": "assistant", "content": response_text})

@@ -105,6 +105,7 @@ def build_module_system_prompt(
     ai_partner_style: str = DEFAULT_PARTNER_STYLE,
     mode: str = "lite",
     pre_populated: dict | None = None,
+    questions_asked: int = 0,
 ) -> str:
     """
     Build the system prompt for a module conversation session.
@@ -128,6 +129,23 @@ def build_module_system_prompt(
         "Each question should build on the previous answer.",
         "Be conversational but efficient — don't repeat what the user already told you.",
     ]
+
+    if questions_asked > 0:
+        parts.append(f"\nYou have already asked {questions_asked} question(s) out of a maximum of {max_q}.")
+
+    if questions_asked >= max_q:
+        parts.append(
+            "\n⚠️ CRITICAL: You have reached the maximum number of questions. "
+            "You MUST NOT ask any more questions. Your next response MUST be a "
+            "summary of key decisions followed by [MODULE_COMPLETE] on its own line. "
+            "Do NOT ask another question under any circumstances."
+        )
+    elif questions_asked >= max_q - 1:
+        parts.append(
+            "\n⚠️ This is your LAST question. After the user answers, your next "
+            "response MUST summarise the key decisions and end with [MODULE_COMPLETE] "
+            "on its own line. Do NOT ask follow-up questions."
+        )
 
     if mode == "deep":
         parts.append(
@@ -175,11 +193,15 @@ def build_module_system_prompt(
     # Output instructions
     parts.append(
         "\n--- Output Rules ---"
-        "\nWhen you have asked all your questions, output a final message that:"
-        "\n1. Summarises the key decisions made"
+        f"\nYou have a HARD LIMIT of {max_q} questions for this module."
+        "\nAfter you have asked enough questions (or reached the limit), your VERY NEXT "
+        "response MUST be a completion message that:"
+        "\n1. Briefly summarises the key decisions made (2-4 bullet points)"
         "\n2. Ends with exactly this marker on its own line: [MODULE_COMPLETE]"
-        "\n\nAfter each question, suggest 2-3 quick reply options on the LAST line as: "
-        "[CHIPS: option1 | option2 | option3]"
+        "\n\nDo NOT keep asking questions past the limit. Do NOT ask 'is there anything else'. "
+        "When the limit is reached, SUMMARISE AND COMPLETE."
+        "\n\nAfter each question (but NOT in the completion summary), suggest 2-3 quick "
+        "reply options on the LAST line as: [CHIPS: option1 | option2 | option3]"
     )
 
     return "\n".join(parts)
