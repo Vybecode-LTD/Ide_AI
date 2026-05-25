@@ -28,7 +28,7 @@ export function ChatThread({ messages, streamingContent }: ChatThreadProps) {
   }, [messages, streamingContent])
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 space-y-3 md:space-y-4">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4 space-y-3 md:space-y-4">
       {messages.map((msg, i) => (
         <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <div

@@ -373,7 +373,7 @@ export function Discovery() {
       />
       <Sidebar projectId={projectId} />
 
-      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col min-h-0">
+      <div className="ml-0 md:ml-[232px] pb-mobile-nav md:pb-0 flex-1 flex flex-col min-h-0 min-w-0 overflow-x-hidden">
         {/* M2/L3: hide the stage-name subtitle for v2 — there's no meaningful
             stage progression in the unified flow (session.stage stays at
             "greeting" forever). The progress % is shown via the mobile badge
@@ -429,7 +429,7 @@ export function Discovery() {
           )}
 
           {/* Center: Chat — hidden on mobile when sheet is shown */}
-          <div className={`flex-1 flex flex-col min-h-0 ${showSheet ? 'hidden md:flex' : 'flex'}`}>
+          <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${showSheet ? 'hidden md:flex' : 'flex'}`}>
             {/* Mobile stage indicator (v1 only) */}
             {flowVersion !== 'v2' && (
               <div className="md:hidden flex items-center gap-2 px-4 py-2 border-b border-border bg-surface/30 overflow-x-auto">
@@ -462,27 +462,31 @@ export function Discovery() {
               </div>
             )}
             {projectId && flowVersion === 'v2' && fieldSummary && fieldSummary.total_fields > 0 && (() => {
-              // Audit M8: gate on total_fields > 0 (not required_total) so
-              // pathways made entirely of optional fields still get a Proceed
-              // button. The required-percent warning chip only shows when
-              // there actually are required fields to gate on.
+              // Gate: button is visible once we know about fields, but DISABLED
+              // until ALL required fields are filled (100%). Pathways with zero
+              // required fields (all-optional) are always ready.
               const hasRequired = fieldSummary.required_total > 0
               const requiredPct = hasRequired
                 ? Math.round((fieldSummary.required_filled / fieldSummary.required_total) * 100)
                 : 100
-              const short = hasRequired && requiredPct < 80
+              const ready = requiredPct >= 100
               return (
                 <div className="px-3 md:px-4 py-2 shrink-0">
                   <PulseBeacon id="discovery:proceed">
                     <button
                       type="button"
-                      onClick={() => navigate(`/design-kit/${projectId}`)}
-                      className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent/20 text-accent border border-accent/30 hover:bg-accent/30 transition-colors flex items-center justify-center gap-2"
+                      onClick={() => ready && navigate(`/design-kit/${projectId}`)}
+                      disabled={!ready}
+                      className={`w-full py-2.5 rounded-xl text-sm font-semibold border transition-colors flex items-center justify-center gap-2 ${
+                        ready
+                          ? 'bg-accent/20 text-accent border-accent/30 hover:bg-accent/30 cursor-pointer'
+                          : 'bg-white/5 text-text-muted border-border cursor-not-allowed opacity-60'
+                      }`}
                     >
                       <span>{scopeModuleIds ? 'Back to Design Kit' : 'Proceed to Design Kit'}</span>
-                      {short && (
-                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/30 text-amber-300">
-                          {requiredPct}% required — keep going?
+                      {!ready && hasRequired && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 border border-border text-text-muted">
+                          {requiredPct}% complete
                         </span>
                       )}
                     </button>

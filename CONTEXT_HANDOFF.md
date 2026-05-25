@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.5.2 · **Last updated:** 2026-05-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.5.3 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,20 +38,22 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-24) — Phase 5 + Phase 6 + Audit Hardening
+## Current Session (2026-05-25) — Production bug fixes + push
 
-Built Phase 5 (Design Kit page, Edit, Refresh, Add Modules), Phase 6 (mini-Discovery scoped sessions), ran a 6-agent audit of Phase 6, and applied all fixes + 16 regression tests. All 6 phases of the v2 overhaul are now complete and audit-hardened.
+Pushed all pending commits to Railway. Live-tested the deployment and found 3 production bugs:
+1. **Mobile overflow** — AI messages went off-screen on phones (flex `min-width: auto` default)
+2. **Premature proceed button** — clickable at 35% instead of waiting for 100% required fields
+3. **Extraction stalling** — field extraction plateaued at ~85%, never reaching 100%
 
-### Commits this session (pending push)
+All 3 fixed, regression-tested (150 backend + 31 frontend + TypeScript clean), committed, and pushed.
+
+### Commits this session
 
 | Hash | What |
 |------|------|
-| `01af5a6` | test(frontend): add Vitest scaffold + 31 first tests |
-| `f6682cd` | feat(discovery v2): Phase 5 — Design Kit page + Edit endpoint + routing |
-| `d329b6b` | feat(discovery v2): Phase 5 polish — Refresh output + Add Modules |
-| `69b3276` | fix: audit fixes for Phase 5 — filter draft keys + cap module additions |
-| (pending) | feat(discovery v2): Phase 6 — mini-Discovery scoped sessions |
-| (pending) | fix: Phase 6 audit — scope validation, orphan safety, 16 regression tests |
+| `b742f60` | test+fix: 27 admin endpoint tests + toast cleanup for Home/SprintPlanner |
+| `7c69e81` | feat(discovery v2): Phase 6 — scoped mini-Discovery sessions + audit hardening |
+| (pending) | fix: 3 production bugs — mobile overflow, proceed gate, extraction stalling |
 
 ### Previous session (2026-05-23) — Marathon Day
 

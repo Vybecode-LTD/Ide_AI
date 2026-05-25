@@ -13,7 +13,7 @@ export function QuickChips({ chips, onSelect, disabled }: QuickChipsProps) {
   if (!chips.length) return null
 
   return (
-    <div className="flex flex-wrap gap-1.5 md:gap-2 px-3 md:px-6 py-2 max-h-28 md:max-h-none overflow-y-auto">
+    <div className="flex flex-wrap gap-1.5 md:gap-2 px-3 md:px-6 py-2 max-h-28 md:max-h-none overflow-y-auto overflow-x-hidden">
       {chips.map((chip, i) => (
         <button
           key={i}

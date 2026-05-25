@@ -4,6 +4,17 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Production bug fixes — mobile overflow, proceed gate, extraction (2026-05-25)
+
+### Fixed
+- **Mobile horizontal overflow in Discovery** — AI partner messages and quick-reply chips overflowed the viewport on mobile. Added `min-w-0` to flex containers in Discovery.tsx and `overflow-x-hidden` to ChatThread.tsx and QuickChips.tsx.
+- **Proceed button activated prematurely** — "Proceed to Design Kit" was clickable at any completion percentage. Now disabled until 100% of required fields are filled; shows muted `N% complete` badge when below 100%.
+- **Field extraction stalled at ~85%** — Two root causes: (1) extraction prompt received the entire conversation history, diluting signal for recent answers; (2) extraction rules were too conservative, skipping implied answers. Fixed by windowing extraction to last 8 messages (`_EXTRACTION_WINDOW`) and making extraction aggressive (synthesize answers from context, extract partial matches).
+
+### Changed
+- **Discovery system prompt** — Added rules "NAME THE TARGET" (phrase questions to map directly to fields) and "ACKNOWLEDGE AND FILL" (move to next field immediately after acknowledgment). Strengthened vague-answer handling to suggest concrete answers for confirmation.
+- **Extraction prompt** — Now includes a "STILL MISSING" section listing unfilled fields explicitly. Rules rewritten to extract aggressively and synthesize reasonable answers from context.
+
 ### Admin tests + toast cleanup (2026-05-24)
 
 ### Added

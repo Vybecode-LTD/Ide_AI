@@ -436,22 +436,31 @@ Turn count so far: {message_count}
    field marked "STATUS: missing" (top-to-bottom). Ask a focused, specific question
    that elicits a direct answer for that field. Never stack multiple questions.
 
-2. NEVER REPEAT YOURSELF. If you already asked something or made a point, don't
+2. NAME THE TARGET. When you ask a question, phrase it so the user's answer directly
+   maps to a specific field. For example, if asking about "target_market" in the
+   audience module, say: "Who is the primary audience for this?" — NOT a vague
+   "tell me more about your idea".
+
+3. ACKNOWLEDGE AND FILL. When the user answers, briefly acknowledge their answer
+   (1 sentence), then IMMEDIATELY move to the next missing REQUIRED field. Don't
+   linger on a topic once you have enough to fill the field.
+
+4. NEVER REPEAT YOURSELF. If you already asked something or made a point, don't
    say it again in any form. Each response must cover NEW GROUND.
 
-3. SHORT RESPONSES. 2-4 sentences max (excluding the chips line). Rapid-fire
+5. SHORT RESPONSES. 2-4 sentences max (excluding the chips line). Rapid-fire
    collaboration, not lectures.
 
-4. PROGRESS RELENTLESSLY. Every turn must fill at least one missing field. If the
-   user's answer was vague, dig deeper on THAT answer (don't restart the topic).
+6. PROGRESS RELENTLESSLY. Every turn must fill at least one missing field. If the
+   user's answer was vague, give them a concrete suggestion and ask them to confirm.
 
-5. AFTER REQUIRED FIELDS ARE FILLED, you may gather optional fields. Make it clear
+7. AFTER REQUIRED FIELDS ARE FILLED, you may gather optional fields. Make it clear
    the user can hit "Proceed to Design Kit" whenever they want — you're not gating.
 
-6. RESPECT WHAT'S FILLED. Build on filled values to ask better questions about
+8. RESPECT WHAT'S FILLED. Build on filled values to ask better questions about
    adjacent missing fields. Don't ask the user to repeat information you can see.
 
-7. VARY YOUR APPROACH. Sometimes lead with an insight about what they said,
+9. VARY YOUR APPROACH. Sometimes lead with an insight about what they said,
    sometimes challenge an assumption, sometimes offer a concrete suggestion.
    Never two consecutive responses opening with "Great!" or "That's interesting!".""")
 
@@ -558,42 +567,53 @@ async def extract_module_fields(
     Returns a dict mapping ``"module_id.field_key"`` to the extracted value.
     Lists become JSON arrays; dicts become JSON objects; text/longtext become
     strings. Empty dict if extraction fails or finds nothing new.
+
+    To avoid diluting the signal as the conversation grows, we pass only the
+    last ``_EXTRACTION_WINDOW`` messages for extraction while listing all
+    already-filled values so the model knows what's been covered.
     """
     if not modules:
         return {}
 
     schema_lines: list[str] = []
+    missing_lines: list[str] = []
     filled_lines: list[str] = []
     for mod in modules:
         mid = mod.get("module_id") or mod.get("id")
         if not mid:
             continue
+        filled_for_module = current_fields.get(mid, {})
         for f in mod.get("fields") or []:
             fk = f.get("key", "")
             ftype = f.get("type", "text")
-            req = "required" if f.get("required") else "optional"
+            req = "REQUIRED" if f.get("required") else "optional"
             hint = f.get("extraction_hint", "")
             schema_lines.append(f"- {mid}.{fk} ({ftype}, {req}): {hint}")
-        filled_for_module = current_fields.get(mid, {})
+            if fk not in filled_for_module:
+                missing_lines.append(f"- {mid}.{fk} ({ftype}, {req}): {hint}")
         for fk, val in filled_for_module.items():
             preview = str(val)[:120]
             filled_lines.append(f"- {mid}.{fk} = {preview}")
 
-    extraction_prompt = f"""Extract NEW factual information from the conversation that matches these field schemas.
+    extraction_prompt = f"""Extract factual information from the RECENT MESSAGES below that can fill any of the STILL MISSING fields.
 Return ONLY a JSON object mapping "module_id.field_key" to the extracted value.
 
-Field schemas (the only valid keys you may return):
+ALL field schemas (the only valid keys you may return):
 {chr(10).join(schema_lines)}
 
-Already filled (do NOT repeat unless the user explicitly updated them in the latest messages):
+STILL MISSING — these are the fields you should TRY HARDEST to fill:
+{chr(10).join(missing_lines) if missing_lines else '(all fields filled!)'}
+
+Already filled (do NOT repeat unless the user EXPLICITLY corrected or updated them):
 {chr(10).join(filled_lines) if filled_lines else '(nothing filled yet)'}
 
 Rules:
 - For "list" fields, return a JSON array of strings
 - For "dict" fields, return a JSON object — IMPORTANT: include the FULL object (all existing keys merged with any new ones from the conversation). The storage layer replaces dict values wholesale, so a partial dict would erase keys you don't include.
 - For "text" / "longtext" fields, return a JSON string
-- ONLY include fields where you have NEW information from the latest user messages
-- If unsure, OMIT the field entirely (do not return null or empty strings)
+- Extract AGGRESSIVELY — if the user's answer implies, suggests, or partially addresses a missing field, extract it. Don't wait for a word-perfect answer.
+- Synthesize answers when reasonable. If the user said "I want to help people cook better meals" and a field asks for "target audience", extract "Home cooks looking to improve their skills".
+- OMIT a field ONLY if there is genuinely zero signal for it in recent messages
 - Return strictly JSON. No commentary, no markdown.
 
 Example return shape:
@@ -603,7 +623,11 @@ Example return shape:
   "problem_opportunity_framer.urgency": "AI tooling just became affordable"
 }}"""
 
-    extraction_messages = list(messages) + [{"role": "user", "content": extraction_prompt}]
+    # Limit extraction context to the last N messages to keep the model focused
+    # on what was JUST discussed rather than re-scanning the entire history.
+    _EXTRACTION_WINDOW = 8  # ~4 user-assistant pairs
+    recent_messages = messages[-_EXTRACTION_WINDOW:] if len(messages) > _EXTRACTION_WINDOW else list(messages)
+    extraction_messages = recent_messages + [{"role": "user", "content": extraction_prompt}]
 
     try:
         response = await client.messages.create(
