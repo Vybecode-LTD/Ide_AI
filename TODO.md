@@ -1,28 +1,44 @@
 # Ide/AI — TODO
 
-> **Version:** 3.3.0 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See `ROADMAP.md` for strategic direction.
 
 ---
 
-## 🔴 BLOCKING
+## 🔴 P0 — DO TODAY (before any new development)
 
-_Nothing currently blocking. Phase 4 + the post-Phase-4 audit closure are both shipped. Phase 5 (Design Kit page) is the next development slice, not a blocker._
+These three items unblock production users. The first is the most urgent — until the commits are pushed, the H1 greenlet bug fix is dormant and any user creating a v2 project without a category hits a 500.
+
+- [ ] **`git push origin main`** — 3 commits sit locally on `main` (`b26837a` Phase 4 features, `ff212f3` audit closure + 35 tests, `57aa9d3` integration tests + H1 greenlet fix). Railway auto-deploys both services on push. The H1 fix is a real production bug — every H1-downgraded project (POST /projects without `primary_category`, or with a failing assembly) would have hit a 500 on the response. **Push before anything else.**
+- [ ] **5-minute production smoke test** after Railway deploys:
+  - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify the 2.2s module-preview overlay appears, ProgressPanel renders on the right of Discovery, AI greeting references modules, field_update fires after each user reply.
+  - H1 in the wild: check Railway logs for `MissingGreenlet` or `ResponseValidationError` over the past 48h. If anyone hit it pre-fix, they'll be there.
+  - H2 in the wild: manually deep-link to `/pathway-execute/{any-v2-pid}` and confirm it redirects to `/discovery/`.
+- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), update Railway env vars, send a "Send example" webhook to each to verify it still validates (200 not 401).
 
 ---
 
 ## 🚦 Phase 5 — Design Kit page at /design-kit/{projectId} (next active work)
 
-Phase 4 + audit closure are shipped. Phase 5 builds the final v2 destination — a per-project Design Kit view that replaces `/exports/{id}` as the Proceed target.
+Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the final v2 destination — a per-project Design Kit view that replaces `/exports/{id}` as the Proceed target.
 
-- [ ] **`pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Each assembled module renders as a card with its current field values + an Edit button.
-- [ ] **Per-module Edit affordance** — inline form per module showing every field schema (label / type / required indicator). Save dispatches PATCH to a new backend endpoint that writes into `module_responses.responses`.
-- [ ] **Backend: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — partial-update fields on a module response. Validates keys against the module's `fields` schema. Should reuse `_coerce_field_value` for type safety. The defensive unknown-field-key check added in `apply_extracted_module_fields` is the pattern to follow.
-- [ ] **Refresh affordance for `has_output` modules** — 6 of the 40 modules have `has_output: true`. UI: "Regenerate output" button per such module card. Backend: `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` runs the existing module-output prompt builder against the current responses.
-- [ ] **"Add Modules" button** at the top — opens a category-filtered picker (reuses the module library data). Selected modules append to `module_pathways.modules`. Phase 6 will trigger additional Discovery for any newly-added modules' unfilled required fields.
-- [ ] **Swap the v2 Proceed destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once the page lands.
-- [ ] **Update Library resume routing** in `backend/app/routers/library.py:_compute_resume_path` — v2 projects whose pathway has all-required fields filled should resume to `/design-kit/{id}` instead of `/discovery/{id}`.
+**Recommended sequencing** (not a strict gate, but the order that protects you from regressions):
+
+1. **First, land the Vitest scaffold + 4-5 frontend tests** (currently in HIGH PRIORITY → Test coverage below). The Phase 5 forms + optimistic updates + refresh affordances are non-trivial frontend complexity, and there's zero Vitest coverage today. Landing the scaffold + first tests as item zero of Phase 5 means subsequent work is testable from day one. Skip this and you'll discover bugs only on Railway.
+2. **Then the Design Kit page shell + Edit affordance + PATCH endpoint** (items 1-3 below) — the core user-visible value.
+3. **Then swap the Proceed destination + update Library resume routing** (items 6-7) — small but visible. Do these together so v2 users immediately benefit.
+4. **Then Refresh + Add Modules** (items 4-5) — polish that completes Phase 5.
+
+For each new endpoint added in Phase 5, **add a matching integration test in `test_discovery_v2_integration.py`** before declaring the task done. The integration suite caught the H1 greenlet bug — keep that habit.
+
+- [ ] **1. `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Each assembled module renders as a card with its current field values + an Edit button. Use the `field_summary` shape from M6 endpoint to hydrate.
+- [ ] **2. Per-module Edit affordance** — inline form per module showing every field schema (label / type / required indicator). Save dispatches PATCH to the new backend endpoint that writes into `module_responses.responses`. Field-type-aware inputs (text/longtext/list-as-chips/dict-as-key-value-rows).
+- [ ] **3. Backend: `PATCH /api/v1/modules/{project_id}/{module_id}/responses`** — partial-update fields on a module response. Validates keys against the module's `fields` schema. **Must reuse `_coerce_field_value` for type safety AND the defensive unknown-field-key rejection pattern added in `apply_extracted_module_fields`** — same defense, two surfaces.
+- [ ] **4. Refresh affordance for `has_output` modules** — 6 of the 40 modules have `has_output: true`. UI: "Regenerate output" button per such module card. Backend: `POST /api/v1/modules/{project_id}/{module_id}/refresh-output` runs the existing module-output prompt builder against the current responses. Returns 400 for non-has_output modules.
+- [ ] **5. "Add Modules" button** at the top — opens a category-filtered picker (reuses the module library data via existing endpoint). Selected modules append to `module_pathways.modules`. New backend: `POST /api/v1/projects/{project_id}/pathway/modules` for the append operation. Phase 6 picks up newly-added unfilled modules.
+- [ ] **6. Swap the v2 Proceed destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once item 1 lands. Existing M8 test covers Proceed rendering — no new test needed.
+- [ ] **7. Update Library resume routing** in `backend/app/routers/library.py:_compute_resume_path` — v2 projects whose pathway has all-required fields filled should resume to `/design-kit/{id}` instead of `/discovery/{id}`. Extend `TestLibraryResumeRouting.test_v2_project_resumes_to_discovery` with completed-summary cases routing to design-kit.
 
 ---
 

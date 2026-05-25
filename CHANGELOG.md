@@ -4,6 +4,17 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Doc lockdown for fresh-session pickup
+
+Closed four gaps in the handoff docs identified when preparing to start a new Claude session — work that was real but only lived in chat history wasn't durable.
+
+### Changed
+- **Project memory `discovery-v2-architecture.md`** rewritten to reflect Phases 1-4 + audit closure + integration tests all shipped. Previous version said "Phase 4 NEXT" which would have given the next session wrong context on auto-load.
+- **`TODO.md`** — added a new `🔴 P0 — DO TODAY` block at the top covering the 3 unpushed commits + smoke test + webhook secret rotation. Until those commits are pushed the H1 greenlet fix is dormant in production.
+- **`TODO.md` Phase 5 section** — added a **Recommended sequencing** subsection explaining Vitest scaffold should land BEFORE Phase 5 polish (Refresh / Add Modules), and that every new endpoint should ship with a matching `test_discovery_v2_integration.py` test before declaring done. Numbered the 7 items for easier reference.
+- **`CONTEXT_HANDOFF.md`** — added a `🔴 P0 — Do today` block under What Still Needs Your Action (mirrors TODO P0). Added recommended-sequencing pointer to Phase 5 section. Appended a **Regression Test Matrix** table mapping each major code path to its protecting test file + count, with explicit Known Gaps callout (PG-only upsert, SSE streaming, frontend behavior, admin endpoints).
+- **CLAUDE.md → 2.7.2** (PATCH — doc reorganization, no feature change). **CONTEXT_HANDOFF.md → 3.3.2**, **TODO.md → 3.3.1**.
+
 ### Phase 4 HTTP-level integration tests + H1 prod-bug fix
 
 After the audit closure, added FastAPI TestClient-based integration tests covering the HTTP routes the service-layer tests in `test_discovery_v2.py` couldn't reach. The new suite immediately caught a real production bug in the H1 fix.

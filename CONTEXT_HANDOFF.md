@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.3.1 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.2 · **Last updated:** 2026-05-23 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -242,6 +242,14 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What Still Needs Your Action
 
+### 🔴 P0 — Do today (before any new development)
+
+1. **`git push origin main`** — 3 unpushed commits (`b26837a` Phase 4 features, `ff212f3` audit closure, `57aa9d3` integration tests + H1 greenlet bug fix). The H1 fix is a real production bug that's still affecting users until pushed. Railway auto-deploys both services.
+2. **5-min smoke test** — happy v2 path, check Railway logs for `MissingGreenlet`/`ResponseValidationError` over past 48h, verify `/pathway-execute/{v2-pid}` redirects.
+3. **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` (exposed in chat earlier).
+
+See `TODO.md` P0 block for full smoke-test checklist.
+
 ### 🚦 Phase 5 next steps (Design Kit page at /design-kit/{projectId})
 
 1. **New `pages/DesignKit.tsx` + route** at `/design-kit/:projectId`. Replaces `/exports/{id}` as the v2 Proceed destination.
@@ -251,7 +259,15 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 5. **Swap the v2 Proceed button destination** in `Discovery.tsx` from `/exports/{id}` to `/design-kit/{id}` once the new page exists.
 6. **Update Library resume routing** (`_compute_resume_path`) — v2 projects with high field-completion could route to `/design-kit/{id}` rather than back to `/discovery/{id}`.
 
-_Note: `GET /discovery/{session_id}/field-summary` already shipped in this commit (audit M6 closure)._
+_Note: `GET /discovery/{session_id}/field-summary` already shipped in commit `ff212f3` (audit M6 closure)._
+
+**Recommended sequencing** (see TODO.md Phase 5 section for full detail):
+1. Land Vitest scaffold + 4-5 frontend tests FIRST (before Phase 5 polish) so Edit/Refresh forms are testable from day one
+2. Design Kit page shell + Edit + PATCH endpoint
+3. Proceed destination swap + Library resume update
+4. Refresh + Add Modules (polish)
+
+For every new endpoint, add a matching integration test in `test_discovery_v2_integration.py` BEFORE declaring done. The integration suite caught H1 — keep that habit.
 
 ### 🔐 Security hygiene (recommended but not blocking)
 
@@ -380,6 +396,37 @@ python -m pytest tests/test_entitlements.py -v
 Required pip packages: `pytest pytest-asyncio aiosqlite sqlalchemy[asyncio] pydantic-settings python-dotenv fastapi anthropic`
 
 **Frontend has no test files** — verification is via `npx tsc -b --noEmit` only.
+
+---
+
+## Regression Test Matrix (what protects what)
+
+For each major code path, the test file(s) that prove it works. Use this when changing the underlying code: if you touch a path, the protecting test should still pass; if you can't make it pass, the test or the code is wrong.
+
+| Code path | Protected by | Count |
+|---|---|---|
+| v1 Discovery state machine + resume | `test_discovery_resume.py` | 4 |
+| v2 unified discovery prompt | `test_discovery_v2.py::TestBuildUnifiedDiscoveryPrompt` | 3 |
+| v2 unified greeting prompt | `test_discovery_v2.py::TestBuildUnifiedGreetingPrompt` | 3 |
+| v2 field extraction + type coercion | `test_discovery_v2.py::TestCoerceFieldValue` + `TestApplyExtractedModuleFields` | 14 |
+| v2 summary aggregation | `test_discovery_v2.py::TestComputeFieldSummary` | 4 |
+| v2 pathway decoration (list[str] + legacy list[dict]) | `test_discovery_v2.py::TestLoadDecoratedPathwayModules` | 4 |
+| `_reset_module_library` test hook | `test_discovery_v2.py::TestResetModuleLibrary` | 2 |
+| H1 fix (v2 → v1 downgrade on failed assembly) | `test_discovery_v2_integration.py::TestCreateProjectH1` | 5 |
+| M6 endpoint (field-summary) | `test_discovery_v2_integration.py::TestFieldSummaryEndpoint` | 4 |
+| Phase 3 hotfix (template projects = v1) | `test_discovery_v2_integration.py::TestTemplateFlowVersion` | 1 |
+| Library resume routing v1/v2 | `test_discovery_v2_integration.py::TestLibraryResumeRouting` | 2 |
+| Discovery session-start + ownership | `test_discovery_v2_integration.py::TestDiscoveryStartV2` | 2 |
+| ProjectRead shape (frontend type dep) | `test_discovery_v2_integration.py::TestProjectReadShape` | 1 |
+| Entitlement gates | `test_entitlements.py` | 9 |
+| Partner styles + prompt composition | `test_partner_style.py` | 28 |
+| **Total** | | **91** |
+
+**Known gaps (no test exists):**
+- PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added.
+- SSE streaming routes (`/discovery/{id}/init` and `/message`) — would need to mock `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h of work; pairs well with adding Phase 5 endpoint tests.
+- Frontend behavior — zero Vitest coverage. `ProgressPanel` rendering, `useSSE.onFieldUpdate` parsing, `Discovery` `flow_version` branching, the module-preview overlay's Esc-to-skip, the H2 redirect on `PathwayExecute` are verified only by `tsc` + manual smoke testing.
+- Admin endpoints — `/admin/*` routes have no pytest coverage.
 
 ---
 
