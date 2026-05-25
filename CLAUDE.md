@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.9.2 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.9.3 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -144,7 +144,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–023, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # 150 backend tests across 5 files
+│   ├── tests/                         # 180 backend tests across 7 files
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -589,12 +589,15 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Admin endpoint tests + toast cleanup + Phase 6 audit hardening.
+**Task:** Production bug fixes (3) + chip relevance overhaul + PDF export fix + regression tests.
 
-1. **27 admin endpoint integration tests** (`test_admin.py`) — `require_admin` 403 gate, user list (pagination/search/plan filter), user detail + 404, plan update + audit log, same-plan no-op, invalid plan 422, entitlement overrides (set/unlimited/clear + audit), admin flag (grant/revoke/self-revoke block), audit log (list/filter-action/filter-target/email resolution).
-2. **Toast migrations** — `Home.tsx` replaced `createError` useState with `toast.error(extractError(...))`. `SprintPlanner.tsx` removed `errorMessage` useState and inline banner.
-3. **Phase 6 audit hardening** — Applied 9 fixes from 6-agent audit + added 16 regression tests (see CHANGELOG for details).
+1. **Mobile overflow fix** — `min-w-0` + `overflow-x-hidden` on Discovery flex containers, ChatThread, QuickChips.
+2. **Proceed button gate** — Disabled until 100% required fields filled (was clickable at any %).
+3. **Extraction stalling fix** — Windowed to last 8 messages + aggressive extraction + "STILL MISSING" section.
+4. **Chip relevance overhaul** — Replaced keyword-bucket fallback with AI-powered chip generation. Added generic-chip blocklist filter. New `__type_your_answer__` sentinel renders amber indicator in frontend. FORBIDDEN chip list in all 4 prompts.
+5. **PDF transcript export fix** — `safe_filename_slug()` utility strips Unicode from `Content-Disposition` headers across all 7 export endpoints. Try/except on PDF generation returns proper 500.
+6. **30 regression tests** (`test_chips_and_exports.py`) — chip parsing (4), generic filter (3), fallback (2), AI fallback (2), safe slug (12), transcript service (7).
 
 **Date:** 2026-05-25
-**Test coverage:** 150/150 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
-**Next:** Git push → P0 items: verify Railway deploy + smoke test + rotate webhook secrets. SSE streaming tests (~2h) deferred.
+**Test coverage:** 180/180 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
+**Next:** P0 items: verify Railway deploy + smoke test + rotate webhook secrets. SSE streaming tests (~2h) deferred.
