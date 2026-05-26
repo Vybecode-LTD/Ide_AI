@@ -4,6 +4,11 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Add Google Analytics 4 (2026-05-26)
+
+### Added
+- **GA4 snippet** in `index.html` — `gtag.js` for measurement ID `G-ZXSEV1H9X6`. Loads async so it never blocks render.
+
 ### SEO round 2 — compression, no-cache, og:locale, WebSite schema (2026-05-26)
 
 ### Added
