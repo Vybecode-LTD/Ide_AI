@@ -18,6 +18,8 @@ import { Profile } from './pages/Profile'
 import { Library } from './pages/Library'
 import { Inbox } from './pages/Inbox'
 import { SharedProject } from './pages/SharedProject'
+import { PrivacyPolicy } from './pages/PrivacyPolicy'
+import { TermsOfService } from './pages/TermsOfService'
 import { setClerkInstance } from './lib/apiClient'
 
 /* ── Lazy-loaded module components ─────────────────────────────── */
@@ -166,6 +168,10 @@ export default function App() {
 
         {/* Post-signup checkout redirect */}
         <Route path="/checkout-redirect" element={<ProtectedRoute><CheckoutRedirect /></ProtectedRoute>} />
+
+        {/* Public legal pages */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
 
         {/* Public shared project view (no auth required) */}
         <Route path="/shared/:token" element={<SharedProject />} />

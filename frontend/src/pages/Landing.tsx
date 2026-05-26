@@ -698,6 +698,8 @@ export function Landing() {
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
             <Link to="/sign-in" className="hover:text-white transition-colors">Sign In</Link>
           </div>
         </div>

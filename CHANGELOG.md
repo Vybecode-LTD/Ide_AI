@@ -4,6 +4,14 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Privacy Policy and Terms of Service pages (2026-05-26)
+
+### Added
+- **`/privacy` route** — Full Privacy Policy page (`PrivacyPolicy.tsx`) styled in the Ide/AI dark glassmorphism design system. Covers data collection, AI processing (Anthropic), subprocessors (Clerk/Stripe/Anthropic/Resend/Railway/Google), GDPR rights, retention, and a prominent callout stating Ide/AI never accesses the user's computer or local files. Company: VybeCode LTD, governing law: England and Wales.
+- **`/terms` route** — Full Terms of Service page (`TermsOfService.tsx`) with Stripe billing/cancellation terms, device access and file operations section (export/import of `.ideai` files + integration actions only), acceptable use, liability cap (greater of 12-month fees or £100 GBP), and governing law (England and Wales).
+- **Footer links** in `Landing.tsx` — "Privacy Policy" and "Terms" links added to the footer nav row.
+- Both pages registered as public routes in `App.tsx` (no auth required).
+
 ### Add Google Analytics 4 (2026-05-26)
 
 ### Added
