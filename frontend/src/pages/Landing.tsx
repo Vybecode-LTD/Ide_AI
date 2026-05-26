@@ -135,6 +135,13 @@ const SOFTWARE_SCHEMA = {
   },
 }
 
+const WEBSITE_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Ide/AI',
+  url: 'https://myide.ai',
+}
+
 /* ── Animations ───────────────────────────────────────────────── */
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -210,6 +217,7 @@ export function Landing() {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta property="og:site_name" content="Ide/AI" />
+        <meta property="og:locale" content="en_US" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Ide/AI — Turn Any Idea into a Complete Design Kit" />
         <meta
@@ -219,6 +227,7 @@ export function Landing() {
         <meta name="twitter:image" content="https://myide.ai/og-image.png" />
         <script type="application/ld+json">{JSON.stringify(FAQ_SCHEMA)}</script>
         <script type="application/ld+json">{JSON.stringify(SOFTWARE_SCHEMA)}</script>
+        <script type="application/ld+json">{JSON.stringify(WEBSITE_SCHEMA)}</script>
       </Helmet>
       <div className="min-h-screen bg-background text-white overflow-x-hidden">
       {/* ─── Nav ─────────────────────────────────────────────────── */}

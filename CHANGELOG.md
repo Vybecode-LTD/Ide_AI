@@ -4,6 +4,14 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### SEO round 2 — compression, no-cache, og:locale, WebSite schema (2026-05-26)
+
+### Added
+- **Caddy `encode zstd gzip`** — all responses now compressed; cuts JS/CSS/HTML transfer sizes 60–80%.
+- **`Cache-Control: no-cache, no-store, must-revalidate`** on all non-asset routes — SPA shell is never browser-cached so Railway deploy updates reach users immediately.
+- **`og:locale: en_US`** meta tag in `Landing.tsx` Helmet block.
+- **WebSite JSON-LD schema** (`@type: WebSite`) added to `Landing.tsx` alongside existing FAQ and SoftwareApplication schemas.
+
 ### SEO overhaul — prerendering, meta tags, structured data (2026-05-25)
 
 ### Added
