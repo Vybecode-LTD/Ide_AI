@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.9.4 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.9.5 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -589,16 +589,17 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Production bug fixes (3) + chip relevance overhaul + PDF export fix + regression tests.
+**Task:** Full landing page SEO overhaul — prerendering, meta tags, structured data, self-hosted fonts, robots/sitemap.
 
-1. **Mobile overflow fix** — `min-w-0` + `overflow-x-hidden` on Discovery flex containers, ChatThread, QuickChips.
-2. **Proceed button gate** — Disabled until 100% required fields filled (was clickable at any %).
-3. **Extraction stalling fix** — Windowed to last 8 messages + aggressive extraction + "STILL MISSING" section.
-4. **Chip relevance overhaul** — Replaced keyword-bucket fallback with AI-powered chip generation. Added generic-chip blocklist filter. New `__type_your_answer__` sentinel renders amber indicator in frontend. FORBIDDEN chip list in all 4 prompts.
-5. **PDF transcript export fix** — `safe_filename_slug()` utility strips Unicode from `Content-Disposition` headers across all 7 export endpoints. Try/except on PDF generation returns proper 500.
-6. **38 regression tests** (`test_chips_and_exports.py`) — chip parsing (4), generic filter (3), fallback (2), AI fallback (2), safe slug (12), transcript service (7), field summary value checking (8).
-7. **Proceed button gate fix** — `compute_field_summary` now requires non-empty values via `_has_value()`. Proceed button gates on `overall_percent >= 100` (matching header badge). Design Kit mobile layout fixed with sticky bottom CTA.
+1. **Build-time SSR prerendering** — `src/entry-server.tsx` renders `Landing` via `react-dom/server` + `StaticRouter`. `scripts/prerender.mjs` runs after `vite build`, injects rendered HTML + Helmet meta into `dist/index.html`, then deletes the SSR bundle. Crawlers and social bots now see full page content without executing JS.
+2. **react-helmet-async** — Installed; `HelmetProvider` added to `main.tsx`. `Landing.tsx` sets title, description, canonical, OG tags, Twitter Cards, and JSON-LD schemas dynamically. `/pricing` route gets its own title + canonical.
+3. **JSON-LD schemas** — `FAQPage` schema (6 questions → Google rich-result eligibility) + `SoftwareApplication` schema with plan offers. Both injected via Helmet.
+4. **robots.txt + sitemap.xml** — Created in `frontend/public/`. Disallows all authenticated/app routes; sitemap covers `/` and `/pricing`.
+5. **Self-hosted JetBrains Mono** — `@fontsource/jetbrains-mono` replaces Google Fonts CDN. Eliminates cross-origin DNS round-trip on the render path.
+6. **LCP preload** — `<link rel="preload">` in `index.html` + `fetchPriority="high"` on hero `<img>` + Caddy HTTP `Link` preload header for the root path.
+7. **vite.config SSR** — `ssr.noExternal: ['framer-motion', 'react-helmet-async']` ensures ESM-only packages are bundled for Node.js prerender.
+8. **Hero copy + alt text** — "first AI platform" → "AI concept development platform"; added "under 15 minutes" line; hero alt text includes keyword.
 
 **Date:** 2026-05-25
-**Test coverage:** 188/188 backend tests pass. 31/31 frontend tests pass. TypeScript build clean.
-**Next:** P0 items: verify Railway deploy + smoke test + rotate webhook secrets. SSE streaming tests (~2h) deferred.
+**Test coverage:** 188/188 backend tests pass. 31/31 frontend tests pass. TypeScript build clean (`tsc -b --noEmit`).
+**Pending:** Create `frontend/public/og-image.png` (1200×630) — referenced in OG/Twitter tags but not yet on disk. Set up Google Search Console + GA4. Verify Railway prerender output after next deploy.

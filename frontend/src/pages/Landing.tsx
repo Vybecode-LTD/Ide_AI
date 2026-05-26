@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import apiClient from '../lib/apiClient'
 import { PLANS, type Cycle, type Plan } from '../lib/plans'
+import { Helmet } from 'react-helmet-async'
 
 /* ── Feature cards ────────────────────────────────────────────── */
 const FEATURES = [
@@ -101,6 +102,39 @@ const FAQ = [
   },
 ]
 
+/* ── Structured data (JSON-LD) ────────────────────────────────── */
+const FAQ_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQ.map(({ q, a }) => ({
+    '@type': 'Question',
+    name: q,
+    acceptedAnswer: { '@type': 'Answer', text: a },
+  })),
+}
+
+const SOFTWARE_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Ide/AI',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  description:
+    'AI concept development platform that turns rough ideas into structured design kits — concept sheets, feature blocks, market analysis, sprint plans, and platform-ready prompts.',
+  url: 'https://myide.ai',
+  offers: PLANS.map(p => ({
+    '@type': 'Offer',
+    name: p.name,
+    price: String(p.monthly),
+    priceCurrency: 'USD',
+  })),
+  creator: {
+    '@type': 'Organization',
+    name: 'VybeCode LTD',
+    url: 'https://myide.ai',
+  },
+}
+
 /* ── Animations ───────────────────────────────────────────────── */
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -127,6 +161,12 @@ export function Landing() {
     }
   }, [location.pathname])
 
+  const isPricing = location.pathname === '/pricing'
+  const canonical = isPricing ? 'https://myide.ai/pricing' : 'https://myide.ai'
+  const pageTitle = isPricing
+    ? 'Pricing — Ide/AI | Plans from Free to Pro'
+    : 'Ide/AI — AI Concept Development Platform | Turn Ideas into Design Kits'
+
   const handleCheckout = async (plan: Plan) => {
     if (plan.id === 'free') {
       window.location.href = '/sign-up'
@@ -151,7 +191,36 @@ export function Landing() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-white overflow-x-hidden">
+    <>
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta
+          name="description"
+          content="Ide/AI guides you from rough idea to structured design kit in one session. AI discovery chat, market analysis, feature blocks, sprint plans, and platform-ready prompts — in 15 minutes."
+        />
+        <link rel="canonical" href={canonical} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={canonical} />
+        <meta property="og:title" content="Ide/AI — Turn Any Idea into a Complete Design Kit" />
+        <meta
+          property="og:description"
+          content="AI-guided concept development. Describe your idea, go through a smart discovery session, and walk away with concept sheets, feature blocks, market analysis, and platform-ready prompts."
+        />
+        <meta property="og:image" content="https://myide.ai/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:site_name" content="Ide/AI" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Ide/AI — Turn Any Idea into a Complete Design Kit" />
+        <meta
+          name="twitter:description"
+          content="AI-guided concept development. From vague idea to structured design kit in a single session."
+        />
+        <meta name="twitter:image" content="https://myide.ai/og-image.png" />
+        <script type="application/ld+json">{JSON.stringify(FAQ_SCHEMA)}</script>
+        <script type="application/ld+json">{JSON.stringify(SOFTWARE_SCHEMA)}</script>
+      </Helmet>
+      <div className="min-h-screen bg-background text-white overflow-x-hidden">
       {/* ─── Nav ─────────────────────────────────────────────────── */}
       <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
@@ -195,7 +264,7 @@ export function Landing() {
             variants={fadeUp}
             custom={0}
           >
-            <img src="/brandmark.png" alt="Ide/AI" className="h-20 md:h-28 w-20 md:w-28 mx-auto mb-6 object-contain drop-shadow-[0_0_30px_rgba(0,229,255,0.25)]" />
+            <img src="/brandmark.png" alt="Ide/AI — AI concept development platform" className="h-20 md:h-28 w-20 md:w-28 mx-auto mb-6 object-contain drop-shadow-[0_0_30px_rgba(0,229,255,0.25)]" fetchPriority="high" />
           </motion.div>
 
           <motion.h1
@@ -216,9 +285,10 @@ export function Landing() {
             variants={fadeUp}
             custom={2}
           >
-            Ide/AI is the first AI platform that doesn't just answer — it discovers.
+            Ide/AI is the AI concept development platform that doesn't just answer — it discovers.
             Through guided conversation, it builds concept sheets, design blocks,
             market analysis, and action plans tailored to whatever you're creating.
+            Turn any idea into a complete design kit in under 15 minutes.
           </motion.p>
 
           <motion.div
@@ -624,5 +694,6 @@ export function Landing() {
         </div>
       </footer>
     </div>
+    </>
   )
 }

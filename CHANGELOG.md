@@ -4,6 +4,26 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### SEO overhaul — prerendering, meta tags, structured data (2026-05-25)
+
+### Added
+- **Build-time SSR prerendering** — `entry-server.tsx` + `scripts/prerender.mjs` render the landing page to static HTML at build time using React DOM server + `StaticRouter`. The pre-rendered HTML is injected into `dist/index.html` so crawlers and social bots see full content without executing JavaScript. SSR bundle in `dist/server/` is deleted after use.
+- **`react-helmet-async`** — Installed and wired via `HelmetProvider` in `main.tsx`. `Landing.tsx` sets dynamic title, meta description, OG tags, Twitter Cards, and canonical URL per route (`/` vs `/pricing`).
+- **JSON-LD structured data** — FAQ schema (`FAQPage`) and product schema (`SoftwareApplication` with `Offer` entries for all plans) injected by `Helmet` in `Landing.tsx`. FAQ schema enables Google rich-result accordions directly in SERPs.
+- **`robots.txt` + `sitemap.xml`** — Created in `frontend/public/`. Sitemap covers `/` and `/pricing`; robots disallows all authenticated/app routes.
+- **`@fontsource/jetbrains-mono`** — Self-hosted JetBrains Mono replaces the Google Fonts CDN request, eliminating a cross-origin DNS round-trip that was blocking the render path.
+- **LCP image preload** — `<link rel="preload">` for `brandmark.png` in `index.html`; `fetchPriority="high"` on the hero `<img>` to signal the browser's preload scanner.
+- **Caddy: LCP preload `Link` header + `X-Robots-Tag`** — Root path gets an HTTP `Link` preload header for the hero image; added `X-Robots-Tag: index, follow` to security header block.
+- **`vite.config.ts` SSR config** — `ssr.noExternal: ['framer-motion', 'react-helmet-async']` ensures these ESM-only packages are bundled for the Node.js prerender environment.
+
+### Changed
+- **`package.json` build script** — Extended to `tsc -b && vite build && vite build --ssr ... && node scripts/prerender.mjs`.
+- **Hero description copy** — Replaced "the first AI platform" (unverifiable claim) with "the AI concept development platform"; added "Turn any idea into a complete design kit in under 15 minutes" for keyword density and urgency.
+- **Hero brandmark `alt` text** — Updated to `"Ide/AI — AI concept development platform"` for keyword-aware alt text.
+
+### Note
+- **OG image still needed** — `og-image.png` (1200×630) referenced in meta tags but not yet in `frontend/public/`. Create and drop it there; social shares will show a blank card until it exists.
+
 ### Proceed button + Design Kit mobile layout (2026-05-25)
 
 ### Fixed

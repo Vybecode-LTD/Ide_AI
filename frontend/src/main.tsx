@@ -1,6 +1,6 @@
 /**
  * main.tsx — Application entry point.
- * Wraps React with ClerkProvider, QueryClient, and Router providers.
+ * Wraps React with HelmetProvider, ClerkProvider, QueryClient, and Router providers.
  */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -8,7 +8,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { dark } from '@clerk/themes'
+import { HelmetProvider } from 'react-helmet-async'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
 import './styles/globals.css'
 import App from './App'
 
@@ -60,17 +63,19 @@ const clerkAppearance = {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <ClerkProvider
-        publishableKey={CLERK_PUBLISHABLE_KEY}
-        appearance={clerkAppearance}
-        afterSignOutUrl="/"
-      >
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
-      </ClerkProvider>
+      <HelmetProvider>
+        <ClerkProvider
+          publishableKey={CLERK_PUBLISHABLE_KEY}
+          appearance={clerkAppearance}
+          afterSignOutUrl="/"
+        >
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </ClerkProvider>
+      </HelmetProvider>
     </ErrorBoundary>
   </StrictMode>
 )

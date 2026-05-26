@@ -14,6 +14,10 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8000', changeOrigin: true }
     }
   },
+  ssr: {
+    // Bundle ESM-only packages so the SSR prerender script can import them in Node.js
+    noExternal: ['framer-motion', 'react-helmet-async'],
+  },
   test: {
     globals: true,
     environment: 'jsdom',
