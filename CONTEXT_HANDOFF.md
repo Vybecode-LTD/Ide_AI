@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.8.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.9.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,52 +38,44 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-27) — Codebase alignment audit execution (12-task plan)
+## Current Session (2026-05-28) — Doc reconciliation + CI + asset commit
 
-Executed `docs/superpowers/plans/2026-05-28-ide-ai-codebase-alignment-fix-plan.md` — a 12-task Codex audit bringing the codebase back into alignment with the product goal.
+Follow-up to the 12-task Codex alignment audit. Committed CI workflow and OG image source, then ran a full documentation audit verifying every claim against disk state.
 
-### Completed tasks
+### What shipped this session
 
-| # | Task | Status |
-|---|------|--------|
-| 1 | Fix frontend lint blockers (DesignKit hooks, ProgressPanel) | Done |
-| 2 | Meaningful-value semantics + v2 Proceed gate fix | Done |
-| 3 | Artifact context service (v1/v2 bridge) | Done |
-| 4 | Exports + prompt packages use v2 context | Done |
-| 5 | Blocks / pipeline / prompts / market / sprint use v2 context | Done |
-| 6 | DesignKit action cards for downstream modules | Done |
-| 7 | Sharing rating contract fix | Done |
-| 8 | Entitlement gates on AI-costing routes | Done |
-| 9 | Auth token readiness (authFetch, inboxStore) | Done |
-| 10 | Module pathway membership validation | Done |
-| 11 | Stripe billing state hardening (4 sub-columns + webhook lifecycle) | Done |
-| 12 | Deployment docs / dev deps / docker-compose | Done |
+- **`.github/workflows/test-pipeline.yml`** — GitHub Actions CI pipeline with auto-detect for Python/React/C++/.NET stacks, security scanning (Gitleaks + CodeQL), and deploy gate.
+- **`frontend/public/og-image.psd`** — OG image source file (7MB PSD). Still needs export to PNG (1200×630).
+- **CLAUDE.md v2.11.0** — 3 discrepancies fixed:
+  1. Added `admin_audit_log.py` to models listing (existed on disk, missing from docs)
+  2. Expanded types/ listing from 4 to 8 files (blocks.ts, export.ts, modulePathway.ts, pipeline.ts were missing)
+  3. Fixed module count: "47 modules" → "40 modules" (Feature 14)
+- **CONTEXT_HANDOFF.md v3.9.0** — updated for this session.
+- **TODO.md v3.8.0** — cleaned stale P0 items, updated og-image status.
 
-### Key changes
+### Commits
 
-- **Artifact context service** (`artifact_context_service.py`) — canonical v1/v2 bridge. All downstream consumers (exports, blocks, pipeline, market, sprint) now call `build_artifact_context()` instead of reading only from `design_sheets`. v2 projects finally produce complete outputs.
-- **Export generators** accept `context=` kwarg — v2 path builds context from artifact, v1 path unchanged.
-- **Block generation** refactored — shared `_generate_blocks_from_prompt_context()` helper, v2 uses `generate_blocks_from_context()`.
-- **Pipeline / market / sprint** all accept artifact context for v2.
-- **DesignKit action cards** — `MODULE_ACTIONS` map links blocks/pipeline/prompts/market/sprint/pitch/exports modules to their routes.
-- **Stripe billing** — migration 032 adds 4 subscription columns; checkout reuses existing customer; webhook persists full subscription lifecycle.
-- **Sharing** — `author_name` defaults to Anonymous; response returns dual key sets.
-- **Auth** — `authFetch` helper, entitlement gates on pathway detect + prompt rewrite, module pathway membership validation.
-- **Deployment** — `DEPLOYMENT_RAILWAY.md` rewritten for 2-service topology; `docker-compose.yml` frontend fixed; dev deps added to `pyproject.toml`.
+| Hash | What |
+|------|------|
+| `544bb2f` | feat: v2 artifact bridge, billing hardening, security fixes, full doc audit |
+| _(this commit)_ | chore: CI workflow, og-image source, doc reconciliation |
 
 ### Test results
-- **Backend**: 229/229 pass. **Frontend**: 37/37 pass. **TypeScript**: clean.
+- **Backend**: 229/229 pass (9 files). **Frontend**: 37/37 pass (5 files). **TypeScript**: clean.
 
-### Security fixes (from orchestrator findings)
-- **SAST-H2 fixed**: OpenAPI docs disabled in production (`ENVIRONMENT=production` → `docs_url=None`).
-- **SAST-M1 fixed**: Stripe error responses sanitized — generic message to client, raw error logged server-side.
-- **SAST-M2 fixed**: CSP header added to Caddyfile (allows Clerk, Stripe, GA4, Cloudflare).
-- **SAST-H1 (open)**: No rate limiting on sharing endpoints — needs `slowapi` or similar.
+### Security status
+- **SAST-H2 fixed**: OpenAPI docs disabled in production.
+- **SAST-M1 fixed**: Stripe error responses sanitized.
+- **SAST-M2 fixed**: CSP header added to Caddyfile.
+- **SAST-H1 (open)**: No rate limiting on sharing endpoints — needs `slowapi`.
 - **SAST-M3 (by design)**: CORS defaults to localhost in dev; production uses `CORS_ORIGINS` env var.
-- **DEP-H1 (upstream)**: js-cookie CVE — transitive from `@clerk/shared`, cannot be upgraded independently.
+- **DEP-H1 (upstream)**: js-cookie CVE — transitive from `@clerk/shared`.
 
-### Remaining from previous sessions
-- Module completion enforcement (commit ab89ccf) + brandmark replacement (commit 3fb44ce) — completed earlier in this session arc.
+### Pending
+- **Push to main** — 2 commits ahead of origin. Push triggers Railway auto-deploy.
+- **Rotate 3 webhook secrets** — CLERK, STRIPE, RESEND.
+- **Export og-image.psd → og-image.png** (1200×630).
+- **5-minute production smoke test** after Railway deploy.
 
 ---
 

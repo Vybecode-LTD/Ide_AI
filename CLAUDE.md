@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.10.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.11.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -106,7 +106,8 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── concept_branch.py      # Git-like project forking
 │   │   │   ├── external_integration.py # OAuth tokens for external tools
 │   │   │   ├── module_pathway.py, module_response.py, module_artifact.py
-│   │   │   └── project_snapshot.py, user_memory.py
+│   │   │   ├── project_snapshot.py, user_memory.py
+│   │   │   └── admin_audit_log.py     # Append-only admin action log
 │   │   ├── schemas/                   # Pydantic v2 request/response schemas
 │   │   ├── routers/                   # FastAPI route handlers
 │   │   │   ├── admin.py               # Admin dashboard (user management, audit log)
@@ -191,7 +192,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, inboxStore, adminStore
 │   │   ├── hooks/                     # useSSE, useVoiceInput
 │   │   ├── lib/                       # apiClient.ts, authFetch.ts, fieldValue.ts, extractError.ts, plans.ts, categories.ts, exportUtils.ts
-│   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway)
+│   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway, blocks, pipeline, export, modulePathway)
 │   │   └── styles/                    # Tailwind v4 CSS globals
 │   ├── vite.config.ts, tsconfig.json, Dockerfile, Caddyfile, railway.toml
 ├── project_templates.seed.json        # ~25 seed templates across 16 categories
@@ -347,7 +348,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 ### 14. Modular Dynamic Design Kit Pathway
 - AI categorizes projects into 16 concept categories (software, food, film, fashion, etc.)
-- Each category has a unique default module set drawn from a library of 47 modules
+- Each category has a unique default module set drawn from a library of 40 modules
 - Categorization uses project name + description + concept sheet fields for accurate classification
 - Pathway assembly: base stack (from category) → enrichment pass (signals from concept sheet) → user review
 - Users can reorder, add/remove modules, toggle Lite (2–3 questions) / Deep (6–10 questions) per module
@@ -596,22 +597,10 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** 12-task Codex codebase alignment audit — v2 artifact bridge, billing hardening, DesignKit actions, deployment docs.
+**Task:** Documentation reconciliation + CI workflow + asset commit.
 
-All 12 tasks from `docs/superpowers/plans/2026-05-28-ide-ai-codebase-alignment-fix-plan.md` executed:
-1. Frontend lint blockers fixed (DesignKit hooks split into stable child components)
-2. Meaningful-value semantics + v2 Proceed gate (gates on required fields, not 100% overall)
-3. Artifact context service — unified v1/v2 bridge (`build_artifact_context()`)
-4. Exports + prompt packages use v2 context via `build_export_context_from_artifact()`
-5. Blocks / pipeline / market / sprint all accept artifact context for v2
-6. DesignKit action cards — `MODULE_ACTIONS` map links modules to downstream routes
-7. Sharing rating contract fixed (author_name defaults, dual-key response)
-8. Entitlement gates on AI-costing routes (pathway detect, prompt rewrite)
-9. Auth token readiness (authFetch helper, inboxStore throws on missing token)
-10. Module pathway membership validation (centralized helper on all write endpoints)
-11. Stripe billing state hardening (migration 032, checkout reuse, webhook lifecycle)
-12. Deployment docs / dev deps / docker-compose fixed
+Follow-up to the 12-task Codex alignment audit. Committed `.github/workflows/test-pipeline.yml` (CI) and `frontend/public/og-image.psd` (OG image source). Full documentation audit: verified every claim in CLAUDE.md against disk (models, types, module count, test counts), fixed 3 discrepancies (missing `admin_audit_log.py` model, incomplete types listing, stale "47 modules" → 40).
 
-**Date:** 2026-05-27
-**Test coverage:** 229/229 backend tests pass. 37/37 frontend tests pass. TypeScript build clean (`tsc -b --noEmit`).
-**Pending:** Rotate 3 webhook secrets (CLERK, STRIPE, RESEND). Create `frontend/public/og-image.png` (1200×630). Add rate limiting on sharing endpoints (SAST-H1). js-cookie CVE is upstream from `@clerk/shared` (DEP-H1).
+**Date:** 2026-05-28
+**Test coverage:** 229/229 backend tests pass (9 files). 37/37 frontend tests pass (5 files). TypeScript build clean.
+**Pending:** Rotate 3 webhook secrets (CLERK, STRIPE, RESEND). Create `frontend/public/og-image.png` from PSD (1200×630). Add rate limiting on sharing endpoints (SAST-H1). js-cookie CVE is upstream from `@clerk/shared` (DEP-H1).

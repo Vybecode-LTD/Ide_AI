@@ -4,6 +4,17 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Documentation reconciliation + CI + asset commit (2026-05-28)
+
+### Added
+- **GitHub Actions CI pipeline** (`.github/workflows/test-pipeline.yml`) — auto-detects Python/React/C++/.NET stacks, runs lint + tests + security scanning (Gitleaks + CodeQL), deploy gate.
+- **OG image source** (`frontend/public/og-image.psd`) — 1200×630 PSD, needs export to PNG.
+
+### Changed
+- **CLAUDE.md v2.11.0** — 3 doc-drift fixes: added `admin_audit_log.py` model, expanded types/ listing (4→8 files), corrected module count (47→40).
+- **CONTEXT_HANDOFF.md v3.9.0** — updated for doc reconciliation session.
+- **TODO.md v3.8.0** — cleaned stale P0 items, added og-image export task.
+
 ### Codebase alignment audit — v2 artifact bridge + billing + DesignKit actions (2026-05-27)
 
 ### Added

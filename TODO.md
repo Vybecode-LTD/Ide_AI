@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.7.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.8.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -9,7 +9,8 @@
 ## 🔴 P0 — DO FIRST (before any new development)
 
 - [x] **`git push origin main`** — ✅ DONE 2026-05-23 (5 commits) + 2026-05-25 (5 more commits). Railway auto-deploys both services on push.
-- [ ] **Commit + push latest changes** — 6 files changed (proceed button _has_value fix, Design Kit mobile layout, 8 new tests, doc updates). Commit, push, verify Railway deploy.
+- [ ] **Push 2 pending commits** — `544bb2f` (v2 artifact bridge, billing, security) + doc reconciliation commit. Push to main, verify Railway deploy.
+- [ ] **Export `og-image.psd` → `og-image.png`** (1200×630) — PSD source committed, needs export to PNG for `<meta property="og:image">`.
 - [ ] **5-minute production smoke test** after Railway confirms healthy:
   - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify chips match the AI's question (not generic), ProgressPanel updates, field_update SSE fires.
   - Proceed gate: confirm button stays disabled below 100% overall_percent. Badge shows `N% complete`.

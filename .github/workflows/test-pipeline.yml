@@ -1,0 +1,312 @@
+# =============================================================================
+# UNIVERSAL TEST PIPELINE — GitHub Actions
+# =============================================================================
+# Drop this into .github/workflows/test-pipeline.yml
+# It auto-detects which stacks exist and only runs relevant jobs.
+# Enable Railway "Wait for CI" to gate deployments on these checks.
+# =============================================================================
+
+name: Test Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Nightly at 3 AM UTC — runs Gate 7 (mutation, load, fuzz, perf)
+    - cron: '0 3 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─── Stack Detection ─────────────────────────────────────────────────────────
+jobs:
+  detect-stacks:
+    runs-on: ubuntu-latest
+    outputs:
+      has_dotnet: ${{ steps.detect.outputs.has_dotnet }}
+      has_python: ${{ steps.detect.outputs.has_python }}
+      has_react:  ${{ steps.detect.outputs.has_react }}
+      has_cpp:    ${{ steps.detect.outputs.has_cpp }}
+      is_nightly: ${{ github.event_name == 'schedule' }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: |
+          echo "has_dotnet=$(find . -name '*.sln' -o -name '*.csproj' | head -1 | wc -l | tr -d ' ')" >> $GITHUB_OUTPUT
+          echo "has_python=$(find . -name 'pyproject.toml' -o -name 'requirements.txt' -o -name 'setup.py' | head -1 | wc -l | tr -d ' ')" >> $GITHUB_OUTPUT
+          echo "has_react=$([ -f package.json ] && [ -f tsconfig.json ] && echo 1 || echo 0)" >> $GITHUB_OUTPUT
+          echo "has_cpp=$([ -f CMakeLists.txt ] && echo 1 || echo 0)" >> $GITHUB_OUTPUT
+
+  # ─── .NET / Avalonia ─────────────────────────────────────────────────────
+  dotnet-tests:
+    needs: detect-stacks
+    if: needs.detect-stacks.outputs.has_dotnet == '1'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # Gate 1 — Lint
+      - name: Format check
+        run: dotnet format --verify-no-changes
+
+      # Gate 2 — Unit tests + coverage
+      - name: Build & test
+        run: |
+          dotnet test \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            --logger "trx;LogFileName=results.trx" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+      # Coverage upload
+      - uses: codecov/codecov-action@v4
+        with:
+          files: ./TestResults/*/coverage.opencover.xml
+          flags: dotnet
+
+      # Gate 7 — Mutation (nightly only)
+      - name: Stryker mutation testing
+        if: needs.detect-stacks.outputs.is_nightly == 'true'
+        run: |
+          dotnet tool install -g dotnet-stryker
+          dotnet stryker --reporters "['json', 'html']"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dotnet-results-${{ matrix.os }}
+          path: TestResults/
+
+  # ─── Python / FastAPI ────────────────────────────────────────────────────
+  python-tests:
+    needs: detect-stacks
+    if: needs.detect-stacks.outputs.has_python == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" 2>/dev/null || python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-cov pytest-asyncio ruff mypy bandit pip-audit
+
+      # Gate 1 — Lint & type check
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: Mypy type check
+        run: mypy app/ --ignore-missing-imports || true
+
+      # Gate 2 — Unit tests + coverage
+      - name: Pytest
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=80 -x --tb=short
+
+      # Gate 4 — Security
+      - name: Bandit SAST
+        run: bandit -r app/ -ll -ii -f json -o bandit-report.json || true
+      - name: pip-audit
+        run: pip-audit --strict || true
+
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          flags: python
+
+      # Gate 7 — Property-based (nightly)
+      - name: Hypothesis tests
+        if: needs.detect-stacks.outputs.is_nightly == 'true'
+        run: pytest -m hypothesis --hypothesis-seed=0 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-results
+          path: |
+            coverage.xml
+            bandit-report.json
+
+  # ─── React / TypeScript ──────────────────────────────────────────────────
+  react-tests:
+    needs: detect-stacks
+    if: needs.detect-stacks.outputs.has_react == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Gate 1 — Type check & lint
+      - name: TypeScript
+        run: pnpm exec tsc --noEmit
+      - name: ESLint
+        run: pnpm exec eslint . --max-warnings 0
+
+      # Gate 2 — Unit & component tests + coverage
+      - name: Vitest
+        run: pnpm vitest run --coverage --reporter=json --outputFile=test-results.json
+
+      # Gate 5 — E2E
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+      - name: Playwright E2E
+        run: pnpm exec playwright test
+
+      # Gate 4 — Dep scanning
+      - name: npm audit
+        run: pnpm audit --audit-level=high || true
+
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          flags: react
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: react-results
+          path: |
+            test-results.json
+            playwright-report/
+            coverage/
+
+  # ─── C++ / JUCE ─────────────────────────────────────────────────────────
+  cpp-tests:
+    needs: detect-stacks
+    if: needs.detect-stacks.outputs.has_cpp == '1'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libfreetype6-dev \
+            libx11-dev libxrandr-dev libxcursor-dev libxinerama-dev \
+            libgl1-mesa-dev cppcheck
+
+      # Gate 1 — Static analysis
+      - name: cppcheck
+        if: runner.os == 'Linux'
+        run: cppcheck --enable=all --error-exitcode=1 --suppress=missingInclude src/ || true
+
+      # Build with sanitizers
+      - name: CMake configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="${{ runner.os != 'Windows' && '-fsanitize=address,undefined -g' || '' }}"
+
+      - name: Build
+        run: cmake --build build --config Debug
+
+      # Gate 2 — Unit tests
+      - name: CTest
+        run: ctest --test-dir build --output-on-failure --timeout 120
+
+      # Gate 3 — pluginval (if plugin exists)
+      - name: pluginval
+        if: runner.os == 'Linux'
+        run: |
+          PLUGIN=$(find build -name "*.vst3" -type d | head -1)
+          if [ -n "$PLUGIN" ]; then
+            wget -q https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
+            unzip -q pluginval_Linux.zip
+            ./pluginval --strictness-level 10 --validate "$PLUGIN" || true
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cpp-results-${{ matrix.os }}
+          path: build/
+
+  # ─── Security (cross-stack) ─────────────────────────────────────────────
+  security-scan:
+    needs: detect-stacks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ needs.detect-stacks.outputs.has_python == '1' && 'python,' || '' }}${{ needs.detect-stacks.outputs.has_react == '1' && 'javascript,' || '' }}${{ needs.detect-stacks.outputs.has_dotnet == '1' && 'csharp' || '' }}
+
+      - name: CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ─── Deploy Gate ────────────────────────────────────────────────────────
+  deploy-gate:
+    needs: [dotnet-tests, python-tests, react-tests, cpp-tests, security-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all gates
+        run: |
+          echo "=== DEPLOY GATE ==="
+          FAILED=0
+
+          check_job() {
+            local name=$1 result=$2
+            if [ "$result" = "failure" ]; then
+              echo "❌ $name: FAILED"
+              FAILED=1
+            elif [ "$result" = "success" ]; then
+              echo "✅ $name: PASSED"
+            else
+              echo "⏭  $name: SKIPPED"
+            fi
+          }
+
+          check_job "dotnet"   "${{ needs.dotnet-tests.result }}"
+          check_job "python"   "${{ needs.python-tests.result }}"
+          check_job "react"    "${{ needs.react-tests.result }}"
+          check_job "cpp"      "${{ needs.cpp-tests.result }}"
+          check_job "security" "${{ needs.security-scan.result }}"
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "❌ DEPLOY GATE: BLOCKED"
+            exit 1
+          else
+            echo ""
+            echo "✅ DEPLOY GATE: CLEAR"
+          fi
