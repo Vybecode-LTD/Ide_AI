@@ -17,6 +17,7 @@ from app.models.user import User
 from app.pathways import PathwayRegistry
 from app.routers.auth import get_current_user
 from app.schemas.pipeline import PipelineNodeRead, PipelineNodeUpdate
+from app.services.artifact_context_service import build_artifact_context
 from app.services.pipeline_service import (
     check_compatibility,
     estimate_cost,
@@ -63,7 +64,7 @@ async def ai_recommend_pipeline(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """AI-recommend a pipeline based on the design sheet."""
+    """AI-recommend a pipeline based on the design sheet (v1) or module responses (v2)."""
     proj_result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
     )
@@ -71,18 +72,26 @@ async def ai_recommend_pipeline(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    sheet_result = await db.execute(
-        select(DesignSheet).where(DesignSheet.project_id == project_id)
-    )
-    sheet = sheet_result.scalar_one_or_none()
-    if not sheet:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Design sheet not found")
-
     pw = PathwayRegistry.get_or_default(project.pathway_id)
 
-    nodes, reasoning, cost_est = await recommend_pipeline(
-        db, sheet, project_id, project.complexity, pathway=pw,
-    )
+    if getattr(project, "flow_version", "v1") == "v2":
+        # v2: use unified artifact context from module responses
+        artifact_ctx = await build_artifact_context(db, project_id, current_user.id)
+        nodes, reasoning, cost_est = await recommend_pipeline(
+            db, project_id=project_id, complexity=project.complexity,
+            pathway=pw, artifact_ctx=artifact_ctx,
+        )
+    else:
+        # v1: require design sheet
+        sheet_result = await db.execute(
+            select(DesignSheet).where(DesignSheet.project_id == project_id)
+        )
+        sheet = sheet_result.scalar_one_or_none()
+        if not sheet:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Design sheet not found")
+        nodes, reasoning, cost_est = await recommend_pipeline(
+            db, sheet, project_id, project.complexity, pathway=pw,
+        )
 
     return {
         "nodes": [PipelineNodeRead.model_validate(n).model_dump() for n in nodes],

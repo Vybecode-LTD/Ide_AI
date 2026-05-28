@@ -290,12 +290,12 @@ async def export_shared_csv(
 # --- Comments & Ratings (public, no auth) ---
 
 class CommentCreate(BaseModel):
-    author_name: str = Field(min_length=1, max_length=100)
+    author_name: str = Field(default="Anonymous", min_length=1, max_length=100)
     author_email: Optional[str] = Field(None, max_length=255)
     content: str = Field(min_length=1, max_length=2000)
 
 class RatingCreate(BaseModel):
-    author_name: str = Field(min_length=1, max_length=100)
+    author_name: str = Field(default="Anonymous", min_length=1, max_length=100)
     author_email: Optional[str] = Field(None, max_length=255)
     score: float = Field(ge=0, le=5)
 
@@ -381,9 +381,14 @@ async def get_ratings(
         .where(ShareRating.share_id == share.id)
     )
     row = result.one()
+    count = row.count or 0
+    average = round(float(row.average), 1) if row.average else 0
     return {
-        "count": row.count or 0,
-        "average": round(float(row.average), 1) if row.average else 0,
+        "count": count,
+        "average": average,
+        # Compatibility aliases for frontend consumers
+        "total_ratings": count,
+        "average_score": average,
     }
 
 

@@ -133,6 +133,24 @@ async def _get_completed_module_outputs(
     return completed
 
 
+async def _ensure_module_in_project_pathway(
+    project_id: uuid.UUID,
+    module_id: str,
+    db: AsyncSession,
+) -> None:
+    """Raise 404 if *module_id* is not part of the project's locked pathway."""
+    result = await db.execute(
+        select(ModulePathway).where(ModulePathway.project_id == project_id)
+    )
+    pathway = result.scalar_one_or_none()
+    modules = set(pathway.modules or []) if pathway else set()
+    if module_id not in modules:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module is not part of this project pathway",
+        )
+
+
 # ── Start Module ─────────────────────────────────────────────────────
 
 @router.post("/{project_id}/{module_id}/start")
@@ -144,14 +162,7 @@ async def start_module(
 ):
     """Initialize a module session and return the first AI question."""
     project = await _get_project_for_module(project_id, current_user, db)
-
-    # Verify module is in the pathway
-    pathway_result = await db.execute(
-        select(ModulePathway).where(ModulePathway.project_id == project_id)
-    )
-    pathway = pathway_result.scalar_one_or_none()
-    if not pathway or module_id not in pathway.modules:
-        raise HTTPException(status_code=400, detail="Module not in project pathway")
+    await _ensure_module_in_project_pathway(project_id, module_id, db)
 
     # Check if this is an existing module (routes to dedicated page)
     if is_existing_module(module_id):
@@ -249,6 +260,7 @@ async def respond_to_module(
 ):
     """Process user response and stream next AI question via SSE."""
     project = await _get_project_for_module(project_id, current_user, db)
+    await _ensure_module_in_project_pathway(project_id, module_id, db)
 
     if is_existing_module(module_id):
         raise HTTPException(status_code=400, detail="Existing modules don't use this endpoint")
@@ -359,6 +371,7 @@ async def skip_module(
 ):
     """Mark a module as skipped."""
     await _get_project_for_module(project_id, current_user, db)
+    await _ensure_module_in_project_pathway(project_id, module_id, db)
 
     mr_result = await db.execute(
         select(ModuleResponse).where(
@@ -457,7 +470,8 @@ async def update_module_responses(
     """
     from app.services.discovery_service import _coerce_field_value
 
-    # Ownership check
+    # Ownership + pathway membership check
+    await _ensure_module_in_project_pathway(project_id, module_id, db)
     proj_result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
     )
@@ -530,6 +544,9 @@ async def refresh_module_output(
     Returns 400 if the module doesn't have has_output: true.
     """
     from app.services.module_service import generate_module_output
+
+    # Pathway membership check
+    await _ensure_module_in_project_pathway(project_id, module_id, db)
 
     # Ownership check
     proj_result = await db.execute(

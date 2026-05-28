@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.9.5 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.10.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -109,13 +109,14 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── project_snapshot.py, user_memory.py
 │   │   ├── schemas/                   # Pydantic v2 request/response schemas
 │   │   ├── routers/                   # FastAPI route handlers
+│   │   │   ├── admin.py               # Admin dashboard (user management, audit log)
 │   │   │   ├── auth.py                # Clerk-based /me, avatar, profile, entitlements
 │   │   │   ├── billing.py             # Stripe checkout, billing portal, webhook
 │   │   │   ├── clerk_webhook.py       # Clerk user sync (create/update/delete)
 │   │   │   ├── projects.py            # Project CRUD (with entitlement gate)
 │   │   │   ├── discovery.py           # SSE chat, greeting, partner switching (idempotent start)
 │   │   │   ├── meta.py                # GET /meta/partner-styles
-│   │   │   ├── pathways.py            # GET /pathways, POST /pathways/detect
+│   │   │   ├── pathways.py            # GET /pathways, POST /pathways/detect (authenticated)
 │   │   │   ├── blocks.py, pipeline.py, design_sheet.py, exports.py
 │   │   │   ├── market.py              # Market analysis SSE (with entitlement gate)
 │   │   │   ├── sprints.py             # Sprint plans (with ownership checks)
@@ -130,6 +131,8 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── module_pathway.py, modules.py
 │   │   ├── services/                  # Business logic
 │   │   │   ├── ai_service.py          # build_system_prompt(), build_greeting_prompt(), stream_chat()
+│   │   │   ├── artifact_context_service.py # Unified v1/v2 artifact bridge for downstream consumers
+│   │   │   ├── audit_service.py       # Append-only admin audit log
 │   │   │   ├── partner_style_service.py  # 10 AI partner styles, metadata, prompt fragments
 │   │   │   ├── discovery_service.py   # Session management, stage progression, concept-sheet extraction
 │   │   │   ├── pathway_service.py     # Concept Pathway registry (4 pathways)
@@ -141,10 +144,11 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── market_service.py, market_export_service.py, sprint_service.py
 │   │   │   ├── prompt_kit_service.py, prompt_package_service.py
 │   │   │   ├── entitlement_service.py  # Plan limits (free/basic/pro), feature gates
+│   │   │   ├── inbox_pubsub.py        # Redis pub/sub for realtime inbox badge
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
-│   │   ├── alembic/versions/          # Database migrations (001–023, linear chain)
+│   │   ├── alembic/versions/          # Database migrations (001–032, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # 188 backend tests across 7 files
+│   ├── tests/                         # 229 backend tests across 9 files
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -154,37 +158,39 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── SignUpPage.tsx         # Clerk sign-up
 │   │   │   ├── CheckoutRedirect.tsx   # Stripe checkout redirect
 │   │   │   ├── Home.tsx               # Idea input, partner grid, template grid, project creation
+│   │   │   ├── CategorySelect.tsx     # Category selection for modular pathway
 │   │   │   ├── Discovery.tsx          # SSE chat UI, partner badge, mid-session switching
-│   │   │   ├── Blocks.tsx              # Feature blocks board
+│   │   │   ├── DesignKit.tsx          # v2 module responses viewer + editor + action cards
+│   │   │   ├── Blocks.tsx             # Feature blocks board
 │   │   │   ├── Pipeline.tsx, Exports.tsx, MarketAnalysis.tsx, SprintPlanner.tsx
-│   │   │   ├── PromptKit.tsx           # Platform-specific prompt generation
+│   │   │   ├── PromptKit.tsx          # Platform-specific prompt generation
 │   │   │   ├── Profile.tsx            # Avatar upload, bio, stats, billing portal link
+│   │   │   ├── Admin.tsx              # Admin dashboard (users, audit log)
 │   │   │   ├── Inbox.tsx              # Idea inbox list, partner picker, build-to-project
 │   │   │   ├── Library.tsx            # Project library with progress metadata, smart resume
 │   │   │   ├── Settings.tsx           # App settings, tutorial reset, profile link
 │   │   │   ├── SharedProject.tsx      # Public shared view with comments + ratings
+│   │   │   ├── PrivacyPolicy.tsx, TermsOfService.tsx
 │   │   │   ├── PathwayReview.tsx, PathwayExecute.tsx, ModuleSession.tsx
 │   │   │   └── PitchMode.tsx
 │   │   ├── components/
+│   │   │   ├── admin/                 # AdminUserTable, AdminUserDrawer, AdminAuditList
 │   │   │   ├── auth/ProtectedRoute.tsx # Clerk auth gate
+│   │   │   ├── billing/               # CheckoutRedirect helpers
 │   │   │   ├── layout/Sidebar.tsx     # Desktop sidebar + mobile bottom nav, profile container, inbox badge
 │   │   │   ├── partner/               # PartnerCard, PartnerSelector, ActivePartnerBadge
 │   │   │   ├── home/                  # PresetCard, TemplateGrid
-│   │   │   ├── discovery/             # ChatBubble, TopBar, SheetSidebar, QuickChips
+│   │   │   ├── discovery/             # ChatBubble, TopBar, ProgressPanel, QuickChips
 │   │   │   ├── framework/             # DesignSheetPanel, SheetCard, ReadinessScores
-│   │   │   ├── blocks/                # BlocksBoard, BlockCard, ScopeSlider
-│   │   │   ├── pipeline/              # PipelineCanvas, PipelineCard, CostPanel
-│   │   │   ├── promptkit/             # PromptKitPanel, PromptSnippet
-│   │   │   ├── projects/              # FolderTree, ProjectCard, VersionTimeline
-│   │   │   ├── pitch/                 # PitchDocument, SharePanel
+│   │   │   ├── pathway/               # Pathway selection and review components
 │   │   │   ├── sharing/               # ShareDialog, CommentSection, StarRating, FeedbackPanel
 │   │   │   ├── voice/                 # VoiceMicButton (Web Speech API toggle)
 │   │   │   ├── tutorial/              # StageInterlude, PulseBeacon, Whisper
 │   │   │   ├── nebula/                # Animated background canvas
 │   │   │   └── ui/                    # Button, Modal, Card, Input, Badge, Drawer
-│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, inboxStore
+│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, inboxStore, adminStore
 │   │   ├── hooks/                     # useSSE, useVoiceInput
-│   │   ├── lib/apiClient.ts           # Axios instance with auth interceptors
+│   │   ├── lib/                       # apiClient.ts, authFetch.ts, fieldValue.ts, extractError.ts, plans.ts, categories.ts, exportUtils.ts
 │   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway)
 │   │   └── styles/                    # Tailwind v4 CSS globals
 │   ├── vite.config.ts, tsconfig.json, Dockerfile, Caddyfile, railway.toml
@@ -222,7 +228,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - Entitlement service: plan-based limits (free: 3 projects / basic: 25 / pro: unlimited)
 - Feature gates on project creation, prompt kit generation, and market analysis
 - Endpoints: `POST /billing/checkout`, `POST /billing/portal`, `POST /billing/webhook`
-- DB: `stripe_customer_id` on users (migration 019)
+- DB: `stripe_customer_id` on users (migration 019), subscription state columns (migration 032)
 
 ### 2. Project System
 - Single text input for idea description
@@ -501,6 +507,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
 | 030 | Phase-2 hotfix — backfill `module_pathways.modules` shape, dedup `module_responses`, add UNIQUE(project_id, module_id) |
 | 031 | Add `sessions.scope_module_ids` (JSONB, nullable) for mini-Discovery scoped sessions |
+| 032 | Add Stripe subscription state columns (`stripe_subscription_id`, `subscription_status`, `subscription_price_id`, `subscription_current_period_end`) to users |
 
 ---
 
@@ -589,17 +596,22 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Full landing page SEO overhaul — prerendering, meta tags, structured data, self-hosted fonts, robots/sitemap.
+**Task:** 12-task Codex codebase alignment audit — v2 artifact bridge, billing hardening, DesignKit actions, deployment docs.
 
-1. **Build-time SSR prerendering** — `src/entry-server.tsx` renders `Landing` via `react-dom/server` + `StaticRouter`. `scripts/prerender.mjs` runs after `vite build`, injects rendered HTML + Helmet meta into `dist/index.html`, then deletes the SSR bundle. Crawlers and social bots now see full page content without executing JS.
-2. **react-helmet-async** — Installed; `HelmetProvider` added to `main.tsx`. `Landing.tsx` sets title, description, canonical, OG tags, Twitter Cards, and JSON-LD schemas dynamically. `/pricing` route gets its own title + canonical.
-3. **JSON-LD schemas** — `FAQPage` schema (6 questions → Google rich-result eligibility) + `SoftwareApplication` schema with plan offers. Both injected via Helmet.
-4. **robots.txt + sitemap.xml** — Created in `frontend/public/`. Disallows all authenticated/app routes; sitemap covers `/` and `/pricing`.
-5. **Self-hosted JetBrains Mono** — `@fontsource/jetbrains-mono` replaces Google Fonts CDN. Eliminates cross-origin DNS round-trip on the render path.
-6. **LCP preload** — `<link rel="preload">` in `index.html` + `fetchPriority="high"` on hero `<img>` + Caddy HTTP `Link` preload header for the root path.
-7. **vite.config SSR** — `ssr.noExternal: ['framer-motion', 'react-helmet-async']` ensures ESM-only packages are bundled for Node.js prerender.
-8. **Hero copy + alt text** — "first AI platform" → "AI concept development platform"; added "under 15 minutes" line; hero alt text includes keyword.
+All 12 tasks from `docs/superpowers/plans/2026-05-28-ide-ai-codebase-alignment-fix-plan.md` executed:
+1. Frontend lint blockers fixed (DesignKit hooks split into stable child components)
+2. Meaningful-value semantics + v2 Proceed gate (gates on required fields, not 100% overall)
+3. Artifact context service — unified v1/v2 bridge (`build_artifact_context()`)
+4. Exports + prompt packages use v2 context via `build_export_context_from_artifact()`
+5. Blocks / pipeline / market / sprint all accept artifact context for v2
+6. DesignKit action cards — `MODULE_ACTIONS` map links modules to downstream routes
+7. Sharing rating contract fixed (author_name defaults, dual-key response)
+8. Entitlement gates on AI-costing routes (pathway detect, prompt rewrite)
+9. Auth token readiness (authFetch helper, inboxStore throws on missing token)
+10. Module pathway membership validation (centralized helper on all write endpoints)
+11. Stripe billing state hardening (migration 032, checkout reuse, webhook lifecycle)
+12. Deployment docs / dev deps / docker-compose fixed
 
-**Date:** 2026-05-25
-**Test coverage:** 188/188 backend tests pass. 31/31 frontend tests pass. TypeScript build clean (`tsc -b --noEmit`).
-**Pending:** Create `frontend/public/og-image.png` (1200×630) — referenced in OG/Twitter tags but not yet on disk. Set up Google Search Console + GA4. Verify Railway prerender output after next deploy.
+**Date:** 2026-05-27
+**Test coverage:** 229/229 backend tests pass. 37/37 frontend tests pass. TypeScript build clean (`tsc -b --noEmit`).
+**Pending:** Rotate 3 webhook secrets (CLERK, STRIPE, RESEND). Create `frontend/public/og-image.png` (1200×630). Add rate limiting on sharing endpoints (SAST-H1). js-cookie CVE is upstream from `@clerk/shared` (DEP-H1).

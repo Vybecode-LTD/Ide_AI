@@ -8,7 +8,8 @@ import { Sidebar } from '../components/layout/Sidebar'
 import { TopBar } from '../components/layout/TopBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
-import apiClient, { getAuthToken } from '../lib/apiClient'
+import apiClient from '../lib/apiClient'
+import { authFetch } from '../lib/authFetch'
 import toast from 'react-hot-toast'
 import { downloadBlob } from '../lib/exportUtils'
 import { extractError, type EntitlementDetail } from '../lib/extractError'
@@ -99,19 +100,15 @@ export function SprintPlanner() {
     setProgress(0)
     setStatusMessage('Analyzing project blocks...')
 
-    const token = await getAuthToken()
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
     const hasPlanAlready = plan && plan.status === 'complete'
     let receivedPlan = false
 
     try {
       const url = `${baseUrl}/sprints/${projectId}/generate${hasPlanAlready ? '?force=true' : ''}`
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
       })
 
       if (!response.ok) {

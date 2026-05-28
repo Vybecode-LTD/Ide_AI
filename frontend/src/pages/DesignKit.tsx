@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import apiClient from '../lib/apiClient'
 import { extractError } from '../lib/extractError'
+import { hasMeaningfulValue } from '../lib/fieldValue'
 import { Sidebar } from '../components/layout/Sidebar'
 
 interface ModuleLibraryItem {
@@ -42,6 +43,17 @@ function titleize(s: string): string {
   return s.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+/** Maps module IDs that represent existing downstream tools to their routes. */
+const MODULE_ACTIONS: Record<string, { label: string; path: (projectId: string) => string }> = {
+  design_blocks_board: { label: 'Open Blocks', path: (id) => `/blocks/${id}` },
+  pipeline_builder: { label: 'Open Pipeline', path: (id) => `/pipeline/${id}` },
+  prompt_kit_generator: { label: 'Open Prompts', path: (id) => `/prompts/${id}` },
+  market_analysis: { label: 'Open Market Analysis', path: (id) => `/market/${id}` },
+  sprint_planner: { label: 'Open Sprint Planner', path: (id) => `/sprints/${id}` },
+  pitch_mode: { label: 'Open Pitch Mode', path: (id) => `/pitch/${id}` },
+  export_center: { label: 'Open Exports', path: (id) => `/exports/${id}` },
+}
+
 interface GeneratedOutput {
   title: string
   content: string
@@ -50,13 +62,16 @@ interface GeneratedOutput {
 
 function ModuleCard({
   mod,
+  projectId,
   onSave,
   onRefreshOutput,
 }: {
   mod: DesignKitModule
+  projectId?: string
   onSave: (moduleId: string, fields: Record<string, unknown>) => Promise<void>
   onRefreshOutput?: (moduleId: string) => Promise<void>
 }) {
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
@@ -74,7 +89,7 @@ function ModuleCard({
     }
   }
 
-  const filledCount = mod.fields.filter((f) => f.key in mod.responses).length
+  const filledCount = mod.fields.filter((f) => hasMeaningfulValue(mod.responses[f.key])).length
   const totalCount = mod.fields.length
   const pct = totalCount > 0 ? Math.round((filledCount / totalCount) * 100) : 0
 
@@ -128,6 +143,18 @@ function ModuleCard({
               Edit
             </button>
           )}
+          {(() => {
+            const action = projectId ? MODULE_ACTIONS[mod.module_id] : null
+            return action ? (
+              <button
+                type="button"
+                onClick={() => navigate(action.path(projectId!))}
+                className="text-xs font-medium text-accent border border-accent/30 hover:bg-accent/10 px-2 py-1 rounded transition-colors"
+              >
+                {action.label} →
+              </button>
+            ) : null
+          })()}
         </div>
       </div>
 
@@ -232,6 +259,142 @@ function ModuleCard({
   )
 }
 
+function ListFieldEditor({
+  field,
+  items,
+  onChange,
+}: {
+  field: FieldSchema
+  items: unknown[]
+  onChange: (v: unknown) => void
+}) {
+  const [inputVal, setInputVal] = useState('')
+
+  const addItem = () => {
+    const trimmed = inputVal.trim()
+    if (!trimmed) return
+    onChange([...items, trimmed])
+    setInputVal('')
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] text-text-muted font-medium">
+        {field.label}
+        {field.required && <span className="text-amber-300 ml-0.5">*</span>}
+      </label>
+      <div className="flex flex-wrap gap-1.5 mb-1">
+        {items.map((item, i) => (
+          <span
+            key={i}
+            className="inline-flex items-center gap-1 text-[11px] bg-accent/10 border border-accent/20 text-accent/90 rounded px-2 py-0.5"
+          >
+            {String(item)}
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+              className="text-accent/50 hover:text-accent"
+            >
+              x
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem() } }}
+          placeholder={`Add ${field.label.toLowerCase()}...`}
+          className="flex-1 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
+        <button
+          type="button"
+          onClick={addItem}
+          className="text-xs text-accent hover:bg-accent/10 px-2 py-1.5 rounded border border-accent/30"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DictFieldEditor({
+  field,
+  dict,
+  onChange,
+}: {
+  field: FieldSchema
+  dict: Record<string, unknown>
+  onChange: (v: unknown) => void
+}) {
+  const [newKey, setNewKey] = useState('')
+  const [newVal, setNewVal] = useState('')
+
+  const addEntry = () => {
+    const k = newKey.trim()
+    const v = newVal.trim()
+    if (!k || !v) return
+    onChange({ ...dict, [k]: v })
+    setNewKey('')
+    setNewVal('')
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[11px] text-text-muted font-medium">
+        {field.label}
+        {field.required && <span className="text-amber-300 ml-0.5">*</span>}
+      </label>
+      <div className="space-y-1 mb-1">
+        {Object.entries(dict).map(([k, v]) => (
+          <div key={k} className="flex items-center gap-1.5 text-[11px]">
+            <span className="text-accent/80 font-medium">{k}:</span>
+            <span className="text-white/80 flex-1 truncate">{String(v)}</span>
+            <button
+              type="button"
+              onClick={() => {
+                const next = { ...dict }
+                delete next[k]
+                onChange(next)
+              }}
+              className="text-red-400/60 hover:text-red-400 text-[10px]"
+            >
+              x
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          placeholder="Key"
+          className="w-24 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
+        <input
+          type="text"
+          value={newVal}
+          onChange={(e) => setNewVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEntry() } }}
+          placeholder="Value"
+          className="flex-1 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
+        <button
+          type="button"
+          onClick={addEntry}
+          className="text-xs text-accent hover:bg-accent/10 px-2 py-1.5 rounded border border-accent/30"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function FieldEditor({
   field,
   value,
@@ -241,6 +404,17 @@ function FieldEditor({
   value: unknown
   onChange: (v: unknown) => void
 }) {
+  if (field.type === 'list') {
+    return <ListFieldEditor field={field} items={Array.isArray(value) ? value : []} onChange={onChange} />
+  }
+
+  if (field.type === 'dict') {
+    const dict = (typeof value === 'object' && value && !Array.isArray(value))
+      ? value as Record<string, unknown>
+      : {}
+    return <DictFieldEditor field={field} dict={dict} onChange={onChange} />
+  }
+
   if (field.type === 'longtext') {
     return (
       <div className="flex flex-col gap-1">
@@ -255,133 +429,6 @@ function FieldEditor({
           className="bg-white/[0.04] border border-border rounded-lg px-3 py-2 text-xs text-white resize-y focus:outline-none focus:ring-1 focus:ring-accent/40"
           placeholder={field.extraction_hint || `Enter ${field.label.toLowerCase()}...`}
         />
-      </div>
-    )
-  }
-
-  if (field.type === 'list') {
-    const items = Array.isArray(value) ? value : []
-    const [inputVal, setInputVal] = useState('')
-
-    const addItem = () => {
-      const trimmed = inputVal.trim()
-      if (trimmed) {
-        onChange([...items, trimmed])
-        setInputVal('')
-      }
-    }
-
-    return (
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] text-text-muted font-medium">
-          {field.label}
-          {field.required && <span className="text-amber-300 ml-0.5">*</span>}
-        </label>
-        <div className="flex flex-wrap gap-1.5 mb-1">
-          {items.map((item, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1 text-[11px] bg-accent/10 border border-accent/20 text-accent/90 rounded px-2 py-0.5"
-            >
-              {String(item)}
-              <button
-                type="button"
-                onClick={() => onChange(items.filter((_, idx) => idx !== i))}
-                className="text-accent/50 hover:text-accent"
-              >
-                x
-              </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-1.5">
-          <input
-            type="text"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addItem() } }}
-            placeholder={`Add ${field.label.toLowerCase()}...`}
-            className="flex-1 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
-          />
-          <button
-            type="button"
-            onClick={addItem}
-            className="text-xs text-accent hover:bg-accent/10 px-2 py-1.5 rounded border border-accent/30"
-          >
-            +
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (field.type === 'dict') {
-    const dict = (typeof value === 'object' && value && !Array.isArray(value))
-      ? value as Record<string, unknown>
-      : {}
-    const entries = Object.entries(dict)
-    const [newKey, setNewKey] = useState('')
-    const [newVal, setNewVal] = useState('')
-
-    const addEntry = () => {
-      const k = newKey.trim()
-      const v = newVal.trim()
-      if (k && v) {
-        onChange({ ...dict, [k]: v })
-        setNewKey('')
-        setNewVal('')
-      }
-    }
-
-    return (
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] text-text-muted font-medium">
-          {field.label}
-          {field.required && <span className="text-amber-300 ml-0.5">*</span>}
-        </label>
-        <div className="space-y-1 mb-1">
-          {entries.map(([k, v]) => (
-            <div key={k} className="flex items-center gap-1.5 text-[11px]">
-              <span className="text-accent/80 font-medium">{k}:</span>
-              <span className="text-white/80 flex-1 truncate">{String(v)}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = { ...dict }
-                  delete next[k]
-                  onChange(next)
-                }}
-                className="text-red-400/60 hover:text-red-400 text-[10px]"
-              >
-                x
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-1.5">
-          <input
-            type="text"
-            value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
-            placeholder="Key"
-            className="w-24 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
-          />
-          <input
-            type="text"
-            value={newVal}
-            onChange={(e) => setNewVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addEntry() } }}
-            placeholder="Value"
-            className="flex-1 bg-white/[0.04] border border-border rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-accent/40"
-          />
-          <button
-            type="button"
-            onClick={addEntry}
-            className="text-xs text-accent hover:bg-accent/10 px-2 py-1.5 rounded border border-accent/30"
-          >
-            +
-          </button>
-        </div>
       </div>
     )
   }
@@ -674,7 +721,7 @@ export function DesignKit() {
   }, {})
 
   const totalFilled = data.modules.reduce(
-    (sum, m) => sum + m.fields.filter((f) => f.key in m.responses).length,
+    (sum, m) => sum + m.fields.filter((f) => hasMeaningfulValue(m.responses[f.key])).length,
     0,
   )
   const totalFields = data.modules.reduce((sum, m) => sum + m.fields.length, 0)
@@ -683,10 +730,7 @@ export function DesignKit() {
   // Modules with unfilled required fields — candidates for "Continue Discovery"
   const unfilledModules = data.modules.filter((m) => {
     const requiredFields = m.fields.filter((f) => f.required)
-    return requiredFields.some((f) => {
-      const val = m.responses[f.key]
-      return val === undefined || val === null || val === ''
-    })
+    return requiredFields.some((f) => !hasMeaningfulValue(m.responses[f.key]))
   })
 
   const handleContinueDiscovery = () => {
@@ -760,7 +804,7 @@ export function DesignKit() {
               </h2>
               <div className="space-y-3">
                 {modules.map((mod) => (
-                  <ModuleCard key={mod.module_id} mod={mod} onSave={handleSave} onRefreshOutput={handleRefreshOutput} />
+                  <ModuleCard key={mod.module_id} mod={mod} projectId={projectId} onSave={handleSave} onRefreshOutput={handleRefreshOutput} />
                 ))}
               </div>
             </section>

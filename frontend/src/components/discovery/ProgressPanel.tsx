@@ -46,16 +46,18 @@ export function ProgressPanel({ summary, recentUpdates = [] }: Props) {
   // module by clicking its header (manual expansions follow the same FIFO).
   useEffect(() => {
     if (!recentModuleId) return
-    setExpanded((prev) => {
-      if (prev.has(recentModuleId)) return prev
-      const next = new Set(prev)
-      next.add(recentModuleId)
-      while (next.size > MAX_AUTO_EXPANDED) {
-        const oldest = next.values().next().value
-        if (!oldest) break
-        next.delete(oldest)
-      }
-      return next
+    queueMicrotask(() => {
+      setExpanded((prev) => {
+        if (prev.has(recentModuleId)) return prev
+        const next = new Set(prev)
+        next.add(recentModuleId)
+        while (next.size > MAX_AUTO_EXPANDED) {
+          const oldest = next.values().next().value
+          if (!oldest) break
+          next.delete(oldest)
+        }
+        return next
+      })
     })
   }, [recentModuleId])
 

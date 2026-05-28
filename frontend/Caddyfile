@@ -28,4 +28,5 @@ header {
     X-Frame-Options DENY
     Referrer-Policy strict-origin-when-cross-origin
     X-Robots-Tag "index, follow"
+    Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.clerk.accounts.dev https://img.clerk.com; connect-src 'self' https://*.clerk.accounts.dev https://*.google-analytics.com https://challenges.cloudflare.com {$VITE_API_BASE_URL:*}; frame-src https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
 }

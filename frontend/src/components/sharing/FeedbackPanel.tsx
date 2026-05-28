@@ -36,8 +36,8 @@ export function FeedbackPanel({
       )
       if (resp.ok) {
         const data = await resp.json()
-        setAverageScore(data.average_score ?? 0)
-        setTotalRatings(data.total_ratings ?? 0)
+        setAverageScore(data.average_score ?? data.average ?? 0)
+        setTotalRatings(data.total_ratings ?? data.count ?? 0)
       }
     } catch {
       // silently fail

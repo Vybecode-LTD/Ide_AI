@@ -3,9 +3,13 @@ billing.py — Stripe subscription billing. Creates checkout sessions and
 manages the billing portal.
 
 Stripe price IDs must be configured as environment variables. The webhook
-endpoint handles subscription lifecycle events.
+endpoint handles subscription lifecycle events and persists full
+subscription state (ID, status, price, period end) so the entitlement
+service can make plan-limit decisions from local state.
 """
+import logging
 import stripe
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +19,8 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.routers.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -52,23 +58,29 @@ async def create_checkout_session(
         )
 
     try:
-        session = stripe.checkout.Session.create(
-            mode="subscription",
-            payment_method_types=["card"],
-            line_items=[{"price": stripe_price, "quantity": 1}],
-            customer_email=current_user.email,
-            client_reference_id=str(current_user.id),
-            success_url=f"{settings.FRONTEND_URL}/home?billing=success",
-            cancel_url=f"{settings.FRONTEND_URL}/#pricing",
-            metadata={
+        checkout_kwargs = {
+            "mode": "subscription",
+            "payment_method_types": ["card"],
+            "line_items": [{"price": stripe_price, "quantity": 1}],
+            "client_reference_id": str(current_user.id),
+            "success_url": f"{settings.FRONTEND_URL}/home?billing=success",
+            "cancel_url": f"{settings.FRONTEND_URL}/#pricing",
+            "metadata": {
                 "user_id": str(current_user.id),
                 "price_id": payload.price_id,
             },
-        )
+        }
+        # Reuse existing Stripe customer to avoid duplicates
+        if current_user.stripe_customer_id:
+            checkout_kwargs["customer"] = current_user.stripe_customer_id
+        else:
+            checkout_kwargs["customer_email"] = current_user.email
+        session = stripe.checkout.Session.create(**checkout_kwargs)
     except stripe.StripeError as e:
+        logger.error("Stripe checkout error for user %s: %s", current_user.id, e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Stripe error: {str(e)}",
+            detail="Payment provider error. Please try again.",
         )
 
     return {"checkout_url": session.url}
@@ -93,9 +105,10 @@ async def create_billing_portal(
             return_url=payload.return_url or f"{settings.FRONTEND_URL}/settings",
         )
     except stripe.StripeError as e:
+        logger.error("Stripe portal error for user %s: %s", current_user.id, e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Stripe error: {str(e)}",
+            detail="Payment provider error. Please try again.",
         )
 
     return {"portal_url": session.url}
@@ -121,21 +134,43 @@ async def stripe_webhook(
     data = event["data"]["object"]
 
     if event_type == "checkout.session.completed":
-        # Link Stripe customer to our user
+        # Link Stripe customer to our user and persist subscription state
         user_id = data.get("client_reference_id")
         customer_id = data.get("customer")
+        subscription_id = data.get("subscription")
         if user_id and customer_id:
             from sqlalchemy import select, update
             from app.models.user import User as UserModel
             import uuid
 
+            values = {
+                "stripe_customer_id": customer_id,
+                "account_type": _plan_from_metadata(data.get("metadata", {})),
+            }
+            # Persist subscription ID from the checkout session
+            if subscription_id:
+                values["stripe_subscription_id"] = subscription_id
+                values["subscription_status"] = "active"
+                # Fetch the full subscription to get price + period end
+                try:
+                    sub = stripe.Subscription.retrieve(subscription_id)
+                    if sub.get("items", {}).get("data"):
+                        values["subscription_price_id"] = (
+                            sub["items"]["data"][0]["price"]["id"]
+                        )
+                    if sub.get("current_period_end"):
+                        values["subscription_current_period_end"] = (
+                            datetime.fromtimestamp(
+                                sub["current_period_end"], tz=timezone.utc
+                            )
+                        )
+                except stripe.StripeError:
+                    pass  # Non-critical — subscription.updated will fill these
+
             await db.execute(
                 update(UserModel)
                 .where(UserModel.id == uuid.UUID(user_id))
-                .values(
-                    stripe_customer_id=customer_id,
-                    account_type=_plan_from_metadata(data.get("metadata", {})),
-                )
+                .values(**values)
             )
             await db.commit()
 
@@ -148,11 +183,37 @@ async def stripe_webhook(
             from sqlalchemy import select, update
             from app.models.user import User as UserModel
 
-            new_type = "free" if data.get("status") != "active" else _plan_from_price(data)
+            sub_status = data.get("status", "canceled")
+            is_active = sub_status in ("active", "trialing")
+            new_type = _plan_from_price(data) if is_active else "free"
+
+            values = {
+                "account_type": new_type,
+                "stripe_subscription_id": data.get("id"),
+                "subscription_status": sub_status,
+            }
+
+            # Extract the price ID from the first line item
+            try:
+                values["subscription_price_id"] = (
+                    data["items"]["data"][0]["price"]["id"]
+                )
+            except (KeyError, IndexError):
+                pass
+
+            # Convert Unix timestamp → aware datetime
+            period_end = data.get("current_period_end")
+            if period_end:
+                values["subscription_current_period_end"] = (
+                    datetime.fromtimestamp(period_end, tz=timezone.utc)
+                )
+            elif event_type == "customer.subscription.deleted":
+                values["subscription_current_period_end"] = None
+
             await db.execute(
                 update(UserModel)
                 .where(UserModel.stripe_customer_id == customer_id)
-                .values(account_type=new_type)
+                .values(**values)
             )
             await db.commit()
 

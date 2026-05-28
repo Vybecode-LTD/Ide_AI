@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.6.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.8.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,56 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-25) — Production bug-fixing marathon (7 fixes + 38 tests)
+## Current Session (2026-05-27) — Codebase alignment audit execution (12-task plan)
+
+Executed `docs/superpowers/plans/2026-05-28-ide-ai-codebase-alignment-fix-plan.md` — a 12-task Codex audit bringing the codebase back into alignment with the product goal.
+
+### Completed tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Fix frontend lint blockers (DesignKit hooks, ProgressPanel) | Done |
+| 2 | Meaningful-value semantics + v2 Proceed gate fix | Done |
+| 3 | Artifact context service (v1/v2 bridge) | Done |
+| 4 | Exports + prompt packages use v2 context | Done |
+| 5 | Blocks / pipeline / prompts / market / sprint use v2 context | Done |
+| 6 | DesignKit action cards for downstream modules | Done |
+| 7 | Sharing rating contract fix | Done |
+| 8 | Entitlement gates on AI-costing routes | Done |
+| 9 | Auth token readiness (authFetch, inboxStore) | Done |
+| 10 | Module pathway membership validation | Done |
+| 11 | Stripe billing state hardening (4 sub-columns + webhook lifecycle) | Done |
+| 12 | Deployment docs / dev deps / docker-compose | Done |
+
+### Key changes
+
+- **Artifact context service** (`artifact_context_service.py`) — canonical v1/v2 bridge. All downstream consumers (exports, blocks, pipeline, market, sprint) now call `build_artifact_context()` instead of reading only from `design_sheets`. v2 projects finally produce complete outputs.
+- **Export generators** accept `context=` kwarg — v2 path builds context from artifact, v1 path unchanged.
+- **Block generation** refactored — shared `_generate_blocks_from_prompt_context()` helper, v2 uses `generate_blocks_from_context()`.
+- **Pipeline / market / sprint** all accept artifact context for v2.
+- **DesignKit action cards** — `MODULE_ACTIONS` map links blocks/pipeline/prompts/market/sprint/pitch/exports modules to their routes.
+- **Stripe billing** — migration 032 adds 4 subscription columns; checkout reuses existing customer; webhook persists full subscription lifecycle.
+- **Sharing** — `author_name` defaults to Anonymous; response returns dual key sets.
+- **Auth** — `authFetch` helper, entitlement gates on pathway detect + prompt rewrite, module pathway membership validation.
+- **Deployment** — `DEPLOYMENT_RAILWAY.md` rewritten for 2-service topology; `docker-compose.yml` frontend fixed; dev deps added to `pyproject.toml`.
+
+### Test results
+- **Backend**: 229/229 pass. **Frontend**: 37/37 pass. **TypeScript**: clean.
+
+### Security fixes (from orchestrator findings)
+- **SAST-H2 fixed**: OpenAPI docs disabled in production (`ENVIRONMENT=production` → `docs_url=None`).
+- **SAST-M1 fixed**: Stripe error responses sanitized — generic message to client, raw error logged server-side.
+- **SAST-M2 fixed**: CSP header added to Caddyfile (allows Clerk, Stripe, GA4, Cloudflare).
+- **SAST-H1 (open)**: No rate limiting on sharing endpoints — needs `slowapi` or similar.
+- **SAST-M3 (by design)**: CORS defaults to localhost in dev; production uses `CORS_ORIGINS` env var.
+- **DEP-H1 (upstream)**: js-cookie CVE — transitive from `@clerk/shared`, cannot be upgraded independently.
+
+### Remaining from previous sessions
+- Module completion enforcement (commit ab89ccf) + brandmark replacement (commit 3fb44ce) — completed earlier in this session arc.
+
+---
+
+## Previous Session (2026-05-25) — Production bug-fixing marathon (7 fixes + 38 tests)
 
 User live-tested the Railway deployment and reported 7 production bugs across 2 sub-sessions. All fixed, regression-tested (188 backend + 31 frontend + 0 TS errors), committed and pushed.
 
@@ -244,7 +293,7 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 - **Module-preview overlay a11y** — `role="alertdialog"`, labelledby/describedby, Esc-to-skip, focus-on-mount, mobile max-h fix
 - **Audit-closure additions** — `GET /discovery/{session_id}/field-summary` endpoint, `build_unified_greeting_prompt` (v2-aware init), `_coerce_field_value` drop logging, defensive unknown-field-key rejection, ProgressPanel expanded-set cap (FIFO 3), recentUpdates 8s fade, stage UI hidden for v2, loadSheet skipped for v2, `_reset_module_library` test hook
 - **Module library** — 40 modules with 154 field schemas total (52 required, 102 optional), 6 modules flagged `has_output`
-- **Backend test coverage** — **188/188 pass** across 7 test files. 75 tests on v2 (41 service-layer + 34 HTTP-level), 27 admin, 38 regression (chips/slug/transcript/field-summary), 9 entitlements, 28 partner styles, 4 discovery resume, plus 7 misc.
+- **Backend test coverage** — **215/215 pass** across 8 test files. 75 tests on v2 (41 service-layer + 34 HTTP-level), 31 module completion, 27 admin, 38 regression (chips/slug/transcript/field-summary), 9 entitlements, 28 partner styles, 4 discovery resume, plus 3 misc.
 - **Doc versioning** — DOC_VERSIONING.md convention + CHANGELOG.md + Stop hook all live; CLAUDE.md (2.9.4), CONTEXT_HANDOFF.md (3.6.0), TODO.md (3.6.0), DOC_VERSIONING.md (1.1.0), ROADMAP.md (2.3.0) all carrying frontmatter
 - **Backend ownership/entitlement gates** — Every project/session route filters by `user_id`; every creation path gated by plan limit
 - **Migration chain** — Linear 001→030, all reversible cleanly
@@ -444,7 +493,13 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 | Safe filename slug utility | `test_chips_and_exports.py::TestSafeFilenameSlug` | 12 |
 | Transcript service (PDF/TXT/MD) | `test_chips_and_exports.py::TestTranscriptService` | 7 |
 | Field summary _has_value accuracy | `test_chips_and_exports.py::TestFieldSummaryHasValue` | 8 |
-| **Total** | | **219** (188 backend + 31 frontend) |
+| Module completion: _question_range | `test_module_completion.py::TestQuestionRange` | 3 |
+| Module completion: marker detection | `test_module_completion.py::TestIsModuleComplete` | 5 |
+| Module completion: question counting | `test_module_completion.py::TestCountQuestionsAsked` | 4 |
+| Module completion: prompt injection | `test_module_completion.py::TestPromptQuestionCountInjection` | 10 |
+| Module completion: force-complete | `test_module_completion.py::TestForceCompleteIntegration` | 4 |
+| Module completion: prompt preservation | `test_module_completion.py::TestPromptContentPreserved` | 5 |
+| **Total** | | **246** (215 backend + 31 frontend) |
 
 **Known gaps (no test exists):**
 - PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added.
@@ -482,10 +537,10 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 
 ---
 
-## Code Quality Snapshot (2026-05-25 — post production bug-fixing marathon)
+## Code Quality Snapshot (2026-05-27 — post module completion fix + audit)
 
 - ✅ TypeScript: zero compilation errors
-- ✅ Backend Python: **188/188 tests pass** across 7 files (41 service-layer v2 + 34 integration v2 + 27 admin + 38 chips/slug/transcript/field-summary + 9 entitlements + 28 partner styles + 4 discovery resume + 7 misc). Syntax validated on all touched files.
+- ✅ Backend Python: **215/215 tests pass** across 8 files (41 service-layer v2 + 34 integration v2 + 31 module completion + 27 admin + 38 chips/slug/transcript/field-summary + 9 entitlements + 28 partner styles + 4 discovery resume + 3 misc). Syntax validated on all touched files.
 - ✅ Frontend: 31/31 Vitest tests pass across 4 files
 - ✅ Migration chain: linear 001→031, all reversible
 - ✅ Auth: production-hardened with issuer + audience + azp enforcement; race-handling consolidated with INSERT ON CONFLICT

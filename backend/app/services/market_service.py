@@ -286,6 +286,23 @@ def build_sheet_context(sheet: DesignSheet, project: Project) -> dict:
     }
 
 
+def build_context_from_artifact(artifact_ctx: dict) -> dict:
+    """Build the same context dict shape from a unified artifact context (v2)."""
+    return {
+        "project_name": artifact_ctx.get("project_name", ""),
+        "project_description": artifact_ctx.get("project_description", ""),
+        "platform": artifact_ctx.get("platform") or "custom",
+        "problem": artifact_ctx.get("discovery_summary") or artifact_ctx.get("problem") or "",
+        "audience": artifact_ctx.get("audience") or "",
+        "mvp": artifact_ctx.get("mvp") or "",
+        "features": artifact_ctx.get("features") or [],
+        "tone": artifact_ctx.get("tone") or "",
+        "tech_constraints": artifact_ctx.get("tech_constraints") or "",
+        "success_metric": artifact_ctx.get("success_metric") or "",
+        "complexity": artifact_ctx.get("complexity") or "medium",
+    }
+
+
 async def _generate_section(sheet_json: str, prompt_template: str) -> dict:
     """Call Claude to generate one section of the analysis. Returns parsed JSON."""
     prompt = prompt_template.format(sheet_json=sheet_json)
@@ -328,9 +345,12 @@ async def generate_market_analysis(
         yield f"data: {json.dumps({'type': 'error', 'message': 'Project not found'})}\n\n"
         return
 
-    # Fetch design sheet
+    # Fetch design sheet (may be None for v2 projects)
     sheet = await get_design_sheet(db, project_id)
-    if not sheet:
+
+    is_v2 = getattr(project, "flow_version", "v1") == "v2"
+
+    if not sheet and not is_v2:
         yield f"data: {json.dumps({'type': 'error', 'message': 'No design sheet found. Complete Discovery first.'})}\n\n"
         return
 
@@ -360,8 +380,13 @@ async def generate_market_analysis(
         analysis.marketing_strategies = None
         await db.flush()
 
-    # Build context JSON
-    sheet_context = build_sheet_context(sheet, project)
+    # Build context JSON — v2 uses artifact context, v1 uses design sheet
+    if is_v2:
+        from app.services.artifact_context_service import build_artifact_context
+        artifact_ctx = await build_artifact_context(db, project_id, user_id)
+        sheet_context = build_context_from_artifact(artifact_ctx)
+    else:
+        sheet_context = build_sheet_context(sheet, project)
     sheet_json = json.dumps(sheet_context, indent=2)
 
     # Generate each section sequentially, streaming progress

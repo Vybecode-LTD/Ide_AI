@@ -4,6 +4,58 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Codebase alignment audit — v2 artifact bridge + billing + DesignKit actions (2026-05-27)
+
+### Added
+- **Artifact context service** (`backend/app/services/artifact_context_service.py`) — unified bridge between v1 (DesignSheet) and v2 (module_responses) data sources. All downstream consumers (exports, blocks, pipeline, market, sprint) now use `build_artifact_context()` for both flow versions.
+- **v2 export support** — `build_export_context_from_artifact()` maps the artifact context to the same template-ready dict shape used by v1. All 5 generators (MD, TXT, PDF, DOCX, ZIP) accept a `context=` keyword arg so v2 projects produce complete exports.
+- **v2 block generation** — Extracted shared Claude-call logic into `_generate_blocks_from_prompt_context()`. New `generate_blocks_from_context()` accepts artifact context for v2 projects.
+- **v2 pipeline recommendations** — `recommend_pipeline()` accepts `artifact_ctx=` keyword arg; v2 reads problem/audience/platform from module responses.
+- **v2 market analysis** — `build_context_from_artifact()` produces the same shape as `build_sheet_context()`. Market generator auto-detects v2 via `project.flow_version`.
+- **DesignKit action cards** — `MODULE_ACTIONS` map in `DesignKit.tsx` links modules (blocks, pipeline, prompts, market, sprint, pitch, exports) to their downstream routes with "Open X →" buttons.
+- **Stripe subscription lifecycle columns** — Migration 032 adds `stripe_subscription_id`, `subscription_status`, `subscription_price_id`, `subscription_current_period_end` to users table.
+- **`authFetch` helper** (`frontend/src/lib/authFetch.ts`) — centralized auth-aware fetch wrapper for raw fetch/SSE calls.
+- **Backend dev dependencies** — `[project.optional-dependencies] dev` section in `pyproject.toml` (pytest, pytest-asyncio, aiosqlite, httpx).
+
+### Changed
+- **Stripe checkout** now reuses existing `stripe_customer_id` to avoid duplicate customers.
+- **Stripe webhook** persists full subscription lifecycle: `checkout.session.completed` stores subscription ID + status + price + period end; `customer.subscription.updated/deleted` updates all 4 columns. Recognizes `trialing` as active.
+- **Sharing ratings** — `author_name` defaults to `"Anonymous"` (was required); response returns both old (`count`/`average`) and new (`total_ratings`/`average_score`) keys.
+- **Pathway detection** now requires authentication (`get_current_user` dependency added).
+- **Prompt rewrite** now requires `prompt_packages` entitlement gate.
+- **Module write endpoints** (`respond`, `skip`, `update_responses`, `refresh_output`) validate pathway membership via centralized `_ensure_module_in_project_pathway()` helper.
+- **`inboxStore`** throws on missing auth token instead of silently returning.
+- **`SprintPlanner.tsx`** uses `authFetch` instead of manual token injection.
+- **`docker-compose.yml`** frontend service no longer overrides Caddy image with `npm run dev`.
+- **`DEPLOYMENT_RAILWAY.md`** rewritten for actual 2-service topology (no reverse proxy).
+
+### Fixed
+- **v2 exports producing empty output** — exports, blocks, pipeline, market, sprint now read from module_responses via artifact context service instead of only from design_sheets.
+- **Nested f-string syntax error** in export fallback markdown footer.
+- **FeedbackPanel reading wrong response keys** — now reads both `average_score`/`total_ratings` and `average`/`count`.
+
+### Security
+- **SAST-H2 fixed**: OpenAPI docs (`/api/docs`, `/api/redoc`, `/api/openapi.json`) now disabled when `ENVIRONMENT=production`.
+- **SAST-M1 fixed**: Stripe error responses no longer leak internal details — generic "Payment provider error" message returned to client; raw error logged server-side.
+- **SAST-M2 fixed**: `Content-Security-Policy` header added to frontend Caddyfile — allows Clerk, Stripe, GA4, Cloudflare Turnstile; blocks everything else.
+
+### Module completion enforcement + brandmark + codebase audit (2026-05-27)
+
+### Fixed
+- **Module sessions never completing** — AI kept asking questions past the configured limit (3 for lite, 10 for deep) because prompt had no enforcement. Added 3-layer fix: (1) `build_module_system_prompt` now receives `questions_asked` count and injects escalating warnings (count awareness → penultimate "LAST question" → CRITICAL "MUST NOT ask"), (2) Output Rules section states the HARD LIMIT explicitly, (3) backend force-complete backstop in `/respond` — if `new_question_count >= max_q` and AI didn't emit `[MODULE_COMPLETE]`, the backend forces completion. Also fixed `/start` endpoint to use `_question_range()` instead of hardcoded `10 if deep else 3` for `total_questions`.
+- **`[MODULE_COMPLETE]` marker visible in chat** — Frontend now strips `[MODULE_COMPLETE]` from displayed messages alongside the existing `[CHIPS:]` stripping.
+
+### Changed
+- **Brandmark replacement** — Replaced the wide wordmark logo with a square brandmark (`brandmark.png`) across the entire app: Sidebar (desktop + mobile), Landing page (nav, hero, footer), favicon, and apple-touch-icon. All sizing updated from width-based (`w-[200px]`) to height/width pairs with "Ide/AI" text rendered alongside.
+
+### Added
+- **31 module completion regression tests** — New `test_module_completion.py` with 6 test classes: `_question_range` mapping (3), `is_module_complete` marker detection (5), `count_questions_asked` accuracy (4), prompt question-count injection at all stages (10), force-complete integration logic (4), prompt content preservation (5).
+
+### Security (orchestrator findings — 3 remaining)
+- **SAST-H1** (open): No rate limiting on sharing endpoints — anonymous users can spam. Needs `slowapi` or similar.
+- **SAST-M3** (by design): CORS defaults to `localhost:5173` in dev; production uses `CORS_ORIGINS` env var.
+- **DEP-H1** (upstream): `js-cookie` CVE — transitive dependency from `@clerk/shared`, cannot be upgraded independently.
+
 ### Privacy Policy and Terms of Service pages (2026-05-26)
 
 ### Added

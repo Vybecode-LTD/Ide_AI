@@ -41,11 +41,7 @@ services:
       dockerfile: Dockerfile
     container_name: ide-ai-frontend
     ports:
-      - "5173:5173"
-    command: npm run dev -- --host 0.0.0.0
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "5173:80"
     depends_on:
       - backend
 

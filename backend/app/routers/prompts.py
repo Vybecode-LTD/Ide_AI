@@ -105,6 +105,8 @@ async def rewrite_prompt(
     db: AsyncSession = Depends(get_db),
 ):
     """Regenerate a prompt kit with a new version."""
+    await require_feature_usage(current_user, db, "prompt_packages")
+
     # Verify project ownership
     proj_result = await db.execute(
         select(Project).where(Project.id == project_id, Project.user_id == current_user.id)

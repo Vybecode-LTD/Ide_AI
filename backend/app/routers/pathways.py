@@ -3,10 +3,14 @@ pathways.py — API endpoints for concept pathway definitions.
 Serves pathway metadata to the frontend for dynamic UI rendering.
 Includes AI-powered pathway detection from project descriptions.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
+from app.models.user import User
 from app.pathways import PathwayRegistry
+from app.routers.auth import get_current_user
 from app.services.pathway_service import detect_pathway
 
 router = APIRouter(prefix="/pathways", tags=["pathways"])
@@ -24,8 +28,12 @@ async def list_pathways():
 
 
 @router.post("/detect")
-async def detect_pathway_endpoint(payload: DetectRequest):
-    """AI-detect the best pathway for a project description."""
+async def detect_pathway_endpoint(
+    payload: DetectRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """AI-detect the best pathway for a project description (requires auth)."""
     result = await detect_pathway(payload.description)
     # Include full pathway definition alongside the detection result
     try:

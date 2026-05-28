@@ -22,6 +22,8 @@ from app.routers.auth import get_current_user
 from app.schemas.version import VersionCreate, VersionRead
 from app.services import export_service
 from app.services import prompt_package_service
+from app.services.artifact_context_service import build_artifact_context
+from app.services.entitlement_service import require_feature_usage
 
 router = APIRouter(prefix="/projects/{project_id}/export", tags=["exports"])
 
@@ -63,15 +65,22 @@ async def export_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Export a project design kit in the specified format."""
+    """Export a project design kit in the specified format.
+
+    Works for both v1 (DesignSheet-based) and v2 (module_responses-based)
+    projects via the unified artifact context.
+    """
     if format not in CONTENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
-    project, sheet, blocks, pipeline = await _get_project_data(project_id, current_user.id, db)
+    # Build unified context (handles both v1 and v2, raises 404 on missing/unauthorized)
+    artifact_ctx = await build_artifact_context(db, project_id, current_user.id)
 
-    if not sheet:
+    # v1 still requires a design sheet; v2 uses module responses
+    if artifact_ctx["flow_version"] != "v2" and artifact_ctx["sheet"] is None:
         raise HTTPException(status_code=404, detail="Design sheet not found. Complete discovery first.")
 
+    export_ctx = export_service.build_export_context_from_artifact(artifact_ctx)
     content_type, filename = CONTENT_TYPES[format]
 
     generators = {
@@ -83,7 +92,7 @@ async def export_project(
     }
 
     try:
-        content = await generators[format](sheet, blocks, pipeline)
+        content = await generators[format](context=export_ctx)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -93,7 +102,7 @@ async def export_project(
     if isinstance(content, str):
         content = content.encode("utf-8")
 
-    slug = export_service.safe_filename_slug(project.name or "", fallback="project")
+    slug = export_service.safe_filename_slug(artifact_ctx["project_name"] or "", fallback="project")
     ext_filename = f"{slug}-{filename}"
 
     return Response(
@@ -117,7 +126,12 @@ async def export_prompt_package(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate and download a platform-specific prompt package as a ZIP file."""
+    """Generate and download a platform-specific prompt package as a ZIP file.
+
+    Works for both v1 and v2 projects via the unified artifact context.
+    """
+    await require_feature_usage(current_user, db, "prompt_packages")
+
     platform = payload.platform.lower()
     if platform not in prompt_package_service.SUPPORTED_PLATFORMS:
         raise HTTPException(
@@ -126,9 +140,10 @@ async def export_prompt_package(
                    f"Supported: {', '.join(prompt_package_service.SUPPORTED_PLATFORMS.keys())}",
         )
 
-    project, sheet, blocks, pipeline = await _get_project_data(project_id, current_user.id, db)
+    # Build unified context (handles both v1 and v2, raises 404 on missing/unauthorized)
+    artifact_ctx = await build_artifact_context(db, project_id, current_user.id)
 
-    if not sheet:
+    if artifact_ctx["flow_version"] != "v2" and artifact_ctx["sheet"] is None:
         raise HTTPException(status_code=404, detail="Design sheet not found. Complete discovery first.")
 
     # Fetch market analysis if available
@@ -137,36 +152,31 @@ async def export_prompt_package(
     )
     market = market_r.scalar_one_or_none()
 
-    # Build the full project data dict for the service
+    # Build project data from the unified artifact context
+    export_ctx = export_service.build_export_context_from_artifact(artifact_ctx)
+
+    # For v2, include the discovery summary as the problem description
+    # so the prompt package service gets the full module-level context.
     project_data = {
-        "project_name": project.name,
-        "project_description": project.description or "",
-        "problem": sheet.problem or "Not specified",
-        "audience": sheet.audience or "Not specified",
-        "mvp": sheet.mvp or "Not specified",
-        "features": sheet.features or [],
-        "tone": sheet.tone or "Not specified",
-        "platform": sheet.platform or project.platform or "Not specified",
-        "tech_constraints": sheet.tech_constraints or "None",
-        "success_metric": sheet.success_metric or "Not specified",
-        "confidence_score": sheet.confidence_score,
-        "blocks": [
-            {
-                "name": b.name,
-                "description": b.description or "",
-                "category": b.category,
-                "priority": b.priority,
-                "effort": b.effort,
-                "is_mvp": b.is_mvp,
-            }
-            for b in blocks
-        ],
-        "pipeline": [
-            {"layer": n.layer, "tool": n.selected_tool}
-            for n in pipeline
-        ],
+        "project_name": export_ctx["project_name"],
+        "project_description": artifact_ctx.get("project_description", ""),
+        "problem": export_ctx["problem"],
+        "audience": export_ctx["audience"],
+        "mvp": export_ctx["mvp"],
+        "features": export_ctx["features"],
+        "tone": export_ctx["tone"],
+        "platform": export_ctx["platform"],
+        "tech_constraints": export_ctx["tech_constraints"],
+        "success_metric": export_ctx["success_metric"],
+        "confidence_score": export_ctx["confidence_score"],
+        "blocks": export_ctx["blocks"],
+        "pipeline": export_ctx["pipeline"],
         "market_analysis": {},
     }
+
+    # v2: inject discovery summary so the prompt generator gets full context
+    if export_ctx.get("discovery_summary"):
+        project_data["discovery_summary"] = export_ctx["discovery_summary"]
 
     if market and market.status == "complete":
         project_data["market_analysis"] = {
@@ -186,8 +196,7 @@ async def export_prompt_package(
     # Build the ZIP
     zip_bytes = prompt_package_service.build_zip(package_data, project_data, platform)
 
-    platform_label = prompt_package_service.SUPPORTED_PLATFORMS.get(platform, platform)
-    slug = export_service.safe_filename_slug(project.name or "", fallback="project")
+    slug = export_service.safe_filename_slug(export_ctx["project_name"] or "", fallback="project")
     filename = f"{slug}-{platform}-prompts.zip"
 
     return Response(

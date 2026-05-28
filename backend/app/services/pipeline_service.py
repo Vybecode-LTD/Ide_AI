@@ -48,29 +48,44 @@ Only return valid JSON, no markdown."""
 
 async def recommend_pipeline(
     db: AsyncSession,
-    sheet: DesignSheet,
-    project_id: uuid.UUID,
+    sheet: DesignSheet | None = None,
+    project_id: uuid.UUID | None = None,
     complexity: str = "medium",
     pathway: PathwayConfig | None = None,
+    *,
+    artifact_ctx: dict | None = None,
 ) -> tuple[list[PipelineNode], list[str], dict]:
-    """Recommend a tech pipeline based on design sheet analysis.
-    Returns (nodes, reasoning_bullets, cost_estimate).
+    """Recommend a tech pipeline based on design sheet or artifact context.
 
+    Returns (nodes, reasoning_bullets, cost_estimate).
     Uses the pathway's ``domain_layers`` for available tools/costs.
+
+    For v2 projects pass ``artifact_ctx`` instead of ``sheet``; the
+    discovery summary is used as the problem description.
     """
     pw = _get_pathway(pathway)
     layers = pw.domain_layers
 
-    features_str = json.dumps(sheet.features or [])
+    if artifact_ctx is not None:
+        features_str = json.dumps(artifact_ctx.get("features") or [])
+        problem = artifact_ctx.get("discovery_summary") or artifact_ctx.get("problem") or "Not specified"
+        audience = artifact_ctx.get("audience") or "Not specified"
+        platform = artifact_ctx.get("platform") or "Not specified"
+    else:
+        features_str = json.dumps(sheet.features or []) if sheet else "[]"
+        problem = (sheet.problem if sheet else None) or "Not specified"
+        audience = (sheet.audience if sheet else None) or "Not specified"
+        platform = (sheet.platform if sheet else None) or "Not specified"
+
     layer_str = "\n".join(
         f"- {layer}: {', '.join(info['tools'])}"
         for layer, info in layers.items()
     )
 
     prompt = RECOMMENDATION_PROMPT.format(
-        problem=sheet.problem or "Not specified",
-        audience=sheet.audience or "Not specified",
-        platform=sheet.platform or "Not specified",
+        problem=problem,
+        audience=audience,
+        platform=platform,
         complexity=complexity,
         features=features_str,
         layer_options=layer_str,

@@ -90,8 +90,7 @@ export const useInboxStore = create<InboxState>((set, get) => ({
     try {
       const token = await getAuthToken()
       if (!token) {
-        scheduleReconnect = false
-        return
+        throw new Error('Auth token not ready')
       }
 
       const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'

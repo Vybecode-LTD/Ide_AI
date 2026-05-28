@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.6.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.7.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -50,6 +50,11 @@ Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the 
 ## 🛡 Security hygiene (recommended)
 
 - [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Each can be rolled in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), then updated in Railway. Test after rotation: send a "Send example" webhook → backend log returns 200, not 401.
+- [ ] **SAST-H1: Rate limiting on sharing endpoints** — `/sharing/public/{token}/comments` and `/sharing/public/{token}/ratings` are anonymous and have no rate limiting. Install `slowapi` (or `fastapi-limiter`), add per-IP limits (e.g. 10 req/min per token). Also consider rate-limiting the webhook endpoints.
+- [x] ~~**SAST-H2: OpenAPI docs in production**~~ — **DONE 2026-05-28**. `docs_url`, `redoc_url`, `openapi_url` now `None` when `ENVIRONMENT=production`.
+- [x] ~~**SAST-M1: Stripe error leak**~~ — **DONE 2026-05-28**. Generic message returned to client, raw error logged.
+- [x] ~~**SAST-M2: Content-Security-Policy**~~ — **DONE 2026-05-28**. CSP header added to Caddyfile.
+- [ ] **DEP-H1: js-cookie CVE** — transitive from `@clerk/shared` v3.0.5. Check if upgrading `@clerk/clerk-react` resolves it. If not, document as upstream and monitor.
 
 ---
 
@@ -64,7 +69,7 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 ### Test coverage
 
-> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**188 backend tests across 7 files + 31 frontend tests across 4 files = 219 total**) and the explicit gaps. Avoid duplicating coverage.
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**229 backend tests across 9 files + 37 frontend tests across 5 files = 266 total**) and the explicit gaps. Avoid duplicating coverage.
 
 - [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE**. 31 tests across 4 files.
 - [x] ~~**Backend admin endpoint tests**~~ — **DONE**. 27 tests in `test_admin.py`.
@@ -99,7 +104,7 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 ### Documentation
 - [ ] **Add `frontend/src/components/voice/README.md`** — document the Web Speech API integration and browser support matrix.
 - [ ] **Add MIGRATION_GUIDE.md** if any breaking schema changes happen (currently none planned).
-- [ ] **Update `DEPLOYMENT_RAILWAY.md`** with the 4 env vars from the BLOCKING section above.
+- [x] ~~**Update `DEPLOYMENT_RAILWAY.md`**~~ — **DONE 2026-05-27**. Rewritten for actual 2-service topology (no reverse proxy).
 
 ---
 
@@ -162,7 +167,32 @@ Last audited: 2026-05-23
 
 ---
 
-## ✅ Recently Done (2026-05-25 production bug-fixing marathon)
+## ✅ Recently Done (2026-05-27/28 codebase alignment audit + security fixes)
+
+### 12-task Codex codebase alignment audit — all completed
+1. Frontend lint blockers fixed (DesignKit hooks split into stable child components)
+2. Meaningful-value semantics + v2 Proceed gate
+3. Artifact context service — unified v1/v2 bridge (`build_artifact_context()`)
+4. Exports + prompt packages use v2 context
+5. Blocks / pipeline / market / sprint use v2 context
+6. DesignKit action cards — `MODULE_ACTIONS` map
+7. Sharing rating contract fixed
+8. Entitlement gates on AI-costing routes
+9. Auth token readiness (authFetch helper)
+10. Module pathway membership validation
+11. Stripe billing state hardening (migration 032, webhook lifecycle)
+12. Deployment docs / dev deps / docker-compose
+
+### Security fixes (from orchestrator findings)
+- **SAST-H2**: OpenAPI docs disabled in production
+- **SAST-M1**: Stripe error messages sanitized
+- **SAST-M2**: Content-Security-Policy header added
+
+### Test results: 229/229 backend, 37/37 frontend, TypeScript clean.
+
+---
+
+## ✅ Earlier — 2026-05-25 production bug-fixing marathon
 
 ### Production bug fixes — 7 bugs found + fixed during live testing
 

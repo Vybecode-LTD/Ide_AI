@@ -15,7 +15,8 @@ from app.models.user import User
 from app.pathways import PathwayRegistry
 from app.routers.auth import get_current_user
 from app.schemas.block import BlockCreate, BlockRead, BlockUpdate
-from app.services.sheet_service import generate_blocks
+from app.services.artifact_context_service import build_artifact_context
+from app.services.sheet_service import generate_blocks, generate_blocks_from_context
 
 router = APIRouter(prefix="/projects/{project_id}/blocks", tags=["blocks"])
 
@@ -80,25 +81,30 @@ async def ai_generate_blocks(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """AI-generate blocks from the design sheet. Replaces existing blocks."""
+    """AI-generate blocks from the design sheet (v1) or module responses (v2).
+
+    Replaces existing blocks.
+    """
     project = await _verify_project(project_id, current_user, db)
-
-    # Resolve pathway
     pw = PathwayRegistry.get_or_default(project.pathway_id)
-
-    # Get design sheet
-    sheet_result = await db.execute(
-        select(DesignSheet).where(DesignSheet.project_id == project_id)
-    )
-    sheet = sheet_result.scalar_one_or_none()
-    if not sheet:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Design sheet not found")
 
     # Delete existing blocks
     await db.execute(delete(Block).where(Block.project_id == project_id))
 
-    # Generate new blocks
-    blocks = await generate_blocks(db, sheet, project_id, pathway=pw)
+    if getattr(project, "flow_version", "v1") == "v2":
+        # v2: build unified artifact context from module responses
+        artifact_ctx = await build_artifact_context(db, project_id, current_user.id)
+        blocks = await generate_blocks_from_context(db, artifact_ctx, project_id, pathway=pw)
+    else:
+        # v1: require design sheet
+        sheet_result = await db.execute(
+            select(DesignSheet).where(DesignSheet.project_id == project_id)
+        )
+        sheet = sheet_result.scalar_one_or_none()
+        if not sheet:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Design sheet not found")
+        blocks = await generate_blocks(db, sheet, project_id, pathway=pw)
+
     return blocks
 
 

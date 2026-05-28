@@ -463,11 +463,16 @@ export function Discovery() {
             )}
             {projectId && flowVersion === 'v2' && fieldSummary && fieldSummary.total_fields > 0 && (() => {
               // Gate: button is visible once we know about fields, but DISABLED
-              // until overall progress hits 100% (all fields filled with
-              // meaningful values). Uses overall_percent to match the header
-              // badge so the user sees a single consistent number.
-              const pct = fieldSummary.overall_percent
-              const ready = pct >= 100
+              // until all required fields are filled. Optional fields don't
+              // block progression — they're visible in ProgressPanel but never
+              // gate the main CTA. Scoped sessions always allow proceeding.
+              const requiredReady =
+                fieldSummary.required_total === 0 ||
+                fieldSummary.required_filled >= fieldSummary.required_total
+              const ready = scopeModuleIds ? true : requiredReady
+              const pct = fieldSummary.required_total > 0
+                ? Math.round((fieldSummary.required_filled / fieldSummary.required_total) * 100)
+                : fieldSummary.overall_percent
               return (
                 <div className="px-3 md:px-4 py-2 shrink-0">
                   <PulseBeacon id="discovery:proceed">

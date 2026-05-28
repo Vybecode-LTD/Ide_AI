@@ -11,11 +11,13 @@ from app.routers import admin, auth, billing, blocks, branching, clerk_webhook, 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
+    is_production = settings.ENVIRONMENT == "production"
     app = FastAPI(
         title=settings.APP_NAME,
         version="0.1.0",
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
+        docs_url=None if is_production else "/api/docs",
+        redoc_url=None if is_production else "/api/redoc",
+        openapi_url=None if is_production else "/api/openapi.json",
         redirect_slashes=False,
     )
 

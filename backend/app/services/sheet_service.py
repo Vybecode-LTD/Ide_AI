@@ -42,30 +42,20 @@ def _build_sheet_context(sheet: DesignSheet, pathway: PathwayConfig) -> dict[str
     return ctx
 
 
-async def generate_blocks(
+async def _generate_blocks_from_prompt_context(
     db: AsyncSession,
-    sheet: DesignSheet,
+    ctx: dict[str, str],
     project_id: uuid.UUID,
-    pathway: PathwayConfig | None = None,
+    pw: "PathwayConfig",
 ) -> list[Block]:
-    """Generate feature blocks from a completed design sheet using Claude.
-
-    Uses the pathway's ``block_generation_prompt`` and ``block_categories``
-    to produce domain-appropriate blocks.
-    """
-    pw = _get_pathway(pathway)
-    ctx = _build_sheet_context(sheet, pw)
-
-    # Format the pathway's block generation prompt with sheet context
+    """Shared block generation: format prompt, call Claude, create Block rows."""
     try:
         prompt = pw.block_generation_prompt.format(**ctx)
     except KeyError:
-        # Fallback: inject whatever keys are available
         prompt = pw.block_generation_prompt
         for k, v in ctx.items():
             prompt = prompt.replace(f"{{{k}}}", v)
 
-    # Build valid category ids for validation
     valid_categories = {c.id for c in pw.block_categories}
     default_category = pw.block_categories[0].id if pw.block_categories else "core"
 
@@ -105,6 +95,47 @@ async def generate_blocks(
 
     await db.flush()
     return blocks
+
+
+async def generate_blocks(
+    db: AsyncSession,
+    sheet: DesignSheet,
+    project_id: uuid.UUID,
+    pathway: PathwayConfig | None = None,
+) -> list[Block]:
+    """Generate feature blocks from a completed design sheet using Claude.
+
+    Uses the pathway's ``block_generation_prompt`` and ``block_categories``
+    to produce domain-appropriate blocks.
+    """
+    pw = _get_pathway(pathway)
+    ctx = _build_sheet_context(sheet, pw)
+    return await _generate_blocks_from_prompt_context(db, ctx, project_id, pw)
+
+
+async def generate_blocks_from_context(
+    db: AsyncSession,
+    artifact_ctx: dict,
+    project_id: uuid.UUID,
+    pathway: PathwayConfig | None = None,
+) -> list[Block]:
+    """Generate feature blocks from a unified artifact context (v2 projects).
+
+    Builds the same prompt context dict from the artifact context instead
+    of a DesignSheet ORM object, then delegates to the shared generator.
+    """
+    pw = _get_pathway(pathway)
+    ctx: dict[str, str] = {}
+    for sf in pw.sheet_fields:
+        val = artifact_ctx.get(sf.key)
+        if isinstance(val, (list, dict)):
+            ctx[sf.key] = json.dumps(val)
+        else:
+            ctx[sf.key] = str(val) if val else "Not specified"
+    # For v2, enrich the problem field with the full discovery summary
+    if artifact_ctx.get("discovery_summary"):
+        ctx["problem"] = artifact_ctx["discovery_summary"]
+    return await _generate_blocks_from_prompt_context(db, ctx, project_id, pw)
 
 
 def extract_fields(ai_response: str) -> dict:
