@@ -1,31 +1,36 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.3.0 · **Last updated:** 2026-05-25 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.4.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
 ---
 
-## ✅ Recently Shipped (2026-05-23 marathon session)
+## ✅ Recently Shipped
 
-**Discovery v2 overhaul — Phases 1-4 + audit closure + integration tests all shipped today.** This is the big-ticket item. v1 backward-compat fully preserved, 91/91 backend tests pass, frontend TypeScript build clean.
+**Discovery v2 overhaul — all 6 phases shipped + production hardened + codebase alignment audit complete.** v1 backward-compat fully preserved. 229/229 backend tests pass (9 files), 37/37 frontend tests pass (5 files), TypeScript build clean.
 
-- **Phase 1** (commit `fb840de`) — module field schemas (40 modules × 154 fields), `projects.flow_version` migration 029, up-front pathway assembly at project creation
-- **Phase 2** (commit `8cfc66a`) — unified discovery prompt + `extract_module_fields` extractor + `field_update` SSE event + service helpers
-- **Phase 2 hotfix** (commit `23f5e7d`) — migration 030 (shape backfill + UNIQUE constraint), race-safe ON CONFLICT upsert, type coercion, SSE serialization safety
-- **Phase 3** (commit `94102cb`) — Home reorder (TemplateGrid below partner picker), post-create module-preview overlay
-- **Phase 3 hotfix** (commit `a7257e0`) — 5 audit-found bugs closed (setTimeout leak, billing URL preservation, template v1 flag, Library resume branching, PathwayReview v2 redirect)
-- **Phase 4** (commit `b26837a`) — `ProgressPanel` for v2, `useSSE.onFieldUpdate`, Discovery branches on `flow_version`, v2 Proceed gate routes to `/exports/{id}`, module-preview overlay a11y
-- **Phase 4 audit closure** (commit `ff212f3`) — 15 audit findings resolved (H1+H2+M*+L*), 35 unit tests added, defensive unknown-field-key rejection
-- **HTTP integration tests + H1 prod-bug fix** (commit `57aa9d3`) — 15 FastAPI TestClient tests caught a real greenlet-during-serialization bug in `projects.py` H1 path (added `await db.refresh(project)` after the downgrade)
-- **Doc lockdown** (commit `f8d3165`) — P0 block + Phase 5 sequencing + regression test matrix for fresh-session pickup
+### 2026-05-27/28 — Codebase alignment audit + security + CI
+- **12-task Codex audit** (commit `544bb2f`) — artifact context service (v1/v2 bridge), billing hardening (migration 032, 4 subscription columns), DesignKit action cards, export/block/pipeline/market/sprint v2 support, sharing contract fix, entitlement gates, auth token readiness, module pathway validation, deployment docs rewrite
+- **Security fixes** — OpenAPI docs disabled in production (SAST-H2), Stripe error sanitization (SAST-M1), CSP header added (SAST-M2)
+- **CI pipeline** (commit `8f61cfa`) — GitHub Actions workflow with auto-detect for Python/React/C++/.NET, security scanning (Gitleaks + CodeQL), deploy gate
+- **Documentation reconciliation** — verified every CLAUDE.md claim against disk, fixed 3 discrepancies
 
-**Other 2026-05-23 wins (earlier in the session):**
-- **Realtime inbox** — SSE stream at `/inbox/stream` backed by Redis pub/sub. Replaces 60s polling. Graceful 503 fallback when `REDIS_URL` is empty.
-- **Admin dashboard** at hidden `/admin` route — user search, plan controls, entitlement overrides, audit log (commit `3747eac`)
-- **Toast migration** — ~40 silent failures surfaced via `react-hot-toast` across 18 components (commit `28ead2d`)
-- **Doc-versioning system** — SemVer per doc, root CHANGELOG, Stop hook, project memory (commits `6599cd1`, `4032cbc`)
-- **Railway production hardening** — `CORS_ORIGINS`, `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` env vars active; sign-in verified end-to-end
+### 2026-05-25 — Production bug-fixing marathon
+- **7 production bugs fixed** — mobile overflow, proceed gate, extraction stalling at 85%, chip relevance overhaul (AI-powered fallback), PDF export Unicode error, `_has_value()` validator, Design Kit mobile layout
+- **38 regression tests** added in `test_chips_and_exports.py`
+
+### 2026-05-24 — Phase 5 (Design Kit) + Phase 6 (mini-Discovery)
+- **Phase 5** — Design Kit page at `/design-kit/:projectId`, per-module edit/save, Refresh Output for `has_output` modules, Add Modules picker, 20-module cap
+- **Phase 6** — scoped mini-Discovery sessions via `scope_module_ids` (migration 031), "Continue Discovery (N)" button in DesignKit, session isolation
+- **Phase 6 audit** — 6 HIGH + 8 MEDIUM + 8 LOW findings resolved, 16 regression tests
+
+### 2026-05-23 — Phases 1-4 + foundation
+- **Phases 1-4** — module field schemas (40 modules × 154 fields), unified discovery prompt, `field_update` SSE event, ProgressPanel, v2 Proceed gate, 15 audit findings resolved
+- **Realtime inbox** — SSE stream backed by Redis pub/sub
+- **Admin dashboard** — user search, plan controls, entitlement overrides, audit log
+- **Toast migration** — ~40 silent failures surfaced via `react-hot-toast`
+- **Doc-versioning system** — SemVer per doc, root CHANGELOG, Stop hook
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full per-commit breakdown and [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for the current-state snapshot.
 
@@ -57,8 +62,8 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the concrete actionable breakdown of each item.
 
-0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, integration tests, frontend tests, and 7 production bug fixes all landed. 188/188 backend + 31/31 frontend tests pass.
-1. ⚠️ **Deploy verification + security hygiene** — commit + push latest changes, verify Railway deploy, 5-min smoke test (chips, proceed gate, Design Kit mobile, export), rotate 3 webhook secrets. (Detail in [`TODO.md`](TODO.md) `🔴 P0` block.)
+0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, codebase alignment audit, 3 security fixes, CI pipeline, 7 production bug fixes all landed. 229/229 backend + 37/37 frontend tests pass.
+1. ⚠️ **Deploy verification + security hygiene** — push 2 pending commits, verify Railway deploy, 5-min smoke test, rotate 3 webhook secrets, export og-image.png. (Detail in [`TODO.md`](TODO.md) `🔴 P0` block.)
 2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
 3. **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` + `/message` mock coverage. ~2h. Last big backend test gap.
 4. _(open — pick from Medium-Term Features below)_
@@ -85,8 +90,8 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 
 ### Tests
 - **Backend tests for the auth refactor** — `_idempotent_create_user` + `_link_existing_email_user`. Test the 4 race scenarios end-to-end with the INSERT ON CONFLICT path
-- **Backend tests for admin endpoints** — `require_admin` rejection, `update_user_plan` audit trail, `update_user_admin_flag` self-revoke block, entitlement override merge logic
-- **Frontend test scaffolding** — Vitest + first tests (`extractError`, `inboxStore.adjust(-1)` clamping, `useSSE` safety-net, `adminStore` mutations)
+- ~~**Backend tests for admin endpoints**~~ — ✅ DONE. 27 tests in `test_admin.py`.
+- ~~**Frontend test scaffolding**~~ — ✅ DONE. 37 tests across 5 files (extractError, fieldValue, useSSE, ProgressPanel, DesignKit, Discovery, inboxStore).
 
 ---
 
@@ -100,7 +105,7 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 ### Modular pathway
 - **Module dependencies / prerequisites** — currently any order is valid. Add optional `requires` field to module definitions
 - **Cross-module reference UI** — when AI mentions a field already answered, highlight which module/answer it's coming from
-- **Module library expansion** — currently 47 modules across 7 groups. Expand to 70-100 to cover more pathways
+- **Module library expansion** — currently 40 modules across 7 groups. Expand to 70-100 to cover more pathways
 - **Pathway templates** — save a custom pathway configuration and reuse for similar future projects
 - **Re-runnable categorize/assemble** — currently fires once on PathwayReview mount; let users re-trigger after adding more discovery detail
 
@@ -182,4 +187,4 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 3. **Should categorize/assemble be re-runnable?** Currently fires once on PathwayReview mount. If user adds significant detail after, they can't re-trigger. _(Now listed in Medium-Term Features → Modular pathway)_
 4. **Mobile-first redesign?** Current design is desktop-first with mobile responsive. Worth a full mobile-first pass given voice + email-to-inbox flows are mobile-friendly.
 5. **Free tier limits**: 3 projects feels tight. Should we expand to 5 with a "lite" feature set (e.g. no market analysis on free)? _(Now potentially answered by entitlement overrides — could expand on a per-user basis instead)_
-6. **Realtime inbox transport** — WebSocket vs SSE? Project already uses SSE for Discovery + Modules + Market, so SSE is the obvious choice. Decision punted to the implementation session.
+6. ~~**Realtime inbox transport**~~ — **Decided: SSE.** Shipped in `inbox_pubsub.py` with Redis pub/sub backing. Auto-reconnect + graceful 503 fallback.

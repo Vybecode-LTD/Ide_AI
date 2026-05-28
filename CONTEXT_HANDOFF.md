@@ -58,7 +58,8 @@ Follow-up to the 12-task Codex alignment audit. Committed CI workflow and OG ima
 | Hash | What |
 |------|------|
 | `544bb2f` | feat: v2 artifact bridge, billing hardening, security fixes, full doc audit |
-| _(this commit)_ | chore: CI workflow, og-image source, doc reconciliation |
+| `8f61cfa` | chore: CI workflow, og-image source, doc reconciliation |
+| `20feec4` | docs: reconcile ROADMAP.md — fix stale counts and completed items |
 
 ### Test results
 - **Backend**: 229/229 pass (9 files). **Frontend**: 37/37 pass (5 files). **TypeScript**: clean.
@@ -72,7 +73,7 @@ Follow-up to the 12-task Codex alignment audit. Committed CI workflow and OG ima
 - **DEP-H1 (upstream)**: js-cookie CVE — transitive from `@clerk/shared`.
 
 ### Pending
-- **Push to main** — 2 commits ahead of origin. Push triggers Railway auto-deploy.
+- **Push to main** — 3 commits ahead of origin. Push triggers Railway auto-deploy.
 - **Rotate 3 webhook secrets** — CLERK, STRIPE, RESEND.
 - **Export og-image.psd → og-image.png** (1200×630).
 - **5-minute production smoke test** after Railway deploy.

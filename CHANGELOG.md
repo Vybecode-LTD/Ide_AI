@@ -14,6 +14,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 - **CLAUDE.md v2.11.0** — 3 doc-drift fixes: added `admin_audit_log.py` model, expanded types/ listing (4→8 files), corrected module count (47→40).
 - **CONTEXT_HANDOFF.md v3.9.0** — updated for doc reconciliation session.
 - **TODO.md v3.8.0** — cleaned stale P0 items, added og-image export task.
+- **ROADMAP.md v2.4.0** — reconciled Recently Shipped (added phases 5-6, production bugs, alignment audit, security fixes, CI), fixed test counts (91→229), module count (47→40), marked done items, resolved open product question #6.
 
 ### Codebase alignment audit — v2 artifact bridge + billing + DesignKit actions (2026-05-27)
 
