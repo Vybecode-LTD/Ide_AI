@@ -1,24 +1,19 @@
 # Ide/AI — TODO
 
-> **Version:** 3.8.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.9.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
 ---
 
-## 🔴 P0 — DO FIRST (before any new development)
+## 🔴 P0 — none open (cleared 2026-05-30)
 
-- [x] **`git push origin main`** — ✅ DONE 2026-05-23 (5 commits) + 2026-05-25 (5 more commits). Railway auto-deploys both services on push.
-- [ ] **Push 2 pending commits** — `544bb2f` (v2 artifact bridge, billing, security) + doc reconciliation commit. Push to main, verify Railway deploy.
-- [ ] **Export `og-image.psd` → `og-image.png`** (1200×630) — PSD source committed, needs export to PNG for `<meta property="og:image">`.
-- [ ] **5-minute production smoke test** after Railway confirms healthy:
-  - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify chips match the AI's question (not generic), ProgressPanel updates, field_update SSE fires.
-  - Proceed gate: confirm button stays disabled below 100% overall_percent. Badge shows `N% complete`.
-  - `__type_your_answer__` sentinel: for open-ended questions, verify the amber "Type your answer below" indicator appears.
-  - Design Kit mobile: verify "Continue Discovery" sticky bottom bar is visible, header buttons don't overflow.
-  - Export: verify PDF/TXT/MD transcript downloads without "Network Error".
-  - Check Railway logs for any 500s or errors.
-- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate), update Railway env vars, send a "Send example" → 200.
+- [x] **Push all pending commits** — ✅ DONE 2026-05-30. 8 commits pushed; Railway deployed both services green.
+- [x] **Export `og-image.png`** (1200×630) — ✅ DONE; present in `frontend/public/`.
+- [x] **Production smoke test** — ✅ DONE 2026-05-30. Sign-in, admin dashboard, and profile all verified live (after resolving the two-part CSP incident — see Recently Done + [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md)).
+- [x] **Rotate 3 webhook signing secrets** — ✅ DONE 2026-05-30. User rotated the webhook secrets **and** the API keys (Clerk/Stripe/Resend), updated Railway env, sign-in verified.
+
+> Remaining open items are non-blocking — see the 🛡 Security hygiene and 🟡 High Priority sections below (SAST-H1 rate limiting, DEP-H1 js-cookie CVE, Discovery v2 SSE streaming tests, stale `AGENTS.md`).
 
 ---
 
@@ -165,6 +160,24 @@ Last audited: 2026-05-23
 - [ ] Review `docs/claude-code-package/` — older audit packages can be archived.
 - [ ] Remove `frontend/src/components/voice/` if voice never gets used (currently wired up, but Web Speech API has limited browser support).
 - [ ] Migrate `frontend/src/lib/categories.ts` references — if any modules are extracted to their own pages, this might shrink.
+
+---
+
+## ✅ Recently Done (2026-05-30 — doc governance + deploy fixes + CSP incident)
+
+### Doc governance + vendored directive kit
+- Reconciled the Claude-Kit doc directive to root-level SemVer-per-doc (no `docs/` tree); CLAUDE.md "Doc system scope" override (`6812a87`).
+- Vendored + `@include`d the binding directives in CLAUDE.md; tracked DEBUG_PROTOCOL / VERSION_CONTROL / SEO_OPTIMIZATION / seo-research-catalog / TESTING_PROCEDURES / SOFTWARE_RELEASE / _CLAUDE-KIT-README; TESTING scoped to Python+React + no-preview; SOFTWARE_RELEASE → N/A stub (`f7eff4c`).
+- Corrected repo URL → `github.com/Vybecode-LTD/Ide_AI` (`0f96d48`).
+- VERSION_CONTROL pre-commit gate now mandates re-locking after a dependency-manifest edit (`a6862e4`).
+
+### Deploy + production fixes
+- **Railway backend build unblocked** — regenerated `backend/poetry.lock` (a `dev` group was added to `pyproject.toml` without re-locking) (`7ce7148`).
+- **Production CSP incident (resolved)** — added `clerk.myide.ai` to the CSP (`0e5c7c7`) and the backend ORIGIN to `connect-src` (`c826ad5`) in `frontend/Caddyfile`, with guard comments. Full root-cause in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md).
+- **Secrets rotated + verified** — all 3 webhook signing secrets + API keys (Clerk/Stripe/Resend); Railway env updated; sign-in confirmed.
+
+### UX
+- Home: moved "Start Discovery" above the optional template grid (`a21af70`). `tsc` + 37/37 vitest clean.
 
 ---
 

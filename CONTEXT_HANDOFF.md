@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.9.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.10.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,43 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-28) — Doc reconciliation + CI + asset commit
+## Current Session (2026-05-30) — Doc governance + deploy fixes + production CSP incident
+
+Long session: vendored/reconciled the Claude-Kit directive system into the repo, fixed two deploy-blockers, resolved a two-part production outage, and a Home UX tweak. **8 commits, all pushed; production verified healthy (sign-in / admin / profile work live).**
+
+### Commits on `main`
+
+| Hash | What |
+|------|------|
+| `6812a87` | Reconcile Claude-Kit doc directive to root-level SemVer-per-doc (CLAUDE.md "Doc system scope" override; DOCUMENTATION_MANAGER.md remapped — no `docs/` tree) |
+| `0f96d48` | Correct repo URL → `github.com/Vybecode-LTD/Ide_AI` (was stale PromptMonster-Media-Ltd) |
+| `f7eff4c` | Vendor + `@include` the binding directives (track DEBUG_PROTOCOL / VERSION_CONTROL / SEO_OPTIMIZATION / seo-research-catalog / TESTING_PROCEDURES / SOFTWARE_RELEASE / _CLAUDE-KIT-README; TESTING scoped to Python+React + no-preview; SOFTWARE_RELEASE → N/A stub) |
+| `7ce7148` | **Fix Railway backend build** — regenerate `backend/poetry.lock` (a `dev` group was added to pyproject.toml without re-locking) |
+| `a6862e4` | VERSION_CONTROL pre-commit gate now mandates re-locking after a manifest edit |
+| `0e5c7c7` | **Fix prod white-screen** — add `https://clerk.myide.ai` to the CSP (Clerk prod custom domain) |
+| `c826ad5` | **Fix missing name/Admin link** — add backend ORIGIN to CSP connect-src (path blocked `/api/v1/*`) |
+| `a21af70` | Home: move Start Discovery CTA above the optional template grid |
+
+### ⚠️ Production CSP incident (resolved) — read before touching `frontend/Caddyfile`
+
+The day's first push deployed the SAST-M2 CSP (from `544bb2f`). The site then white-screened on a spinner; after the first fix it lost the user's name + Admin link. **Root cause was the CSP, NOT the key rotation.** Two bugs, both fixed in `frontend/Caddyfile` with guard comments:
+1. CSP allowed only Clerk's **dev** domain `*.clerk.accounts.dev`; production's Clerk Frontend API is the **custom domain `clerk.myide.ai`** (the `pk_live_…` key decodes to it). Clerk's SDK was blocked → infinite spinner. **`clerk.myide.ai` must stay in script-src / connect-src / img-src / frame-src.**
+2. CSP `connect-src` listed the backend with its `/api/v1` **path**; CSP exact-matches paths with no trailing slash, so `/api/v1/auth/me` (loads the user + is_admin) and every sub-path call were blocked → `authStore.user` empty. **The backend ORIGIN with no path must stay in connect-src.**
+Diagnosed by reading the live CSP header + decoding the deployed publishable key. Lesson: a green Railway build ≠ a working app — run the smoke test.
+
+### Other
+- **Secrets rotated + verified** — user rotated all 3 webhook signing secrets AND the API keys (Clerk/Stripe/Resend), updated Railway env, sign-in confirmed end-to-end. The old "rotate secrets" P0 is done.
+- **Doc governance settled** — root-level docs + SemVer-per-doc (DOC_VERSIONING.md) is binding. Kit directives are tracked + `@include`d in CLAUDE.md; the reconciled DOCUMENTATION_MANAGER.md **forbids** a `docs/` managed-doc tree / `initialize project docs`. The global `session-orchestrator` skill stays global; if used it must target these root docs.
+- **Lockfile discipline** — any manifest edit must include its re-locked lockfile in the same commit (now in VERSION_CONTROL.md).
+
+### Health
+Backend 229/229 (9 files), frontend 37/37 (5 files), `tsc -b --noEmit` clean. No backend logic changed this session. Both Railway services green; production smoke-verified.
+
+> _Note: the older "What's Working Today" / "Code Quality Snapshot" sections below still cite 215/31 test counts from earlier sessions — current is 229/37 (see CLAUDE.md). Minor stale-count drift, left as-is to keep this handoff focused._
+
+---
+
+## Previous Session (2026-05-28) — Doc reconciliation + CI + asset commit
 
 Follow-up to the 12-task Codex alignment audit. Committed CI workflow and OG image source, then ran a full documentation audit verifying every claim against disk state.
 
@@ -297,18 +333,15 @@ Completed the comprehensive audit + fixed two user-reported mobile/UX bugs, with
 
 ## What Still Needs Your Action
 
-### 🔴 P0 — Do before any new development
+### ✅ P0 — all cleared (2026-05-30)
 
-1. ⚠️ **Push latest commits to Railway** — uncommitted changes need to be committed + pushed. Then verify Railway deploy succeeded for both backend + frontend services (~3-5 min).
-2. ⚠️ **5-min smoke test** once deploy is healthy:
-   - Happy v2 path: open https://myide.ai → pick a category → describe an idea → Start Discovery. Verify chips match the AI's question, field_update SSE events fire, ProgressPanel updates.
-   - Proceed button: confirm it stays disabled below 100% overall_percent. Confirm `__type_your_answer__` amber indicator appears for open-ended questions.
-   - Design Kit: on mobile, verify "Continue Discovery" sticky bottom bar is visible. Verify header buttons don't overflow.
-   - Export transcript: verify PDF/TXT/MD all download without "Network Error" (safe_filename_slug fix).
-   - Check Railway logs for any 500s or `MissingGreenlet` errors.
-3. ⚠️ **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were exposed in chat. Roll each in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Regenerate), update Railway env vars, verify with "Send example" → 200.
+The blockers from the 2026-05-28 handoff are **done**: all commits pushed + deployed, `og-image.png` created, secrets rotated (webhook signing **and** API keys, all 3 providers) + verified, and production smoke-verified (sign-in / admin / profile work live after the CSP incident fix). **No P0 blockers remain.**
 
-See [`TODO.md`](TODO.md) P0 block for full checklist.
+**Still open (non-blocking):**
+- **SAST-H1** — rate limiting on anonymous sharing endpoints (`/sharing/public/{token}/comments|ratings`); install `slowapi`.
+- **DEP-H1** — js-cookie CVE, transitive from `@clerk/shared` (upstream).
+- **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` + `/message` mock coverage (~2h; last backend gap).
+- **AGENTS.md is stale** — wrong drive path / "React 18" / "Codex API" / old repo URL; reconcile-or-delete.
 
 ### 🔐 Security hygiene (recommended but not blocking)
 
@@ -359,7 +392,7 @@ See [`TODO.md`](TODO.md) P0 block for full checklist.
 
 ---
 
-## Database Migrations (linear chain: 001-031)
+## Database Migrations (linear chain: 001-032)
 
 | # | Description |
 |---|-------------|
@@ -385,6 +418,7 @@ See [`TODO.md`](TODO.md) P0 block for full checklist.
 | 029 | Add `projects.flow_version` (legacy `v1` vs unified `v2` flow) |
 | 030 | Phase-2 hotfix — backfill module_pathways.modules shape, dedup module_responses, UNIQUE(project_id, module_id) |
 | 031 | Add `sessions.scope_module_ids` (JSONB, nullable) for mini-Discovery scoped sessions |
+| 032 | Add Stripe subscription state columns (`stripe_subscription_id`, `subscription_status`, `subscription_price_id`, `subscription_current_period_end`) |
 
 ---
 

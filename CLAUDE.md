@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.13.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.14.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -596,6 +596,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 2. **C: drive space:** Vite builds may fail if C: is full. Use `TMPDIR=D:/tmp` when building locally.
 3. **Integration tests:** 4 tests in `backend/tests/test_partner_style.py` require the `anthropic` module (only on Railway). The 24 unit tests run locally with just pytest.
 4. **PartnerSelector component** is used in `Discovery.tsx` for mid-session switching. It was removed from `Home.tsx` in favor of the inline grid.
+5. **CSP / Clerk production domain (`frontend/Caddyfile`):** the CSP **must** allow the Clerk production custom domain `https://clerk.myide.ai` (in `script-src` / `connect-src` / `img-src` / `frame-src`) **and** the backend **origin with no path** in `connect-src`. Dropping the first white-screens the whole SPA (Clerk SDK blocked); dropping the second blocks every `/api/v1/*` call (no profile name, no Admin link). Guard comments are in the Caddyfile — see the 2026-05-30 CSP incident in [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md). A path-scoped `connect-src` entry (e.g. `…/api/v1`) does **not** match sub-paths.
 
 ---
 
@@ -632,10 +633,10 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Documentation reconciliation + CI workflow + asset commit.
+**Task:** Doc-governance reconciliation, deploy-blocker fixes, and a two-part production CSP incident.
 
-Follow-up to the 12-task Codex alignment audit. Committed `.github/workflows/test-pipeline.yml` (CI) and `frontend/public/og-image.psd` (OG image source). Full documentation audit: verified every claim in CLAUDE.md against disk (models, types, module count, test counts), fixed 3 discrepancies (missing `admin_audit_log.py` model, incomplete types listing, stale "47 modules" → 40).
+Vendored + reconciled the Claude-Kit directive set into the repo and `@include`d it in CLAUDE.md (root-level SemVer-per-doc is the binding convention; no `docs/` managed-doc tree). Fixed the Railway backend build (`backend/poetry.lock` re-locked after a `dev` group was added to `pyproject.toml`) and added a lockfile-sync rule to VERSION_CONTROL. Diagnosed + fixed a production white-screen: the SAST-M2 CSP allowed only Clerk's dev domain and a path-scoped backend `connect-src` — added `clerk.myide.ai` and the backend origin to `frontend/Caddyfile`. Corrected the repo URL. Moved the Home "Start Discovery" CTA above the optional templates. **8 commits, all pushed + verified live.**
 
-**Date:** 2026-05-28
-**Test coverage:** 229/229 backend tests pass (9 files). 37/37 frontend tests pass (5 files). TypeScript build clean.
-**Pending:** Rotate 3 webhook secrets (CLERK, STRIPE, RESEND). Create `frontend/public/og-image.png` from PSD (1200×630). Add rate limiting on sharing endpoints (SAST-H1). js-cookie CVE is upstream from `@clerk/shared` (DEP-H1).
+**Date:** 2026-05-30
+**Test coverage:** 229/229 backend (9 files), 37/37 frontend (5 files), `tsc -b --noEmit` clean. Production: both Railway services green; sign-in / admin / profile verified live.
+**Pending (non-blocking):** SAST-H1 (rate-limit sharing endpoints), DEP-H1 (js-cookie CVE upstream), Discovery v2 SSE streaming tests (~2h), reconcile-or-delete stale `AGENTS.md`.

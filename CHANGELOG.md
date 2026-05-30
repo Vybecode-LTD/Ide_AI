@@ -4,6 +4,14 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Session handoff — root docs synced (2026-05-30)
+
+### Changed
+- **Session handoff** (manual, root docs per DOC_VERSIONING — no `docs/` tree):
+  - **CONTEXT_HANDOFF.md → 3.10.0** — new "Current Session (2026-05-30)" block (8 commits + the two-part CSP incident root-cause + the "must keep `clerk.myide.ai` and the backend origin in the CSP" guardrail), P0 block marked cleared, migration 032 added, prior session demoted to "Previous".
+  - **CLAUDE.md → 2.14.0** — Last Completed Task updated to this session; new Known Issue #5 (CSP must allow `clerk.myide.ai` + the backend origin-with-no-path).
+  - **TODO.md → 3.9.0** — P0 blockers moved to Recently Done (all cleared: push/deploy, og-image, smoke test, secret rotation).
+
 ### Changed — Home: Start Discovery moved above the optional templates (2026-05-30)
 
 ### Changed
