@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.11.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.12.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -22,6 +22,23 @@
 ## Documentation Discipline
 
 **This project versions its documentation.** Read [DOC_VERSIONING.md](DOC_VERSIONING.md) for the full convention. The TL;DR for every code-touching session:
+
+### Doc system scope — this project overrides the generic Claude-Kit
+
+[DOC_VERSIONING.md](DOC_VERSIONING.md) is the **binding** documentation convention for Ide/AI: **root-level docs, SemVer _per doc_, one root [CHANGELOG.md](CHANGELOG.md), and the Stop hook.**
+
+The parent `Development/CLAUDE.md` "Project Constitution" `@include`s a generic `DOCUMENTATION_MANAGER.md` describing a *different* system — a `docs/` managed-doc tree (`docs/BUGS.md`, `docs/HANDOFF.md`, `docs/AUDIT-LOG.md`, …), one **shared** version number across all docs, and `initialize project docs`. **That generic system does NOT apply here and must not be installed.** This project already tracks the same concerns in its root docs:
+
+| Generic kit doc | Ide/AI equivalent (root-level) |
+|---|---|
+| `docs/ROADMAP.md` | [ROADMAP.md](ROADMAP.md) |
+| `docs/CHANGELOG.md` | [CHANGELOG.md](CHANGELOG.md) |
+| `docs/HANDOFF.md` | [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md) |
+| `docs/BUGS.md` | tracked in [TODO.md](TODO.md) + CHANGELOG `Fixed` entries |
+| `docs/TESTING.md` | "Regression Test Matrix" in [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md) |
+| `docs/AUDIT-LOG.md` | not used — audit packages live under `docs/claude-code-package/` |
+
+The `session-orchestrator` skill is installed **globally** and may be used for chronicling / reconciliation, **but it must operate on the root-level docs above — never create a `docs/` managed-doc tree, never impose a single shared version, never run `initialize project docs`.** The project-local [DOCUMENTATION_MANAGER.md](DOCUMENTATION_MANAGER.md) has been reconciled to match this mapping; the generic copies under `Development/` are unchanged and remain for other projects.
 
 ### End-of-session checklist (required)
 

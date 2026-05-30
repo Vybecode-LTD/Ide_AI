@@ -4,7 +4,16 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
-### Documentation reconciliation + CI + asset commit (2026-05-28)
+### Documentation governance — Claude-Kit reconciled to the root-level system (2026-05-30)
+
+### Changed
+- **CLAUDE.md v2.12.0** — added a "Doc system scope" override under Documentation Discipline: [DOC_VERSIONING.md](DOC_VERSIONING.md) (root-level docs, SemVer **per doc**, one root CHANGELOG, Stop hook) is the binding convention. The generic Claude-Kit `session-orchestrator` model — a `docs/` managed-doc tree (`docs/BUGS.md`, `docs/HANDOFF.md`, `docs/AUDIT-LOG.md`, …), a single shared version number, and `initialize project docs` — is explicitly **overridden and must not be installed**. Includes a generic-doc → Ide/AI-doc mapping table.
+- **DOCUMENTATION_MANAGER.md** (project-local kit directive) — reconciled to this project so it can't mislead a future session: added a PROJECT OVERRIDE banner, remapped the Document Registry to the real root-level docs, replaced the YAML header standard with the one-line frontmatter, overrode the single-shared-version rule with SemVer-per-doc, disabled `docs/`-tree / `initialize project docs` creation, and added a `docs/…` → root-doc name-mapping note covering every downstream reference.
+
+### Notes
+- The `session-orchestrator` skill and its 8 subagents stay **globally** installed (`~/.claude/skills` + `~/.claude/agents`) — nothing was moved to the project. The generic directive copies under `Development/` are unchanged and still serve other projects.
+
+
 
 ### Added
 - **GitHub Actions CI pipeline** (`.github/workflows/test-pipeline.yml`) — auto-detects Python/React/C++/.NET stacks, runs lint + tests + security scanning (Gitleaks + CodeQL), deploy gate.
