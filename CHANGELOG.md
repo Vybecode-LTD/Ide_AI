@@ -4,6 +4,11 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Home: Start Discovery moved above the optional templates (2026-05-30)
+
+### Changed
+- **Home page: "Start Discovery" now sits directly under the partner-style selector**, above the optional Template grid and Advanced-configuration sections. Templates are an optional selection, so the primary CTA is no longer gated behind them. Pure JSX reorder in `frontend/src/pages/Home.tsx` — no logic change; `tsc` clean, 37/37 frontend tests pass.
+
 ### Fixed — production white-screen: CSP blocked the Clerk custom domain (2026-05-30)
 
 ### Fixed

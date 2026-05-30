@@ -386,9 +386,19 @@ export function Home() {
             </PulseBeacon>
           )}
 
-          {/* Template grid — filtered to selected category. Placed directly
-              below the partner picker per the v2 UX spec (templates inform
-              what the user wants to build before they tweak advanced config). */}
+          {/* Submit — placed directly under the partner picker so the primary
+              CTA is reachable without scrolling past the optional sections.
+              Templates are an optional selection, so the button comes first. */}
+          <div className="mb-6 md:mb-8">
+            <PulseBeacon id="home:start">
+              <Button size="lg" onClick={handleSubmit} disabled={(!idea.trim() && !activeTemplate) || loading}>
+                {loading ? 'Creating...' : 'Start Discovery →'}
+              </Button>
+            </PulseBeacon>
+          </div>
+
+          {/* Template grid — filtered to selected category. Optional, so it sits
+              below the Start Discovery CTA and doesn't gate the primary flow. */}
           <TemplateGrid
             onSelect={(t) => setActiveTemplate(prev => prev?.id === t.id ? null : t)}
             selectedId={activeTemplate?.id}
@@ -500,12 +510,6 @@ export function Home() {
             </AnimatePresence>
           </div>
 
-          {/* Submit */}
-          <PulseBeacon id="home:start">
-            <Button size="lg" onClick={handleSubmit} disabled={(!idea.trim() && !activeTemplate) || loading}>
-              {loading ? 'Creating...' : 'Start Discovery \u2192'}
-            </Button>
-          </PulseBeacon>
         </motion.div>
 
       </main>
