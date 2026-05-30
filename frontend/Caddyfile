@@ -28,5 +28,10 @@ header {
     X-Frame-Options DENY
     Referrer-Policy strict-origin-when-cross-origin
     X-Robots-Tag "index, follow"
-    Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.clerk.accounts.dev https://img.clerk.com; connect-src 'self' https://*.clerk.accounts.dev https://*.google-analytics.com https://challenges.cloudflare.com {$VITE_API_BASE_URL:*}; frame-src https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+    # CSP — clerk.myide.ai is the PRODUCTION Clerk Frontend API (custom domain); the live
+    # publishable key (pk_live_…) decodes to it, so the browser loads Clerk's SDK from there.
+    # It MUST be in script-src / connect-src / img-src / frame-src or Clerk never initializes
+    # and the whole SPA hangs on the loading spinner. *.clerk.accounts.dev alone only covers
+    # development instances. Do not remove https://clerk.myide.ai.
+    Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://clerk.myide.ai https://*.clerk.accounts.dev https://img.clerk.com; connect-src 'self' https://clerk.myide.ai https://*.clerk.accounts.dev https://*.google-analytics.com https://challenges.cloudflare.com {$VITE_API_BASE_URL:*}; frame-src https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
 }
