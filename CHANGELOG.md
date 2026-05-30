@@ -8,6 +8,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ### Fixed
 - **CSP now allows `https://clerk.myide.ai`.** The hardened CSP shipped in `544bb2f` (SAST-M2) allowed only Clerk's **dev** domain `*.clerk.accounts.dev`. In production the Clerk Frontend API is the **custom domain** `clerk.myide.ai` (the live `pk_live_…` publishable key decodes to it), so the browser blocked Clerk's SDK in `script-src`/`connect-src` and the SPA hung on the loading spinner. Added `https://clerk.myide.ai` to `script-src`, `connect-src`, `img-src`, and `frame-src` in `frontend/Caddyfile`, plus a guard comment. **Diagnosed by inspecting the live CSP header + decoding the deployed publishable key; not caused by the Clerk/Stripe/Resend key rotation (coincidental timing).** Verification: re-fetch the live CSP header after redeploy → must contain `clerk.myide.ai`, and the site renders past the spinner.
+- **CSP `connect-src` now includes the backend ORIGIN (no path).** The previous value carried the `/api/v1` path (`{$VITE_API_BASE_URL}` resolves to `…/api/v1`), and CSP exact-matches paths without a trailing slash — so `/api/v1/auth/me` (and every other sub-path call) was blocked once the app could finally reach the backend. That left `authStore.user` empty → no name on the profile button and no Admin link. Added `https://backend-production-9c212.up.railway.app` (origin-only) to `connect-src`. Surfaced only after the Clerk CSP fix let the SPA make API calls.
 
 ### Railway backend build fix — poetry.lock re-locked (2026-05-30)
 

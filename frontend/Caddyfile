@@ -33,5 +33,9 @@ header {
     # It MUST be in script-src / connect-src / img-src / frame-src or Clerk never initializes
     # and the whole SPA hangs on the loading spinner. *.clerk.accounts.dev alone only covers
     # development instances. Do not remove https://clerk.myide.ai.
-    Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://clerk.myide.ai https://*.clerk.accounts.dev https://img.clerk.com; connect-src 'self' https://clerk.myide.ai https://*.clerk.accounts.dev https://*.google-analytics.com https://challenges.cloudflare.com {$VITE_API_BASE_URL:*}; frame-src https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+    # connect-src must list the backend ORIGIN with NO path: a path like /api/v1 makes CSP
+    # exact-match the path and BLOCK sub-paths such as /api/v1/auth/me (loads the user +
+    # is_admin) — which empties the profile name and hides the Admin link. Origin-only
+    # matches all paths. ({$VITE_API_BASE_URL} carries the path and is kept only as a fallback.)
+    Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://clerk.myide.ai https://*.clerk.accounts.dev https://img.clerk.com; connect-src 'self' https://clerk.myide.ai https://*.clerk.accounts.dev https://*.google-analytics.com https://challenges.cloudflare.com https://backend-production-9c212.up.railway.app {$VITE_API_BASE_URL:*}; frame-src https://clerk.myide.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
 }
