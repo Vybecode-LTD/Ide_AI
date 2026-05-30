@@ -70,6 +70,20 @@ unless a release flow intentionally tracks them.
 Before each commit: lint/format clean, affected tests green, **no secret in the
 staged diff**, only intended files staged. Report the exact commands run.
 
+**Lockfiles must stay in sync with their manifests — re-lock in the SAME commit.**
+A lockfile that drifts from its manifest still works locally (you already have the deps
+installed) but **breaks the CI / Docker / deploy build**, which installs strictly from the
+lock. So whenever you edit a dependency manifest, regenerate and stage its lockfile alongside it:
+- **Poetry** — edit `pyproject.toml` → `poetry lock` → stage `poetry.lock`; verify with
+  `poetry check --lock` (the exact guard the build runs).
+- **npm / pnpm / yarn** — edit `package.json` → install → stage `package-lock.json` /
+  `pnpm-lock.yaml` / `yarn.lock`.
+- **uv / pip-tools** — `uv lock` / `pip-compile` → stage `uv.lock` / `requirements*.txt`.
+- **.NET** — restore so `packages.lock.json` refreshes (when lock mode is enabled).
+
+Never commit a manifest change without its lock. *(This exact omission — a `pyproject.toml`
+dev-deps edit committed without `poetry lock` — broke a Railway deploy on this project.)*
+
 ## Gotchas (carry across projects)
 
 - **OneDrive / Dropbox + `.git` is risky** — the sync client can corrupt a repo

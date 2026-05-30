@@ -8,6 +8,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ### Fixed
 - **`backend/poetry.lock` regenerated to match `pyproject.toml`.** Commit `544bb2f` added a `[project.optional-dependencies] dev` group (pytest, pytest-asyncio, aiosqlite) without re-locking, so the Railway backend build failed: *"pyproject.toml changed significantly since poetry.lock was last generated."* Re-locked with Poetry 2.4.1 (`poetry check --lock` passes). Additive only (+123/−1): the 3 dev packages + transitive deps (iniconfig, packaging, pluggy, pygments); **no runtime dependency versions changed**. Dev extras are not installed in the prod image (`poetry install --no-root` installs no extras).
+- **Prevention** — `VERSION_CONTROL.md` pre-commit gate now mandates re-locking in the same commit as any dependency-manifest edit (Poetry / npm·pnpm·yarn / uv·pip-tools / .NET), so a drifted lockfile can't break a deploy again.
 
 ### Vendored + wired the Claude-Kit binding directives (2026-05-30)
 
