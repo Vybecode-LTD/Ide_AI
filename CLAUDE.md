@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.12.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.12.1 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -12,7 +12,7 @@
 ## Project Identity
 
 - **Name:** Ide/AI (codebase directory: `Ide_AI`, formerly known as ideaFORGE)
-- **Repo:** `github.com/PromptMonster-Media-Ltd/Ide_AI`
+- **Repo:** `github.com/Vybecode-LTD/Ide_AI`
 - **Working directory:** `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` — this is the ONLY working directory for this codebase. Any references in older docs to `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` are obsolete.
 - **Branch:** `main`
 - **Deployment:** Railway (2 public services: backend + frontend, no reverse proxy)
