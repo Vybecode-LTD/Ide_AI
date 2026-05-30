@@ -4,6 +4,16 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Vendored + wired the Claude-Kit binding directives (2026-05-30)
+
+### Added
+- **Binding Directives section in CLAUDE.md (v2.13.0)** — natively `@include`s the applicable kit directives (`DEBUG_PROTOCOL`, `VERSION_CONTROL`, `TESTING_PROCEDURES`, `SEO_OPTIMIZATION`) so a fresh clone / cloud session is self-governing without the parent `Development/` constitution. Adds per-directive scope notes and an explicit "this file wins on conflict" precedence rule.
+- **Vendored kit directives now tracked** — `DEBUG_PROTOCOL.md`, `VERSION_CONTROL.md`, `SEO_OPTIMIZATION.md`, `seo-research-catalog.md`, `TESTING_PROCEDURES.md`, `SOFTWARE_RELEASE.md`, and `_CLAUDE-KIT-README.md` committed (were untracked). `DOCUMENTATION_MANAGER.md` was already tracked + reconciled.
+
+### Changed
+- **TESTING_PROCEDURES.md** reconciled — PROJECT OVERRIDE banner: active stacks Python/FastAPI + React/Vite only (C#/Avalonia skipped); the "start dev server / browser smoke / Playwright E2E / launch artifact" steps defer to Critical Rule #8 (no preview verification — user tests manually). Automated verification = `pytest`, `npx.cmd vitest run`, `npx.cmd tsc -b --noEmit`.
+- **SOFTWARE_RELEASE.md** replaced with an N/A stub — Ide/AI is a web app (Railway auto-deploy on push to `main`), not a desktop download; the stub keeps conditional `@SOFTWARE_RELEASE.md` references resolvable and explains how Ide/AI actually ships.
+
 ### Documentation governance — Claude-Kit reconciled to the root-level system (2026-05-30)
 
 ### Changed

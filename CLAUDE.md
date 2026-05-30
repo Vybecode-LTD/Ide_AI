@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.12.1 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.13.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -71,6 +71,24 @@ When you bump:
 - **Stop hook** at `.claude/hooks/check-doc-versioning.sh` fires when a session ends. If the latest commit touched `frontend/src/` or `backend/app/` files but didn't touch CHANGELOG.md, it prints a warning. **Non-blocking** — just a reminder.
 - If you legitimately don't need a CHANGELOG entry (pure internal refactor, no doc impact), it's fine to ignore the nag. The hook errs on the side of reminding.
 - The hook lives in `.claude/settings.json` under `hooks.Stop`. Don't disable it without proposing a replacement.
+
+---
+
+## Binding Directives (vendored)
+
+The Claude-Kit directives are **vendored at the repo root** and wired in here so a fresh clone or a cloud session is self-governing — the parent `Development/` constitution is absent from a standalone checkout. They apply **in addition to** the rules in this file. **Where any directive conflicts with this file, this file wins** (it is the project-specific override). On a machine that also loads the parent constitution, these reconciled project copies are the source of truth for this repo.
+
+@DEBUG_PROTOCOL.md
+@VERSION_CONTROL.md
+@TESTING_PROCEDURES.md
+@SEO_OPTIMIZATION.md
+
+Scope notes for this project:
+
+- **Testing** (`TESTING_PROCEDURES.md`) — active stacks are **Python/FastAPI + React/Vite only** (skip the C#/Avalonia sections). Its "start the dev server / browser smoke / Playwright E2E / launch the app" steps **yield to Critical Rule #8** (no preview verification — the user tests manually); automated verification is `pytest`, `npx.cmd vitest run`, and `npx.cmd tsc -b --noEmit`.
+- **Documentation** — governed by [DOC_VERSIONING.md](DOC_VERSIONING.md); the reconciled `DOCUMENTATION_MANAGER.md` is tracked for reference but **not** `@include`d (its discipline is already inline above and in DOC_VERSIONING.md).
+- **SEO/GEO** (`SEO_OPTIMIZATION.md`) — applies to the public **myide.ai** pages; the 200-technique `seo-research-catalog.md` is a deep reference, loaded on demand (not inlined).
+- **Software release** — **N/A**: Ide/AI is a web app (Railway auto-deploy on push to `main`), not a desktop download. `SOFTWARE_RELEASE.md` is kept only as an N/A stub.
 
 ---
 
