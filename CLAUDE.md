@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.16.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.17.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -184,7 +184,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–032, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # backend tests across 10 files (241 pass · 1 skip · 4 need live Anthropic)
+│   ├── tests/                         # backend tests across 11 files (270 collected · 265 pass · 1 skip · 4 deselected)
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -464,18 +464,18 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - Compare two branches side-by-side
 - Merge branch back into parent
 - Branch indicators visible in Library page
-- Endpoints: `POST /projects/{id}/branch`, `POST /projects/{id}/merge/{branch_id}`, `GET /projects/{id}/branches`, `GET /projects/{id}/compare/{branch_id}`
+- Endpoints (router prefix `/branching`): `POST /branching/{project_id}/branch`, `POST /branching/{project_id}/merge/{branch_id}`, `GET /branching/{project_id}/branches`, `GET /branching/{project_id}/compare/{branch_id}`
 - DB: `concept_branches` table (migration 016)
 
 ### 24. External Integrations (Notion live; others coming soon)
-- 6 providers: **Notion (LIVE)**, Trello, Linear, Figma, Google Docs, Airtable (still `status: "coming_soon"`)
+- 6 providers: **Notion (LIVE in production since 2026-05-31)**, Trello, Linear, Figma, Google Docs, Airtable (still `status: "coming_soon"`)
 - **Notion (first live integration)** — full 3-legged OAuth + "push design kit to a Notion page":
   - `app/services/notion_service.py`: `is_configured()`, `build_authorize_url()`, `exchange_code_for_token()` (HTTP Basic, secret stays server-side), a **pure** `render_design_kit_blocks()` (unified v1/v2 artifact context → Notion blocks), and REST IO `create_design_kit_page()` (100-child batching) / `list_accessible_pages()`
   - OAuth: `POST /integrations/notion/authorize` mints a signed-`state` JWT (HS256, scope `notion_oauth`, 10-min TTL, secret falls back SHARE_ACCESS_SECRET → CLERK_SECRET_KEY); `GET /integrations/notion/callback` is **public** (browser redirect — auth rides in the verified `state`), exchanges the code, stores the token **Fernet-encrypted**, then 302s to `/settings?notion=connected|error`
   - Push: `POST /integrations/notion/push/{project_id}` builds the artifact context (ownership-checked → 404), renders blocks, creates the page; remembers `parent_page_id` in the integration config. `GET /integrations/notion/pages` powers the parent-page picker
   - **Graceful when unconfigured**: with no `NOTION_*` env, `is_configured()` is False → `/authorize` 503s and the Settings card shows "Not available yet". Nothing breaks
   - Frontend: `components/integrations/NotionConnectCard.tsx` (Settings connect/disconnect + post-OAuth toast) and `NotionPushButton.tsx` (Design Kit parent-page picker; inline modal — no shared Modal component exists)
-  - Required env (production): `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` (= `<backend-origin>/api/v1/integrations/notion/callback`). Register a **public** integration at notion.so/my-integrations
+  - **Live in production (2026-05-31)** — Railway env set: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` (= `https://backend-production-9c212.up.railway.app/api/v1/integrations/notion/callback`), plus `INTEGRATION_TOKEN_KEY` (Fernet key for token encryption — **never rotate it** or stored tokens become unreadable). A **public** integration is registered at notion.so/my-integrations. OAuth `state` signing falls back to `CLERK_SECRET_KEY`, so **no `SHARE_ACCESS_SECRET` is needed**. OAuth **connect** verified live; end-to-end **push** (Design Kit → Notion page) pending final confirmation
 - Other providers: unconnected ones return `status: "coming_soon"`; OAuth/Fernet infrastructure is shared
 - Endpoints: `GET /integrations`, `POST /integrations`, `PATCH /integrations/{id}`, `DELETE /integrations/{id}`, `GET /integrations/providers`, plus the 4 Notion routes above
 - DB: `external_integrations` table (migration 016) — `access_token`/`refresh_token` (Fernet-encrypted), `config` (JSONB)
@@ -637,25 +637,29 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Notion integration — first live external integration (OAuth + push design kit).
+**Task:** Notion integration shipped to production — merged, deployed, OAuth connect verified live.
 
-Took Notion out of `coming_soon`. Added 3-legged OAuth (signed-`state` authorize →
-public callback → Fernet-encrypted token storage) and a push action that renders
-the unified v1/v2 artifact context into a Notion page hierarchy. Backend:
-`app/services/notion_service.py` (OAuth helpers, a pure block renderer for both
-flow versions, Notion REST IO with 100-child batching) + 4 routes in
-`integrations.py` + 3 `NOTION_*` config vars; degrades gracefully (503) when
-unconfigured. Frontend: self-contained `NotionConnectCard` (Settings) and
-`NotionPushButton` (Design Kit, inline modal). 25 backend tests. **Goes live
-once `NOTION_CLIENT_ID/SECRET/REDIRECT_URI` are set in Railway** (register a
-public integration at notion.so/my-integrations).
+Reviewed the `feature/notion-integration` work for correctness (OAuth `state`
+signing, the public callback, Fernet token storage, and the ownership-checked
+push — all sound), verified the suite green, pushed the previously **local-only**
+branch to origin for safety, then **merged it to `main` (`--no-ff` merge commit
+`32ec540`) and pushed** — Railway auto-deployed both services. Walked the user
+through registering a **public** Notion integration (Configuration tab → Public,
+redirect URI, capabilities) and setting the Railway env, then confirmed the live
+OAuth **connect** works end-to-end. The first connect click returned "not found"
+because the Railway env/deploy hadn't fully propagated; a retry succeeded — root
+cause confirmed by probing the production callback route (`307 → /settings?notion=error`
+proved the new backend was already live, ruling out a missing route).
 
-Built on `feature/notion-integration` (kept off `main` — needs the env vars + a
-real OAuth smoke test before merge). The prior SSE-tests work is already on
-`main` (`06901cf`).
+**Railway env now set:** `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`,
+`NOTION_REDIRECT_URI` (= `https://backend-production-9c212.up.railway.app/api/v1/integrations/notion/callback`),
+and `INTEGRATION_TOKEN_KEY` (Fernet key — **must never be rotated** or stored tokens
+become unreadable). `SHARE_ACCESS_SECRET` was intentionally left unset (OAuth `state`
+falls back to `CLERK_SECRET_KEY` by design). A stray `SECRET_KEY` exists in Railway
+but is **not read by this app** — ignore it.
 
-_Prior task (2026-05-30): Discovery v2 SSE streaming tests — `backend/tests/test_discovery_sse.py` (16 pass + 1 PG-only skip), on `main`._
+_Prior task (2026-05-30): Notion integration built on `feature/notion-integration`; Discovery v2 SSE streaming tests on `main` (`06901cf`)._
 
-**Date:** 2026-05-30
-**Test coverage:** 271 backend collected across 11 files (266 passed · 1 skipped = PG-only upsert · 4 deselected = need live Anthropic), 37/37 frontend (5 files), `tsc -b --noEmit` clean, ESLint clean. Production unchanged (Notion not yet deployed/merged).
-**Pending (non-blocking):** merge `feature/notion-integration` after setting Railway `NOTION_*` env + OAuth smoke test; SAST-H1 (rate-limit sharing endpoints); DEP-H1 (js-cookie CVE upstream); reconcile-or-delete stale `AGENTS.md`; PG-only upsert test path (needs a Postgres-backed harness).
+**Date:** 2026-05-31
+**Test coverage:** 270 backend collected across 11 files — 265 passed · 1 skipped (PG-only upsert) · 4 deselected (need live Anthropic, via `-k "not PromptComposition"`); 37/37 frontend (5 files); `tsc -b --noEmit` + ESLint clean. (Notion = 24 tests in `test_notion_integration.py`.) **Production: Notion deployed + OAuth connect verified live.**
+**Residual (non-blocking):** confirm the end-to-end **push** (Design Kit → Notion page rendered) — connect verified, full push not explicitly re-confirmed this session; delete the merged `feature/notion-integration` branch (local + origin); SAST-H1 (rate-limit sharing endpoints); DEP-H1 (js-cookie CVE upstream); reconcile-or-delete stale `AGENTS.md`; PG-only upsert test path (needs a Postgres-backed harness).

@@ -4,16 +4,23 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Notion integration SHIPPED to production (2026-05-31)
+
+- **Notion is LIVE.** Merged `feature/notion-integration` → `main` (`--no-ff` merge commit `32ec540`) and pushed; Railway auto-deployed both services. Railway env set: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` (= `<backend-origin>/api/v1/integrations/notion/callback`), and `INTEGRATION_TOKEN_KEY` (Fernet key for OAuth-token encryption — **must never be rotated**, or stored tokens become unreadable). A **public** Notion integration is registered at notion.so/my-integrations. **OAuth connect verified live**; the end-to-end push (Design Kit → Notion page) is deployed + tested but pending final live confirmation.
+- `SHARE_ACCESS_SECRET` intentionally left unset — OAuth `state` signing falls back to `CLERK_SECRET_KEY` (no new secret needed). A stray `SECRET_KEY` in Railway is unused by the app.
+- **Gotcha documented:** the first OAuth connect click right after a Railway env change/deploy can transiently return "not found" (env/deploy propagation lag); a retry succeeds. Diagnosed via a prod-callback probe (`307 → /settings?notion=error`, proving the route was already live).
+- **Docs reconciled** (CLAUDE.md → 2.17.0, CONTEXT_HANDOFF.md → 3.13.0, TODO.md → 3.12.0, ROADMAP.md → 2.6.0): corrected backend test counts to **270 collected / 265 pass · 1 skip · 4 deselected across 11 files** and the Notion suite to **24 tests** (were mis-stated as 271/266 and 25); fixed feature #23 Concept Branching route prose to the `/branching/...` prefix; purged the now-stale "not merged / on branch / awaiting env" framing across all four docs; added a `notion-integration` project-memory entry.
+
 ### Added — Notion integration: OAuth + push design kit (2026-05-30)
 
 ### Added
 - **Notion is the first live external integration** (out of `coming_soon`) — branch `feature/notion-integration`.
   - **Backend** `app/services/notion_service.py`: OAuth helpers (`is_configured`, `build_authorize_url`, `exchange_code_for_token` via HTTP Basic so the secret stays server-side), a **pure** `render_design_kit_blocks()` (unified v1/v2 artifact context → Notion blocks), and REST IO (`create_design_kit_page` with 100-child batching, `list_accessible_pages`). Four routes in `app/routers/integrations.py`: `POST /integrations/notion/authorize` (mints a signed-`state` HS256 JWT, scope `notion_oauth`, 10-min TTL), `GET /integrations/notion/callback` (**public** redirect target — auth rides in the verified `state`; exchanges code, stores token **Fernet-encrypted**, 302s to `/settings?notion=connected|error`), `GET /integrations/notion/pages` (parent-page picker), `POST /integrations/notion/push/{project_id}` (ownership-checked → 404; renders + creates the page; remembers `parent_page_id`). Three `NOTION_*` config vars. **Degrades gracefully when unconfigured** — `is_configured()` False → `/authorize` 503; nothing breaks.
   - **Frontend** self-contained `components/integrations/NotionConnectCard.tsx` (Settings connect/disconnect + post-OAuth toast, strips `?notion=` flag) and `NotionPushButton.tsx` (Design Kit parent-page picker, inline modal matching the ShareDialog pattern — there is no shared `Modal` component). One-line imports + drop-ins into `Settings.tsx` and `DesignKit.tsx`.
-  - **Tests** `backend/tests/test_notion_integration.py` (25): config gating, authorize-URL building, **pure** block rendering (v1 sheet + v2 modules + shared blocks/pipeline + truncation + value coercion), OAuth-state mint/verify/tamper/scope, and routes (authorize 503/200; callback success-stores-encrypted-token / error-param / bad-state / exchange-failure; push 404/200/ownership-404/400; list advertises `available`). Only the network/config edges are mocked.
+  - **Tests** `backend/tests/test_notion_integration.py` (24): config gating, authorize-URL building, **pure** block rendering (v1 sheet + v2 modules + shared blocks/pipeline + truncation + value coercion), OAuth-state mint/verify/tamper/scope, and routes (authorize 503/200; callback success-stores-encrypted-token / error-param / bad-state / exchange-failure; push 404/200/ownership-404/400; list advertises `available`). Only the network/config edges are mocked.
   - `GET /integrations` now reports Notion as `status: "available"` + a `configured` flag; other providers stay `coming_soon`.
 - **Activation**: set `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` (= `<backend-origin>/api/v1/integrations/notion/callback`) in Railway; register a **public** integration at notion.so/my-integrations. Until then the UI shows "Not available yet" and the routes 503 — safe to merge dark.
-- **Backend suite now 271 collected across 11 files** (266 passed · 1 skipped · 4 deselected). Frontend 37/37; `tsc` + ESLint clean.
+- **Backend suite now 270 collected across 11 files** (265 passed · 1 skipped · 4 deselected). Frontend 37/37; `tsc` + ESLint clean. _(Counts corrected 2026-05-31; the Notion file is 24 tests, not 25.)_
 
 ### Added — Discovery v2 SSE streaming tests (2026-05-30)
 

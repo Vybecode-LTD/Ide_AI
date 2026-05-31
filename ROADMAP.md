@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.5.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.6.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
@@ -8,11 +8,11 @@
 
 ## ✅ Recently Shipped
 
-**Notion integration (OAuth + push design kit)** — first external integration out of `coming_soon`, on branch `feature/notion-integration` (awaiting Railway `NOTION_*` env + merge). Signed-state OAuth, public callback, Fernet-encrypted tokens, pure v1/v2 block renderer, 25 tests. _(2026-05-30)_
+**Notion integration (OAuth + push design kit) — LIVE in production.** First external integration out of `coming_soon`. Merged to `main` (`32ec540`) + deployed to Railway; env set (`NOTION_*` + `INTEGRATION_TOKEN_KEY`); OAuth **connect** verified live (end-to-end **push** pending final confirmation). Signed-state OAuth, public callback, Fernet-encrypted tokens, pure v1/v2 block renderer, 24 tests. _(shipped 2026-05-31)_
 
 **Discovery v2 SSE streaming tests** — `test_discovery_sse.py` (16 pass + 1 PG-only skip) closed the last big backend coverage gap; on `main`. _(2026-05-30)_
 
-**Discovery v2 overhaul — all 6 phases shipped + production hardened + codebase alignment audit complete.** v1 backward-compat fully preserved. Backend suite 271 collected across 11 files (266 pass · 1 skip · 4 deselected), 37/37 frontend, TypeScript build clean.
+**Discovery v2 overhaul — all 6 phases shipped + production hardened + codebase alignment audit complete.** v1 backward-compat fully preserved. Backend suite 270 collected across 11 files (265 pass · 1 skip · 4 deselected), 37/37 frontend, TypeScript build clean.
 
 ### 2026-05-27/28 — Codebase alignment audit + security + CI
 - **12-task Codex audit** (commit `544bb2f`) — artifact context service (v1/v2 bridge), billing hardening (migration 032, 4 subscription columns), DesignKit action cards, export/block/pipeline/market/sprint v2 support, sharing contract fix, entitlement gates, auth token readiness, module pathway validation, deployment docs rewrite
@@ -46,7 +46,7 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 ### Optional security hygiene
 - [ ] Rotate the 3 webhook signing secrets (Clerk / Stripe / Resend) — they were pasted in chat during the 2026-05-23 setup session
-- [ ] Generate + set `INTEGRATION_TOKEN_KEY` Fernet key — only needed when integrations exit `coming_soon` (see "Up Next" below)
+- [x] ~~Generate + set `INTEGRATION_TOKEN_KEY` Fernet key~~ — **DONE 2026-05-31** (set in Railway for the live Notion integration; **never rotate it** or stored tokens break)
 
 ### Smoke-test checklist (post-deploy, needs a real user)
 - [ ] Sign up via Clerk → confirm user row created in DB
@@ -69,7 +69,7 @@ User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the c
 0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, codebase alignment audit, 3 security fixes, CI pipeline, 7 production bug fixes all landed.
 1. ✅ **Deploy verification + security hygiene** — all P0 cleared (commits deployed, og-image, smoke test, secret rotation; 2026-05-30).
 2. ✅ **Discovery v2 SSE streaming tests** — done 2026-05-30 (`test_discovery_sse.py`, on `main`).
-3. ⚙️ **Notion integration** — built on `feature/notion-integration` (OAuth + push design kit, 25 tests). **Awaiting activation**: set Railway `NOTION_CLIENT_ID/SECRET/REDIRECT_URI`, then merge + OAuth smoke test. See [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) "Activation".
+3. ✅ **Notion integration** — **SHIPPED 2026-05-31** (merged `32ec540`, deployed, env set, OAuth connect verified live; 24 tests). Residual: confirm the end-to-end push (Design Kit → Notion page). See [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) Current Session.
 4. **Next integration** — Trello or Linear (convert MVP blocks to cards/issues), reusing the Notion OAuth + push scaffold. _Or pick from Medium-Term Features below._
 
 ---
@@ -119,7 +119,7 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 - **Public showcase** — opt-in gallery of completed projects (with owner approval)
 
 ### Integrations (currently de-scoped as `coming_soon`)
-- **Notion** _(queued next — see Up Next)_ — push design sheet + blocks to a Notion page hierarchy
+- ~~**Notion**~~ — ✅ **LIVE in production (2026-05-31)** — pushes the design kit (v1 sheet / v2 modules + feature blocks + tech stack) to a Notion page. No longer `coming_soon`; remaining providers below still are.
 - **Trello / Linear** — convert MVP blocks to cards/issues
 - **Figma** — generate FigJam wireframe from UI skeleton
 - **Google Docs** — export Pitch document

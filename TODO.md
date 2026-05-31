@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.11.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.12.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -45,7 +45,7 @@ Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the 
 
 ## 🛡 Security hygiene (recommended)
 
-- [ ] **Rotate 3 webhook signing secrets** — `CLERK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET`, `RESEND_WEBHOOK_SECRET` were pasted in chat during the 2026-05-23 setup session. Each can be rolled in its origin dashboard (Clerk/Stripe/Resend → Webhooks → Roll/Regenerate signing secret), then updated in Railway. Test after rotation: send a "Send example" webhook → backend log returns 200, not 401.
+- [x] ~~**Rotate 3 webhook signing secrets**~~ — **DONE 2026-05-30** (webhook signing secrets + API keys for Clerk/Stripe/Resend rotated, Railway env updated, sign-in verified). _(Duplicate of the cleared P0 item above.)_
 - [ ] **SAST-H1: Rate limiting on sharing endpoints** — `/sharing/public/{token}/comments` and `/sharing/public/{token}/ratings` are anonymous and have no rate limiting. Install `slowapi` (or `fastapi-limiter`), add per-IP limits (e.g. 10 req/min per token). Also consider rate-limiting the webhook endpoints.
 - [x] ~~**SAST-H2: OpenAPI docs in production**~~ — **DONE 2026-05-28**. `docs_url`, `redoc_url`, `openapi_url` now `None` when `ENVIRONMENT=production`.
 - [x] ~~**SAST-M1: Stripe error leak**~~ — **DONE 2026-05-28**. Generic message returned to client, raw error logged.
@@ -65,7 +65,7 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 ### Test coverage
 
-> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**backend: 241 pass · 1 skip · 4 deselected across 10 files + 37 frontend across 5 files**) and the explicit gaps. Avoid duplicating coverage.
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**backend: 270 collected across 11 files — 265 pass · 1 skip · 4 deselected + 37 frontend across 5 files**) and the explicit gaps. Avoid duplicating coverage.
 
 - [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE**. 31 tests across 4 files.
 - [x] ~~**Backend admin endpoint tests**~~ — **DONE**. 27 tests in `test_admin.py`.
@@ -163,10 +163,16 @@ Last audited: 2026-05-23
 
 ---
 
-## ✅ Recently Done (2026-05-30 — Notion integration)
+## ✅ Recently Done (2026-05-31 — Notion SHIPPED to production)
 
-- **Notion integration (OAuth + push design kit)** on branch `feature/notion-integration` — first provider out of `coming_soon`. Backend `notion_service.py` + 4 routes + 3 `NOTION_*` config vars; frontend `NotionConnectCard` (Settings) + `NotionPushButton` (Design Kit). 25 tests in `test_notion_integration.py`. Backend suite 271 collected across 11 files (266 pass · 1 skip · 4 deselected); frontend 37/37, `tsc`+ESLint clean.
-  - **⚠️ Not merged/deployed.** To activate: register a public Notion integration, set Railway `NOTION_CLIENT_ID/SECRET/REDIRECT_URI`, merge `feature/notion-integration`, OAuth smoke test. See [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) "Activation".
+- **Notion integration is LIVE** — merged `feature/notion-integration` → `main` (`--no-ff`, `32ec540`) + pushed; Railway auto-deployed both services. Railway env set: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI`, `INTEGRATION_TOKEN_KEY` (Fernet — **never rotate** or stored tokens break). User registered a **public** Notion integration. **OAuth connect verified live.**
+  - **⏳ Residual:** confirm the end-to-end **push** (Design Kit → Notion page renders) — connect verified, push tested (24 tests) but not live-confirmed this session.
+  - **🌿 Cleanup:** `feature/notion-integration` (local + origin) is fully merged into `main` — safe to delete.
+  - **Gotcha:** the first connect click can return "not found" right after a Railway env change/deploy (propagation lag) — a retry works (diagnosed via a prod-callback probe → `307 → ?notion=error`, proving the route was live).
+
+## ✅ Recently Done (2026-05-30 — Notion integration built)
+
+- **Notion integration (OAuth + push design kit)** built on branch `feature/notion-integration` — first provider out of `coming_soon`. Backend `notion_service.py` + 4 routes + 3 `NOTION_*` config vars; frontend `NotionConnectCard` (Settings) + `NotionPushButton` (Design Kit). 24 tests in `test_notion_integration.py`. Backend suite 270 collected across 11 files (265 pass · 1 skip · 4 deselected); frontend 37/37, `tsc`+ESLint clean. **Merged + deployed 2026-05-31 (see above).**
   - Doc-debt fixed in passing: feature #24 in CLAUDE.md + ROADMAP overstated the pre-existing integration scaffold (claimed OAuth routes that never existed) — corrected.
 
 ## ✅ Recently Done (2026-05-30 — Discovery v2 SSE streaming tests)
