@@ -12,9 +12,10 @@ import { Card } from '../components/ui/Card'
 import { AdminUserTable } from '../components/admin/AdminUserTable'
 import { AdminUserDrawer } from '../components/admin/AdminUserDrawer'
 import { AdminAuditList } from '../components/admin/AdminAuditList'
+import { AdminBlogManager } from '../components/admin/AdminBlogManager'
 import { useAuthStore } from '../stores/authStore'
 
-type Tab = 'users' | 'audit'
+type Tab = 'users' | 'audit' | 'blog'
 
 export function Admin() {
   const { user, loading, fetchUser } = useAuthStore()
@@ -93,13 +94,21 @@ export function Admin() {
               >
                 Audit Log
               </button>
+              <button
+                onClick={() => setTab('blog')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  tab === 'blog'
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-text-muted hover:text-white'
+                }`}
+              >
+                Blog
+              </button>
             </div>
 
-            {tab === 'users' ? (
-              <AdminUserTable onSelectUser={setSelectedUserId} />
-            ) : (
-              <AdminAuditList />
-            )}
+            {tab === 'users' && <AdminUserTable onSelectUser={setSelectedUserId} />}
+            {tab === 'audit' && <AdminAuditList />}
+            {tab === 'blog' && <AdminBlogManager />}
           </div>
         </div>
       </div>

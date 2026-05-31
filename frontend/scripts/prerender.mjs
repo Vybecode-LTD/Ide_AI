@@ -6,7 +6,7 @@
  */
 import { readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -15,7 +15,9 @@ const toRoot = (p) => resolve(__dirname, '..', p)
 console.log('🔍 Pre-rendering routes...')
 
 const template = readFileSync(toRoot('dist/index.html'), 'utf-8')
-const { render } = await import(toRoot('dist/server/entry-server.js'))
+// pathToFileURL → valid file:// URL on both Windows (C:\…) and Linux (/app/…);
+// a raw absolute path throws ERR_UNSUPPORTED_ESM_URL_SCHEME on Windows.
+const { render } = await import(pathToFileURL(toRoot('dist/server/entry-server.js')).href)
 
 const routes = ['/']
 

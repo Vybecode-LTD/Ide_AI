@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.12.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.13.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -14,6 +14,19 @@
 - [x] **Rotate 3 webhook signing secrets** — ✅ DONE 2026-05-30. User rotated the webhook secrets **and** the API keys (Clerk/Stripe/Resend), updated Railway env, sign-in verified.
 
 > Remaining open items are non-blocking — see the 🛡 Security hygiene and 🟡 High Priority sections below (SAST-H1 rate limiting, DEP-H1 js-cookie CVE, stale `AGENTS.md`). _(Discovery v2 SSE streaming tests — ✅ done 2026-05-30.)_
+
+---
+
+## 🟢 Tutorial + Blog (built 2026-05-31 — awaiting commit/deploy)
+
+Both features are built + fully verified locally (backend 293→288 pass, frontend 60/60, `tsc`/ESLint/`npm run build` all green) but **not committed/deployed** — Phase 2 ships **migration 033** to the prod DB on push. See [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md) "Current Session".
+
+- [ ] **Commit + deploy** the tutorial + blog when ready → Railway runs `alembic upgrade head` (migration 033 creates `blog_posts`). User decides when (touches prod DB).
+- [ ] **Bootstrap an admin** before the Blog CMS is usable — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'`. Then Admin → "Blog" tab + `/blog/admin/*` work. (Public blog reads need no auth.)
+- [ ] **Manually test live** (Rule #8): tour auto-launch on a fresh sign-in + "?" replay + Settings "Replay Walkthrough"; publish a post from the admin CMS → renders at `/blog/{slug}` with correct title/meta.
+- [ ] **Decide tour auto-launch scope** — currently fires once for *everyone* lacking the `ideai-walkthrough` localStorage key (incl. existing users, one time). Make it new-signups-only? Needs a "new user" signal (account age / backend flag).
+- [ ] **Blog SEO fast-follow (optional):** build-time prerender of published posts + dynamic `sitemap.xml` entries (Known Issue #6). Couples the frontend build to backend availability — design accordingly. Until then, blog pages are client-rendered with full Helmet meta + JSON-LD (Googlebot renders JS).
+- [ ] **"?" position polish (optional):** sits `top-3 right-3`; on mobile pages with a TopBar the Clerk avatar shares that corner — nudge if it crowds.
 
 ---
 

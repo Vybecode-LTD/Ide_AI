@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
 import { useTutorialStore } from '../stores/tutorialStore'
+import { useWalkthroughStore } from '../stores/walkthroughStore'
 import { NotionConnectCard } from '../components/integrations/NotionConnectCard'
 
 interface UserPrefs {
@@ -245,14 +246,23 @@ export function Settings() {
                 <Card>
                   <h3 className="text-sm font-semibold text-white mb-2">Tutorial & Onboarding</h3>
                   <p className="text-xs text-text-muted mb-3">
-                    Reset all tutorial hints, beacons, and stage interludes so they appear again.
+                    Replay the step-by-step walkthrough, or reset every ambient hint, beacon, and
+                    interlude so they appear again from scratch.
                   </p>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => useWalkthroughStore.getState().openTour()}
+                    >
+                      Replay Walkthrough
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
                         useTutorialStore.getState().resetTutorial()
+                        useWalkthroughStore.getState().resetWalkthrough()
                         setTutorialReset(true)
                         setTimeout(() => setTutorialReset(false), 2000)
                       }}
@@ -260,7 +270,7 @@ export function Settings() {
                       Reset Tutorial
                     </Button>
                     {tutorialReset && (
-                      <span className="text-xs text-green-400">Tutorial hints reset!</span>
+                      <span className="text-xs text-green-400">Tutorial reset!</span>
                     )}
                   </div>
                 </Card>

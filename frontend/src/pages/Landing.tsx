@@ -241,6 +241,7 @@ export function Landing() {
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
           </div>
           <div className="flex items-center gap-3">
@@ -697,6 +698,7 @@ export function Landing() {
           <div className="flex items-center gap-6 text-xs text-text-muted">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
