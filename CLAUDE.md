@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.14.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.15.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -184,7 +184,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–032, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # 229 backend tests across 9 files
+│   ├── tests/                         # backend tests across 10 files (241 pass · 1 skip · 4 need live Anthropic)
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -633,10 +633,24 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Doc-governance reconciliation, deploy-blocker fixes, and a two-part production CSP incident.
+**Task:** Discovery v2 SSE streaming tests — closed the last big backend coverage gap.
 
-Vendored + reconciled the Claude-Kit directive set into the repo and `@include`d it in CLAUDE.md (root-level SemVer-per-doc is the binding convention; no `docs/` managed-doc tree). Fixed the Railway backend build (`backend/poetry.lock` re-locked after a `dev` group was added to `pyproject.toml`) and added a lockfile-sync rule to VERSION_CONTROL. Diagnosed + fixed a production white-screen: the SAST-M2 CSP allowed only Clerk's dev domain and a path-scoped backend `connect-src` — added `clerk.myide.ai` and the backend origin to `frontend/Caddyfile`. Corrected the repo URL. Moved the Home "Start Discovery" CTA above the optional templates. **8 commits, all pushed + verified live.**
+Added `backend/tests/test_discovery_sse.py` (17 tests) covering the two SSE
+streaming routes that every prior suite skipped: `POST /discovery/{id}/init`
+and `POST /discovery/{id}/message`. The tests mock only the AI boundary
+(`ai_service.stream_response` / `generate_quick_chips` / `extract_module_fields`
+and `discovery_service.extract_sheet_fields`) and let flow-version branching,
+prompt construction, message persistence, sheet update, field-summary
+aggregation, and SSE event assembly run for real. They prove: tokens stream and
+the greeting persists; `done` always fires with chips (even when extraction
+raises); v2 emits `field_update` (+ summary) while v1 emits `sheet_update`, both
+*before* `done`; and the v2 unified vs v1 stage prompts genuinely differ. The
+one PG-only path (`apply_extracted_module_fields` JSONB-merge upsert) is behind
+a documented `@pytest.mark.skip`; summary aggregation is proven via the
+SQLite-safe PATCH endpoint instead. Test-only change — no app logic touched.
+
+_Prior session (2026-05-30): doc-governance reconciliation, Railway deploy-blocker fixes, and the two-part production CSP incident — see [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md)._
 
 **Date:** 2026-05-30
-**Test coverage:** 229/229 backend (9 files), 37/37 frontend (5 files), `tsc -b --noEmit` clean. Production: both Railway services green; sign-in / admin / profile verified live.
-**Pending (non-blocking):** SAST-H1 (rate-limit sharing endpoints), DEP-H1 (js-cookie CVE upstream), Discovery v2 SSE streaming tests (~2h), reconcile-or-delete stale `AGENTS.md`.
+**Test coverage:** 246 backend collected across 10 files (241 passed · 1 skipped = PG-only upsert · 4 deselected = need live Anthropic), 37/37 frontend (5 files), `tsc -b --noEmit` clean. Production: both Railway services green; sign-in / admin / profile verified live.
+**Pending (non-blocking):** SAST-H1 (rate-limit sharing endpoints), DEP-H1 (js-cookie CVE upstream), reconcile-or-delete stale `AGENTS.md`. Remaining backend test gap is the PG-only upsert path (needs a Postgres-backed harness, e.g. testcontainers).

@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.10.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.11.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,29 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-30) — Doc governance + deploy fixes + production CSP incident
+## Current Session (2026-05-30, later) — Discovery v2 SSE streaming tests
+
+Closed the last big backend coverage gap. Added **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) for the two SSE streaming routes every prior suite skipped — `POST /discovery/{id}/init` and `POST /discovery/{id}/message`. **Test-only; no application logic changed.** Working tree: the new test file is the only change (uncommitted as of this writing).
+
+### Approach
+- **Mock boundary = the AI calls only.** Patched `ai_service.stream_response` (async token generator), `ai_service.generate_quick_chips`, `ai_service.extract_module_fields`, and `discovery_service.extract_sheet_fields` (patched where it is *used* — `discovery_service` imports the name directly). Everything else runs for real: flow-version branching, the prompt builders (they never touch the network), message persistence, the v1 design-sheet update, field-summary aggregation, and the SSE event assembly itself. So these are true integration tests of the routes, not unit tests of a mock.
+- **Sync `TestClient`, not async httpx.** An early async-httpx rewrite failed: pytest is in `asyncio_mode = STRICT`, so bare `async def test_` methods aren't collected. The sync Starlette `TestClient` drives the SSE generator (incl. its async DB IO) fine here.
+
+### What the tests prove
+- init streams tokens in order, persists the assistant greeting, and **always** ends with a single `done` carrying chips; rejects an already-initialized session (400) and a missing one (404).
+- message: v2 emits `field_update` (+ aggregate `summary`) and v1 emits `sheet_update` — each **before** `done`; never both. The two flows are driven by `project.flow_version`.
+- v2 vs v1 **system prompts genuinely differ** (the unified prompt's `MODULES IN THIS DESIGN KIT` marker is present for v2, absent for v1), captured off the stream mock.
+- extraction raising mid-stream still yields a `done` sentinel with chips (the discovery.py try/except hardening).
+
+### Known limit (one documented skip)
+- `test_extraction_upsert_writes_new_field` is `@pytest.mark.skip` — it exercises `apply_extracted_module_fields`' PostgreSQL `INSERT ... ON CONFLICT ... responses || EXCLUDED.responses` upsert, whose `||` is JSONB-merge in Postgres but string-concat in SQLite. Un-skip when a PG-backed harness (e.g. testcontainers) lands. Summary aggregation is instead proven SQLite-safely by seeding a value through the real PATCH endpoint and asserting the SSE summary reflects it.
+
+### Health
+**Backend 246 collected across 10 files** — 241 passed · 1 skipped (PG-only upsert) · 4 deselected (`PromptComposition`, needs live Anthropic). Frontend 37/37 (5 files). No app code touched, so no `tsc`/vitest impact. Production unchanged (both Railway services green).
+
+---
+
+## Previous Session (2026-05-30) — Doc governance + deploy fixes + production CSP incident
 
 Long session: vendored/reconciled the Claude-Kit directive system into the repo, fixed two deploy-blockers, resolved a two-part production outage, and a Home UX tweak. **8 commits, all pushed; production verified healthy (sign-in / admin / profile work live).**
 
@@ -526,11 +548,18 @@ For each major code path, the test file(s) that prove it works. Use this when ch
 | Module completion: prompt injection | `test_module_completion.py::TestPromptQuestionCountInjection` | 10 |
 | Module completion: force-complete | `test_module_completion.py::TestForceCompleteIntegration` | 4 |
 | Module completion: prompt preservation | `test_module_completion.py::TestPromptContentPreserved` | 5 |
-| **Total** | | **246** (215 backend + 31 frontend) |
+| v2 SSE init greeting (stream + persist + done/chips + unified prompt) | `test_discovery_sse.py::TestInitGreetingV2` | 3 |
+| v1 SSE init greeting (stream + done + differs from v2) | `test_discovery_sse.py::TestInitGreetingV1` | 2 |
+| SSE init edge cases (404 missing, reject already-init) | `test_discovery_sse.py::TestInitEdgeCases` | 2 |
+| v2 SSE message (field_update before done, summary, extraction-fail safe) | `test_discovery_sse.py::TestSendMessageV2` | 3 (+1 skip: PG-only upsert) |
+| v1 SSE message (sheet_update before done, empty-extract path) | `test_discovery_sse.py::TestSendMessageV1` | 2 |
+| SSE flow-version prompt branching (v2 unified vs v1 stage) | `test_discovery_sse.py::TestFlowVersionPromptBranching` | 3 |
+| SSE message edge case (404 missing session) | `test_discovery_sse.py::TestSendMessageEdgeCases` | 1 |
+| **Suite reality** | | **backend: 241 pass · 1 skip (PG upsert) · 4 deselected (need live Anthropic) across 10 files · frontend 37 across 5 files** |
 
 **Known gaps (no test exists):**
-- PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added.
-- SSE streaming routes (`/discovery/{id}/init` and `/message`) — would need to mock `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h of work.
+- PostgreSQL ON CONFLICT upsert path — SQLite harness doesn't support `pg_insert` ON CONFLICT syntax. Production-verified-only until a PG-backed test environment is added. (Now also the sole remaining sub-gap inside the otherwise-covered SSE message route — see next bullet.)
+- ~~SSE streaming routes (`/discovery/{id}/init` and `/message`)~~ — ✅ **covered as of 2026-05-30** by `test_discovery_sse.py` (16 pass + 1 skip). The AI boundary (`stream_response` / `generate_quick_chips` / `extract_module_fields` / `extract_sheet_fields`) is mocked; routing, flow-version branching, persistence, and SSE event assembly run for real. The only remaining sub-gap is the PG-only field-upsert (above).
 - Frontend: DesignKit edit/save flow, Discovery flow_version branching, PathwayExecute v2 redirect — verified only by `tsc` + manual smoke testing.
 
 ---

@@ -4,6 +4,12 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Added — Discovery v2 SSE streaming tests (2026-05-30)
+
+### Added
+- **`backend/tests/test_discovery_sse.py`** (17 tests, 16 pass + 1 documented skip) — closes the last big v2 backend coverage gap (the SSE streaming routes `POST /discovery/{id}/init` and `POST /discovery/{id}/message`, which `test_discovery_v2_integration.py` explicitly deferred). Mocks only the AI boundary (`ai_service.stream_response` / `generate_quick_chips` / `extract_module_fields`, and `discovery_service.extract_sheet_fields` patched where it's used) and runs flow-version branching, prompt construction, message persistence, sheet update, field-summary aggregation, and SSE event assembly for real. Proves: token streaming + greeting persistence; `done` always fires with chips (incl. when extraction raises — the discovery.py try/except hardening); v2 emits `field_update` (+ summary) and v1 emits `sheet_update`, both **before** `done`; and the v2 unified vs v1 stage system prompts genuinely differ. The PG-only `apply_extracted_module_fields` upsert (`responses || EXCLUDED.responses` — JSONB-merge in Postgres, string-concat in SQLite) is behind a `@pytest.mark.skip` with reason/owner/un-skip-condition; summary aggregation is instead proven via the SQLite-safe PATCH endpoint. **Test-only — no application logic changed.**
+- **Backend suite now 246 collected across 10 files** (was 229/9): 241 passed · 1 skipped (PG-only upsert) · 4 deselected (`PromptComposition`, needs live Anthropic). Frontend unchanged at 37/37.
+
 ### Session handoff — root docs synced (2026-05-30)
 
 ### Changed

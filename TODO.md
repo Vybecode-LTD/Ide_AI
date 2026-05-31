@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.9.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.10.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -13,7 +13,7 @@
 - [x] **Production smoke test** — ✅ DONE 2026-05-30. Sign-in, admin dashboard, and profile all verified live (after resolving the two-part CSP incident — see Recently Done + [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md)).
 - [x] **Rotate 3 webhook signing secrets** — ✅ DONE 2026-05-30. User rotated the webhook secrets **and** the API keys (Clerk/Stripe/Resend), updated Railway env, sign-in verified.
 
-> Remaining open items are non-blocking — see the 🛡 Security hygiene and 🟡 High Priority sections below (SAST-H1 rate limiting, DEP-H1 js-cookie CVE, Discovery v2 SSE streaming tests, stale `AGENTS.md`).
+> Remaining open items are non-blocking — see the 🛡 Security hygiene and 🟡 High Priority sections below (SAST-H1 rate limiting, DEP-H1 js-cookie CVE, stale `AGENTS.md`). _(Discovery v2 SSE streaming tests — ✅ done 2026-05-30.)_
 
 ---
 
@@ -65,13 +65,13 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 ### Test coverage
 
-> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**229 backend tests across 9 files + 37 frontend tests across 5 files = 266 total**) and the explicit gaps. Avoid duplicating coverage.
+> Before adding tests, check the **Regression Test Matrix** in [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) — it lists every code path currently covered (**backend: 241 pass · 1 skip · 4 deselected across 10 files + 37 frontend across 5 files**) and the explicit gaps. Avoid duplicating coverage.
 
 - [x] ~~**Frontend tests** — Vitest setup + first tests~~ — **DONE**. 31 tests across 4 files.
 - [x] ~~**Backend admin endpoint tests**~~ — **DONE**. 27 tests in `test_admin.py`.
 - [x] ~~**Discovery v2 endpoint integration tests**~~ — **DONE**. 34 tests in `test_discovery_v2_integration.py`.
 - [x] ~~**Chip relevance + export + field summary tests**~~ — **DONE 2026-05-25**. 38 tests in `test_chips_and_exports.py`: chip parsing (4), generic filter (3), fallback sentinel (2), AI fallback (2), safe slug (12), transcript PDF/TXT/MD (7), field summary _has_value (8).
-- [ ] **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` v2-vs-v1 prompt branching + `/discovery/{id}/message` field_update emission. Requires mocking `AsyncAnthropic.messages.stream` with a canned token sequence. ~2h. Closes the last big v2 backend coverage gap.
+- [x] ~~**Discovery v2 SSE streaming tests**~~ — **DONE 2026-05-30**. `backend/tests/test_discovery_sse.py` (16 pass + 1 documented skip) covers `/discovery/{id}/init` + `/message`: token streaming, greeting persistence, `field_update` (v2) vs `sheet_update` (v1) emitted before `done`, v2-vs-v1 prompt branching, and extraction-failure-still-emits-done. Mocks the AI boundary only (`stream_response` / `generate_quick_chips` / `extract_module_fields` / `extract_sheet_fields`); everything else runs for real. The one skip is the PG-only `||` upsert (needs a Postgres harness).
 - [ ] **Discovery v2 upsert tests** — `apply_extracted_module_fields` ON CONFLICT path requires PostgreSQL — out-of-scope for the SQLite test harness. Either add a PG-backed integration test environment (testcontainers-python) or document as production-verified-only.
 
 ### DB cleanup
@@ -160,6 +160,12 @@ Last audited: 2026-05-23
 - [ ] Review `docs/claude-code-package/` — older audit packages can be archived.
 - [ ] Remove `frontend/src/components/voice/` if voice never gets used (currently wired up, but Web Speech API has limited browser support).
 - [ ] Migrate `frontend/src/lib/categories.ts` references — if any modules are extracted to their own pages, this might shrink.
+
+---
+
+## ✅ Recently Done (2026-05-30 — Discovery v2 SSE streaming tests)
+
+- **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) — closed the last big v2 backend coverage gap. Covers the two SSE streaming routes (`POST /discovery/{id}/init`, `POST /discovery/{id}/message`) that `test_discovery_v2_integration.py` explicitly deferred. Mocks the AI boundary only; runs flow-version branching, prompt construction, persistence, field-summary aggregation, and SSE event assembly for real. Backend suite now 246 collected across 10 files (241 pass · 1 skip · 4 deselected); frontend unchanged at 37. **Test-only — no app logic touched.** Uncommitted as of this entry.
 
 ---
 
