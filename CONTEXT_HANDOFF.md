@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.13.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.14.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,33 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-31) — Notion SHIPPED to production (merged + deployed + OAuth connect verified)
+## Current Session (2026-05-31) — Step-by-Step Tutorial + Blog (built locally, NOT yet committed/deployed)
+
+Built two features end to end across three verified phases. **Nothing is committed or deployed** — all changes are uncommitted in the working tree on `main`, awaiting the user's go-ahead (Phase 2 ships **migration 033** to the prod DB on push). CLAUDE.md → 2.18.0.
+
+### What was built (in the working tree)
+- **Feature #26 — Guided Tour (frontend-only):** linear onboarding walkthrough — `GuidedTour.tsx` overlay (7 steps, progress dots, keyboard nav), floating top-right **"?" launcher** (`HelpButton.tsx`, mounted globally for signed-in users in `App.tsx`, one-time auto-launch), `walkthroughStore.ts` (Zustand+persist — only durable flags persist), `tourSteps.ts`. Settings → "Replay Walkthrough" + reset clears both tutorial systems. Polyfilled `localStorage` in `src/test/setup.ts` (jsdom exposes none; `zustand/persist` needs it on `setState`).
+- **Feature #27 — Blog (public + admin CMS):** public `/blog` + `/blog/:slug` (`Blog.tsx`, `BlogPost.tsx`; Helmet + `BlogPosting`/`BreadcrumbList` JSON-LD; react-markdown + remark-gfm), admin "Blog" tab (`AdminBlogManager.tsx`), backend `routers/blog.py` + `models/blog_post.py` + `schemas/blog.py` + **migration 033**, plus `lib/blogApi.ts`/`lib/blogFormat.ts`/`types/blog.ts`/`components/blog/BlogChrome.tsx`/`.blog-content` styles. `/blog` in `sitemap.xml`; "Blog" in Landing nav + footer.
+- **Build fix:** `scripts/prerender.mjs` SSR import via `pathToFileURL()` → full `npm run build` (incl. prerender) now runs on Windows too.
+
+### Verification (all green)
+- Backend **293 collected / 288 pass · 1 skip · 4 deselected** (`-k "not PromptComposition"`, 12 files); blog = **23 tests** in `test_blog.py`.
+- Frontend **60/60** (9 files); `tsc -b --noEmit` clean; ESLint clean; **full `npm run build` green incl. prerender**.
+
+### Gotchas / decisions (READ before touching the blog or committing)
+- **Not committed yet** — when the user says go: branch/commit per their preference, push → Railway auto-deploys + runs `alembic upgrade head` (migration 033 creates `blog_posts`).
+- **Blog CMS needs an admin** — the "Blog" tab + `/blog/admin/*` routes are `require_admin`. Bootstrap via `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` (canonical row). Public blog reads need no auth.
+- **`await db.refresh(post)` after flush** in the create/update/view routes — server-default `created_at`/`updated_at` (and the view-count UPDATE's `onupdate`) expire the attribute; serializing it would trigger an async lazy-load → `MissingGreenlet`. Refresh reloads it synchronously inside the async route.
+- **Blog SEO is client-rendered** — Helmet meta + JSON-LD are present and Googlebot renders JS, but per-post **static prerender is a fast-follow** (Known Issue #6) because it couples the frontend build to backend availability at build time.
+- **Tour auto-launch fires once for everyone** without the `ideai-walkthrough` localStorage key (incl. existing users, one time). New-signups-only would need a "new user" signal.
+- **2 high-sev npm vulns are pre-existing** (`js-cookie` via `@clerk/shared`, DEP-H1) — `react-markdown`/`remark-gfm` added zero. Did **not** run `npm audit fix` (would churn Clerk's transitive tree).
+
+### Residual (non-blocking)
+- Commit + deploy when ready; manually test tour + blog live (Rule #8); bootstrap an admin; decide auto-launch scope; build-time blog prerender (Known Issue #6); SAST-H1 (rate-limit sharing); DEP-H1 (js-cookie via Clerk, upstream); reconcile-or-delete stale `AGENTS.md`.
+
+---
+
+## Previous Session (2026-05-31) — Notion SHIPPED to production (merged + deployed + OAuth connect verified)
 
 The Notion integration went live. Reviewed the branch for correctness, verified green, pushed it (it had been **local-only**), **merged to `main`** (`--no-ff`, merge commit **`32ec540`**), pushed → Railway auto-deployed both services. Guided the Notion + Railway setup, then confirmed the live OAuth **connect** works.
 

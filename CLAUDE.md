@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.17.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.18.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -142,7 +142,8 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── external_integration.py # OAuth tokens for external tools
 │   │   │   ├── module_pathway.py, module_response.py, module_artifact.py
 │   │   │   ├── project_snapshot.py, user_memory.py
-│   │   │   └── admin_audit_log.py     # Append-only admin action log
+│   │   │   ├── admin_audit_log.py     # Append-only admin action log
+│   │   │   └── blog_post.py           # Blog posts (public read + admin CMS)
 │   │   ├── schemas/                   # Pydantic v2 request/response schemas
 │   │   ├── routers/                   # FastAPI route handlers
 │   │   │   ├── admin.py               # Admin dashboard (user management, audit log)
@@ -164,6 +165,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── branching.py           # Concept branching (deep copy, compare, merge)
 │   │   │   ├── integrations.py        # External tool integrations (coming_soon)
 │   │   │   ├── webhooks.py            # Inbound email webhook (HMAC verified)
+│   │   │   ├── blog.py                # Blog: public read + admin CMS (audit-logged)
 │   │   │   └── module_pathway.py, modules.py
 │   │   ├── services/                  # Business logic
 │   │   │   ├── ai_service.py          # build_system_prompt(), build_greeting_prompt(), stream_chat()
@@ -182,9 +184,9 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── entitlement_service.py  # Plan limits (free/basic/pro), feature gates
 │   │   │   ├── inbox_pubsub.py        # Redis pub/sub for realtime inbox badge
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
-│   │   ├── alembic/versions/          # Database migrations (001–032, linear chain)
+│   │   ├── alembic/versions/          # Database migrations (001–033, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # backend tests across 11 files (270 collected · 265 pass · 1 skip · 4 deselected)
+│   ├── tests/                         # backend tests across 12 files (293 collected · 288 pass · 1 skip · 4 deselected)
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -207,10 +209,11 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── Settings.tsx           # App settings, tutorial reset, profile link
 │   │   │   ├── SharedProject.tsx      # Public shared view with comments + ratings
 │   │   │   ├── PrivacyPolicy.tsx, TermsOfService.tsx
+│   │   │   ├── Blog.tsx, BlogPost.tsx  # Public blog index + post (SEO, react-markdown)
 │   │   │   ├── PathwayReview.tsx, PathwayExecute.tsx, ModuleSession.tsx
 │   │   │   └── PitchMode.tsx
 │   │   ├── components/
-│   │   │   ├── admin/                 # AdminUserTable, AdminUserDrawer, AdminAuditList
+│   │   │   ├── admin/                 # AdminUserTable, AdminUserDrawer, AdminAuditList, AdminBlogManager
 │   │   │   ├── auth/ProtectedRoute.tsx # Clerk auth gate
 │   │   │   ├── billing/               # CheckoutRedirect helpers
 │   │   │   ├── layout/Sidebar.tsx     # Desktop sidebar + mobile bottom nav, profile container, inbox badge
@@ -221,10 +224,11 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── pathway/               # Pathway selection and review components
 │   │   │   ├── sharing/               # ShareDialog, CommentSection, StarRating, FeedbackPanel
 │   │   │   ├── voice/                 # VoiceMicButton (Web Speech API toggle)
-│   │   │   ├── tutorial/              # StageInterlude, PulseBeacon, Whisper
+│   │   │   ├── tutorial/              # StageInterlude, PulseBeacon, Whisper, GuidedTour, HelpButton
+│   │   │   ├── blog/                  # BlogChrome (public nav/footer/CTA)
 │   │   │   ├── nebula/                # Animated background canvas
 │   │   │   └── ui/                    # Button, Modal, Card, Input, Badge, Drawer
-│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, inboxStore, adminStore
+│   │   ├── stores/                    # Zustand: authStore, pathwayStore, modulePathwayStore, tutorialStore, walkthroughStore, inboxStore, adminStore
 │   │   ├── hooks/                     # useSSE, useVoiceInput
 │   │   ├── lib/                       # apiClient.ts, authFetch.ts, fieldValue.ts, extractError.ts, plans.ts, categories.ts, exportUtils.ts
 │   │   ├── types/                     # TypeScript interfaces (project, discovery, pathway, blocks, pipeline, export, modulePathway)
@@ -495,6 +499,24 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - **First admin bootstrap:** `UPDATE users SET is_admin = TRUE WHERE id = '<id from /auth/me>';` — always use the `id` returned by `/auth/me` (orphan duplicate user rows from old Clerk webhook races can exist; the `/auth/me` id is the canonical row)
 - DB: migrations 027 (`is_admin` + `entitlement_overrides`), 028 (`admin_audit_log`)
 
+### 26. Step-by-Step Guided Tour (linear onboarding)
+- A **linear, re-openable walkthrough** distinct from the ambient hints (#15) — teaches a first-timer how Ide/AI works end to end (idea → discovery → design kit → prompts → export).
+- Themed glass-card overlay (`GuidedTour.tsx`): 7 steps, progress dots, Back/Skip/Next, keyboard nav (←/→/Esc), optional per-step deep-links, finish CTA → `/home`.
+- **Floating "?" launcher** (`HelpButton.tsx`) fixed top-right, mounted globally for signed-in users in `App.tsx` (gated on `isSignedIn`). Re-opens the tour any time.
+- **Auto-launches once** for new users (one-time, persisted) via the HelpButton mount effect — existing users without the localStorage key also see it once on next visit.
+- Settings → "Replay Walkthrough" reopens it; "Reset Tutorial" now clears BOTH this tour and the ambient hints.
+- Store: `frontend/src/stores/walkthroughStore.ts` (Zustand + persist; only durable flags `completedTour`/`autoLaunched` persist — live `isOpen`/`currentStep` never persist, so a refresh never reopens mid-session). localStorage key `ideai-walkthrough`. Content: `frontend/src/components/tutorial/tourSteps.ts`.
+- **Frontend-only** — no backend, no migration.
+
+### 27. Blog (public pages + admin CMS) — conversion funnel
+- **Public, SEO-optimized blog** at `/blog` (index) and `/blog/:slug` (post) — standalone public pages (no auth, no app shell), built as a conversion funnel: tutorials/tips with a "Try Ide/AI free" CTA on every page.
+- **Admin CMS** in the Admin dashboard (new "Blog" tab): create/edit/publish/delete with live Markdown preview, slug auto-derivation, tags, cover image, excerpt, draft↔publish toggle (`components/admin/AdminBlogManager.tsx`).
+- Markdown via **react-markdown + remark-gfm** (raw HTML disabled = XSS-safe for admin-authored content); prose styled by a `.blog-content` block in `styles/globals.css` (no typography plugin). Body headings start at `##` (the post title is the page H1).
+- **SEO/GEO:** per-page `react-helmet-async` title/description/canonical/OG/Twitter + JSON-LD (`Blog`/`BlogPosting` + `BreadcrumbList`); `/blog` added to `sitemap.xml`; "Blog" link added to the Landing nav + footer (internal links). Client-rendered (Googlebot renders JS); **per-post build-time prerender is a documented fast-follow** (see Known Issues #6).
+- **Backend** (`app/routers/blog.py`, prefix `/blog`): public `GET /blog/posts` (published only, newest first) + `GET /blog/posts/{slug}` (+1 view); admin-only (`require_admin`, audit-logged) `GET/POST /blog/admin/posts`, `GET/PATCH/DELETE /blog/admin/posts/{id}`. Audit actions: `blog_post_created`, `blog_post_updated`, `blog_post_deleted`. View/create/update routes `await db.refresh(post)` after flush to load server-default timestamps before serialization (avoids async-lazy-load `MissingGreenlet`).
+- Model `app/models/blog_post.py` (`blog_posts`, migration 033): title, slug (unique), excerpt, body (Markdown), cover_image_url, tags (JSONB), author_name, published, published_at, created_by, view_count, timestamps. Schemas `app/schemas/blog.py`.
+- Frontend: `pages/Blog.tsx`, `pages/BlogPost.tsx`, `components/blog/BlogChrome.tsx`, `lib/blogApi.ts`, `lib/blogFormat.ts`, `types/blog.ts`.
+
 ---
 
 ## Design System
@@ -548,6 +570,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | 030 | Phase-2 hotfix — backfill `module_pathways.modules` shape, dedup `module_responses`, add UNIQUE(project_id, module_id) |
 | 031 | Add `sessions.scope_module_ids` (JSONB, nullable) for mini-Discovery scoped sessions |
 | 032 | Add Stripe subscription state columns (`stripe_subscription_id`, `subscription_status`, `subscription_price_id`, `subscription_current_period_end`) to users |
+| 033 | Create `blog_posts` table (public/admin blog — title, unique slug, Markdown body, excerpt, cover, tags JSONB, published_at, view_count) |
 
 ---
 
@@ -573,6 +596,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 | Modules | `POST /modules/{id}/{module_id}/start` (SSE), `POST /modules/{id}/{module_id}/respond` (SSE), `POST /modules/{id}/{module_id}/skip`, `GET /modules/{id}/{module_id}/summary`, `PATCH /modules/{id}/{module_id}/responses`, `POST /modules/{id}/{module_id}/refresh-output` |
 | Inbox | `GET /inbox`, `POST /inbox`, `GET /inbox/count`, `GET /inbox/stream` (SSE), `POST /inbox/{id}/promote`, `DELETE /inbox/{id}` |
 | Templates | `GET /templates` |
+| Blog | **Public:** `GET /blog/posts`, `GET /blog/posts/{slug}` · **Admin (require_admin):** `GET/POST /blog/admin/posts`, `GET/PATCH/DELETE /blog/admin/posts/{id}` |
 | Branching | `POST /branching/{project_id}/branch`, `POST /branching/{project_id}/merge/{branch_id}`, `GET /branching/{project_id}/branches`, `GET /branching/{project_id}/compare/{branch_id}` |
 | Integrations | `GET /integrations`, `POST /integrations`, `PATCH /integrations/{id}`, `DELETE /integrations/{id}`, `GET /integrations/providers` · **Notion (live):** `POST /integrations/notion/authorize`, `GET /integrations/notion/callback`, `GET /integrations/notion/pages`, `POST /integrations/notion/push/{project_id}` |
 | Webhooks | `POST /webhooks/inbound-email` |
@@ -596,11 +620,12 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 
 ## Known Issues
 
-1. **Node.js v24 + Vite 7 ESM:** Local preview tool can't run Vite dev server due to ESM/require() incompatibility. Builds verified via `tsc -b` and `vite build`.
+1. **Node.js v24 + Vite 7 ESM:** Local preview tool can't run Vite dev server due to ESM/require() incompatibility. Builds verified via `tsc -b` and `vite build`. _(2026-05-31: `scripts/prerender.mjs` now uses `pathToFileURL()` for the SSR import, so the full `npm run build` — incl. prerender — also runs cleanly on Windows.)_
 2. **C: drive space:** Vite builds may fail if C: is full. Use `TMPDIR=D:/tmp` when building locally.
 3. **Integration tests:** 4 tests in `backend/tests/test_partner_style.py` require the `anthropic` module (only on Railway). The 24 unit tests run locally with just pytest.
 4. **PartnerSelector component** is used in `Discovery.tsx` for mid-session switching. It was removed from `Home.tsx` in favor of the inline grid.
 5. **CSP / Clerk production domain (`frontend/Caddyfile`):** the CSP **must** allow the Clerk production custom domain `https://clerk.myide.ai` (in `script-src` / `connect-src` / `img-src` / `frame-src`) **and** the backend **origin with no path** in `connect-src`. Dropping the first white-screens the whole SPA (Clerk SDK blocked); dropping the second blocks every `/api/v1/*` call (no profile name, no Admin link). Guard comments are in the Caddyfile — see the 2026-05-30 CSP incident in [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md). A path-scoped `connect-src` entry (e.g. `…/api/v1`) does **not** match sub-paths.
+6. **Blog SEO is client-rendered (fast-follow available):** `/blog` and `/blog/:slug` set full Helmet meta + JSON-LD but fetch content client-side (Googlebot renders JS, so they index). For best-in-class GEO/AI-crawler coverage, extend `scripts/prerender.mjs` + `entry-server.tsx` to fetch published posts at build and statically prerender each post (+ append them to `sitemap.xml`). Deferred because it couples the frontend build to backend availability at build time. Blog images (`cover_image_url`) load from external URLs — if a future CSP tightens `img-src`, allow the image host.
 
 ---
 
@@ -637,29 +662,15 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Notion integration shipped to production — merged, deployed, OAuth connect verified live.
+**Task:** Built the Step-by-Step Guided Tour (feature #26) + the Blog with public pages and admin CMS (feature #27). **Not yet committed/deployed** — all changes are uncommitted in the working tree on `main`, awaiting the user's go-ahead (Phase 2 ships migration 033 to the prod DB on push).
 
-Reviewed the `feature/notion-integration` work for correctness (OAuth `state`
-signing, the public callback, Fernet token storage, and the ownership-checked
-push — all sound), verified the suite green, pushed the previously **local-only**
-branch to origin for safety, then **merged it to `main` (`--no-ff` merge commit
-`32ec540`) and pushed** — Railway auto-deployed both services. Walked the user
-through registering a **public** Notion integration (Configuration tab → Public,
-redirect URI, capabilities) and setting the Railway env, then confirmed the live
-OAuth **connect** works end-to-end. The first connect click returned "not found"
-because the Railway env/deploy hadn't fully propagated; a retry succeeded — root
-cause confirmed by probing the production callback route (`307 → /settings?notion=error`
-proved the new backend was already live, ruling out a missing route).
+Three phases, each verified before moving on:
+- **Phase 1 — Tutorial (frontend-only):** `walkthroughStore.ts` (Zustand+persist), `tourSteps.ts` (7 steps), `GuidedTour.tsx` (themed overlay, progress dots, keyboard nav), `HelpButton.tsx` (fixed top-right "?", one-time auto-launch). Mounted globally for signed-in users in `App.tsx`; Settings gained "Replay Walkthrough" + reset now clears both tutorial systems. Added a shared-test-harness `localStorage` polyfill in `src/test/setup.ts` (jsdom here exposes none, which `zustand/persist` needs).
+- **Phase 2 — Blog backend:** `blog_post.py` model + migration `033`, `schemas/blog.py`, `routers/blog.py` (public read + admin-only audit-logged write), registered in `main.py`/`models/__init__.py`/`conftest.py`. Gotcha solved: `await db.refresh()` after flush so server-default timestamps serialize without an async lazy-load (`MissingGreenlet`).
+- **Phase 3 — Blog frontend + SEO:** installed `react-markdown` + `remark-gfm` (raw HTML off = XSS-safe); public `pages/Blog.tsx` + `pages/BlogPost.tsx` (Helmet meta + `BlogPosting`/`BreadcrumbList` JSON-LD), `components/blog/BlogChrome.tsx`, `lib/blogApi.ts` + `lib/blogFormat.ts` + `types/blog.ts`; admin `components/admin/AdminBlogManager.tsx` ("Blog" tab in `Admin.tsx`); `.blog-content` prose styles; `/blog` added to `sitemap.xml`; "Blog" link added to the Landing nav + footer. **Bonus build fix:** `scripts/prerender.mjs` now wraps the SSR import in `pathToFileURL()`, so the full `npm run build` (incl. prerender) runs on Windows.
 
-**Railway env now set:** `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`,
-`NOTION_REDIRECT_URI` (= `https://backend-production-9c212.up.railway.app/api/v1/integrations/notion/callback`),
-and `INTEGRATION_TOKEN_KEY` (Fernet key — **must never be rotated** or stored tokens
-become unreadable). `SHARE_ACCESS_SECRET` was intentionally left unset (OAuth `state`
-falls back to `CLERK_SECRET_KEY` by design). A stray `SECRET_KEY` exists in Railway
-but is **not read by this app** — ignore it.
-
-_Prior task (2026-05-30): Notion integration built on `feature/notion-integration`; Discovery v2 SSE streaming tests on `main` (`06901cf`)._
+_Prior task (2026-05-31): Notion integration shipped to production — merged (`32ec540`), deployed, OAuth connect verified live; `feature/notion-integration` branch deleted (local + origin)._
 
 **Date:** 2026-05-31
-**Test coverage:** 270 backend collected across 11 files — 265 passed · 1 skipped (PG-only upsert) · 4 deselected (need live Anthropic, via `-k "not PromptComposition"`); 37/37 frontend (5 files); `tsc -b --noEmit` + ESLint clean. (Notion = 24 tests in `test_notion_integration.py`.) **Production: Notion deployed + OAuth connect verified live.**
-**Residual (non-blocking):** confirm the end-to-end **push** (Design Kit → Notion page rendered) — connect verified, full push not explicitly re-confirmed this session; delete the merged `feature/notion-integration` branch (local + origin); SAST-H1 (rate-limit sharing endpoints); DEP-H1 (js-cookie CVE upstream); reconcile-or-delete stale `AGENTS.md`; PG-only upsert test path (needs a Postgres-backed harness).
+**Test coverage:** **Backend 293 collected across 12 files — 288 passed · 1 skipped (PG-only upsert) · 4 deselected** (`-k "not PromptComposition"`); blog = 23 tests in `test_blog.py`. **Frontend 60/60 across 9 files** (+ tutorial-store/GuidedTour/blogApi/Blog tests); `tsc -b --noEmit` clean, ESLint clean, **full `npm run build` green incl. prerender**.
+**Residual (non-blocking):** **commit + deploy when the user is ready** (migration 033 runs on push); manually test the tour + blog live (Rule #8); **bootstrap an admin** (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) before the Blog CMS is usable; decide whether the tour auto-launch should be new-signups-only; consider build-time blog prerender for max SEO (Known Issue #6); SAST-H1 (rate-limit sharing); DEP-H1 (js-cookie CVE via Clerk, upstream); stale `AGENTS.md`; PG-only upsert test path.

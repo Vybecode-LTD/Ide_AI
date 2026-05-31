@@ -4,6 +4,30 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Added — Step-by-step Guided Tour + Blog with admin CMS (2026-05-31)
+
+> **Status: built locally, NOT yet committed/deployed.** All changes are uncommitted on `main` awaiting the user's go-ahead — Phase 2 ships **migration 033** to the prod DB on push. CLAUDE.md → 2.18.0.
+
+**Guided Tour (linear onboarding — feature #26)**
+- New step-by-step walkthrough, distinct from the ambient hints (#15): a themed glass-card overlay (`frontend/src/components/tutorial/GuidedTour.tsx`) with 7 steps (idea → discovery → design kit → prompts → export → ready), progress dots, Back/Skip/Next, keyboard nav (←/→/Esc), per-step deep-links.
+- **Floating "?" launcher** (`HelpButton.tsx`) fixed top-right, mounted globally for signed-in users in `App.tsx`; **auto-launches once** for new users (persisted). Settings gained "Replay Walkthrough"; "Reset Tutorial" now clears both the tour and the ambient hints.
+- Store `frontend/src/stores/walkthroughStore.ts` (Zustand+persist; only `completedTour`/`autoLaunched` persist — never live `isOpen`/`currentStep`, so a refresh can't reopen mid-session). Content `tourSteps.ts`. Frontend-only — no backend.
+- **Test infra:** added an in-memory `localStorage`/`sessionStorage` polyfill to `frontend/src/test/setup.ts` (jsdom here exposes none, which `zustand/persist` needs on `setState`) — unblocks persisted-store tests.
+
+**Blog — public pages + admin CMS (conversion funnel — feature #27)**
+- **Public, SEO-optimized blog** at `/blog` + `/blog/:slug` (`pages/Blog.tsx`, `pages/BlogPost.tsx`) — standalone public pages with a "Try Ide/AI free" CTA on every page; per-page `react-helmet-async` title/description/canonical/OG/Twitter + JSON-LD (`Blog`/`BlogPosting` + `BreadcrumbList`). Markdown via **react-markdown + remark-gfm** (raw HTML disabled = XSS-safe); `.blog-content` prose styles in `globals.css`.
+- **Admin CMS** — new "Blog" tab in `Admin.tsx` (`components/admin/AdminBlogManager.tsx`): create/edit/publish/delete with live Markdown preview, slug auto-derivation, tags, cover image, excerpt, draft↔publish toggle.
+- **Backend** `app/routers/blog.py` (prefix `/blog`): public `GET /blog/posts` + `GET /blog/posts/{slug}` (+1 view); admin-only (`require_admin`, audit-logged) `GET/POST /blog/admin/posts`, `GET/PATCH/DELETE /blog/admin/posts/{id}`. New audit actions `blog_post_created|updated|deleted`. Model `app/models/blog_post.py` + **migration 033** (`blog_posts`). Routes `await db.refresh()` after flush so server-default timestamps serialize without an async lazy-load (`MissingGreenlet`).
+- **SEO plumbing:** `/blog` added to `sitemap.xml`; "Blog" link added to the Landing nav + footer (internal links). Blog content is client-rendered (Googlebot renders JS) — per-post build-time prerender is a documented fast-follow (Known Issue #6).
+- **Tests:** `backend/tests/test_blog.py` (23) — public read/visibility, view-count increment, 404s, admin gating (403), create/slug/duplicate-409, publish transition, slug-collision-409, delete, audit-log. Frontend `Blog.test.tsx` (4) + `blogApi.test.ts` (5).
+- New deps `react-markdown`, `remark-gfm`. **Zero new vulnerabilities** — the 2 high-sev `npm audit` findings are the pre-existing `js-cookie`-via-`@clerk/shared` (DEP-H1), not from these.
+
+### Fixed — Windows production build: prerender ESM path (2026-05-31)
+
+- `frontend/scripts/prerender.mjs` now imports the SSR bundle via `pathToFileURL(...).href` instead of a raw absolute path. A bare `C:\…` path threw `ERR_UNSUPPORTED_ESM_URL_SCHEME` (drive letter parsed as protocol) on Windows + Node, so the full `npm run build` (incl. prerender) previously only completed on Railway's Linux. The fix yields a valid `file://` URL on both platforms — `npm run build` now passes end-to-end locally too.
+
+**Verification (all green):** backend **293 collected / 288 pass · 1 skip · 4 deselected** (12 files); frontend **60/60** (9 files); `tsc -b --noEmit` clean; ESLint clean; full `npm run build` green incl. prerender.
+
 ### Changed — Notion integration SHIPPED to production (2026-05-31)
 
 - **Notion is LIVE.** Merged `feature/notion-integration` → `main` (`--no-ff` merge commit `32ec540`) and pushed; Railway auto-deployed both services. Railway env set: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` (= `<backend-origin>/api/v1/integrations/notion/callback`), and `INTEGRATION_TOKEN_KEY` (Fernet key for OAuth-token encryption — **must never be rotated**, or stored tokens become unreadable). A **public** Notion integration is registered at notion.so/my-integrations. **OAuth connect verified live**; the end-to-end push (Design Kit → Notion page) is deployed + tested but pending final live confirmation.
