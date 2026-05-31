@@ -38,9 +38,34 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-30, later) — Discovery v2 SSE streaming tests
+## Current Session (2026-05-30, latest) — Notion integration (OAuth + push design kit)
 
-Closed the last big backend coverage gap. Added **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) for the two SSE streaming routes every prior suite skipped — `POST /discovery/{id}/init` and `POST /discovery/{id}/message`. **Test-only; no application logic changed.** Working tree: the new test file is the only change (uncommitted as of this writing).
+First live external integration — branch **`feature/notion-integration`** (commit `d22dbac`, off `main`). **Not yet merged or deployed** — kept on the branch until Railway `NOTION_*` env is set + a real OAuth smoke test passes.
+
+### What shipped
+- **Backend** `app/services/notion_service.py` — OAuth helpers (`is_configured` / `build_authorize_url` / `exchange_code_for_token`), a **pure** `render_design_kit_blocks()` turning the unified v1/v2 artifact context into Notion blocks, and REST IO (`create_design_kit_page` w/ 100-child batching, `list_accessible_pages`). Four routes in `integrations.py`: `notion/authorize` (signed-`state` JWT), `notion/callback` (**public** — auth in the verified state; exchanges code → Fernet-encrypted token → 302 to `/settings?notion=…`), `notion/pages`, `notion/push/{project_id}`. Three `NOTION_*` config vars.
+- **Frontend** `components/integrations/NotionConnectCard.tsx` (Settings) + `NotionPushButton.tsx` (Design Kit, inline modal matching the ShareDialog pattern — no shared Modal exists). One-line drop-ins into `Settings.tsx` and `DesignKit.tsx`.
+- **Tests** `backend/tests/test_notion_integration.py` (25 — pure rendering, OAuth-state mint/verify/tamper/scope, all 4 routes; only the network/config edges mocked).
+
+### Key decisions / gotchas
+- **Docs oversold the starting point**: ROADMAP claimed "OAuth infrastructure in place" and CLAUDE listed `/integrations/{provider}/auth|callback|push` — none existed. Only Fernet storage + basic CRUD were real. Near-greenfield build; feature #24 in CLAUDE.md corrected.
+- **OAuth `state`** reuses the share-token signing pattern (HS256; secret falls back SHARE_ACCESS_SECRET → CLERK_SECRET_KEY) — no new required secret.
+- **Callback is public** (a browser redirect carries no Clerk header) — security rides entirely in the signed, scoped, 10-min-TTL `state`.
+- **Graceful when unconfigured**: no `NOTION_*` env → `is_configured()` False → `/authorize` 503 + Settings shows "Not available yet". Safe to merge dark.
+
+### Activation (before merge — needs YOU)
+1. Register a **public** integration at notion.so/my-integrations.
+2. Set Railway backend env: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI` = `https://backend-production-9c212.up.railway.app/api/v1/integrations/notion/callback` (add that exact URI to the integration's redirect URIs in Notion too).
+3. Merge `feature/notion-integration` → `main` (Railway auto-deploys), then smoke-test: Settings → Connect Notion → approve → "connected" → Design Kit → Push to Notion → page appears.
+
+### Health
+**Backend 271 collected across 11 files** — 266 passed · 1 skipped (PG-only upsert) · 4 deselected (need live Anthropic). Frontend 37/37, `tsc` clean, ESLint clean. No `main`/production change yet.
+
+---
+
+## Previous Session (2026-05-30, earlier) — Discovery v2 SSE streaming tests
+
+Closed the last big backend coverage gap. Added **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) for the two SSE streaming routes every prior suite skipped — `POST /discovery/{id}/init` and `POST /discovery/{id}/message`. **Test-only; no application logic changed.** Committed to `main` as `06901cf`.
 
 ### Approach
 - **Mock boundary = the AI calls only.** Patched `ai_service.stream_response` (async token generator), `ai_service.generate_quick_chips`, `ai_service.extract_module_fields`, and `discovery_service.extract_sheet_fields` (patched where it is *used* — `discovery_service` imports the name directly). Everything else runs for real: flow-version branching, the prompt builders (they never touch the network), message persistence, the v1 design-sheet update, field-summary aggregation, and the SSE event assembly itself. So these are true integration tests of the routes, not unit tests of a mock.
