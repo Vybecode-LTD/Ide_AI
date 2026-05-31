@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import apiClient from '../lib/apiClient'
 import { useTutorialStore } from '../stores/tutorialStore'
+import { NotionConnectCard } from '../components/integrations/NotionConnectCard'
 
 interface UserPrefs {
   default_partner_style: string
@@ -236,6 +237,9 @@ export function Settings() {
                     {exporting ? 'Exporting...' : 'Export All Projects'}
                   </Button>
                 </Card>
+
+                {/* ── Integrations ── */}
+                <NotionConnectCard />
 
                 {/* ── Tutorial ── */}
                 <Card>
