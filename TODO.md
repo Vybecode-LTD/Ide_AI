@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.10.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.11.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -163,9 +163,15 @@ Last audited: 2026-05-23
 
 ---
 
+## ✅ Recently Done (2026-05-30 — Notion integration)
+
+- **Notion integration (OAuth + push design kit)** on branch `feature/notion-integration` — first provider out of `coming_soon`. Backend `notion_service.py` + 4 routes + 3 `NOTION_*` config vars; frontend `NotionConnectCard` (Settings) + `NotionPushButton` (Design Kit). 25 tests in `test_notion_integration.py`. Backend suite 271 collected across 11 files (266 pass · 1 skip · 4 deselected); frontend 37/37, `tsc`+ESLint clean.
+  - **⚠️ Not merged/deployed.** To activate: register a public Notion integration, set Railway `NOTION_CLIENT_ID/SECRET/REDIRECT_URI`, merge `feature/notion-integration`, OAuth smoke test. See [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) "Activation".
+  - Doc-debt fixed in passing: feature #24 in CLAUDE.md + ROADMAP overstated the pre-existing integration scaffold (claimed OAuth routes that never existed) — corrected.
+
 ## ✅ Recently Done (2026-05-30 — Discovery v2 SSE streaming tests)
 
-- **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) — closed the last big v2 backend coverage gap. Covers the two SSE streaming routes (`POST /discovery/{id}/init`, `POST /discovery/{id}/message`) that `test_discovery_v2_integration.py` explicitly deferred. Mocks the AI boundary only; runs flow-version branching, prompt construction, persistence, field-summary aggregation, and SSE event assembly for real. Backend suite now 246 collected across 10 files (241 pass · 1 skip · 4 deselected); frontend unchanged at 37. **Test-only — no app logic touched.** Uncommitted as of this entry.
+- **`backend/tests/test_discovery_sse.py`** (17 tests: 16 pass + 1 documented skip) — closed the last big v2 backend coverage gap. Covers the two SSE streaming routes (`POST /discovery/{id}/init`, `POST /discovery/{id}/message`) that `test_discovery_v2_integration.py` explicitly deferred. Mocks the AI boundary only; runs flow-version branching, prompt construction, persistence, field-summary aggregation, and SSE event assembly for real. **Test-only — no app logic touched.** Committed to `main` as `06901cf`.
 
 ---
 

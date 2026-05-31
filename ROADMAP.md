@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.4.0 · **Last updated:** 2026-05-28 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.5.0 · **Last updated:** 2026-05-30 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
@@ -8,7 +8,11 @@
 
 ## ✅ Recently Shipped
 
-**Discovery v2 overhaul — all 6 phases shipped + production hardened + codebase alignment audit complete.** v1 backward-compat fully preserved. 229/229 backend tests pass (9 files), 37/37 frontend tests pass (5 files), TypeScript build clean.
+**Notion integration (OAuth + push design kit)** — first external integration out of `coming_soon`, on branch `feature/notion-integration` (awaiting Railway `NOTION_*` env + merge). Signed-state OAuth, public callback, Fernet-encrypted tokens, pure v1/v2 block renderer, 25 tests. _(2026-05-30)_
+
+**Discovery v2 SSE streaming tests** — `test_discovery_sse.py` (16 pass + 1 PG-only skip) closed the last big backend coverage gap; on `main`. _(2026-05-30)_
+
+**Discovery v2 overhaul — all 6 phases shipped + production hardened + codebase alignment audit complete.** v1 backward-compat fully preserved. Backend suite 271 collected across 11 files (266 pass · 1 skip · 4 deselected), 37/37 frontend, TypeScript build clean.
 
 ### 2026-05-27/28 — Codebase alignment audit + security + CI
 - **12-task Codex audit** (commit `544bb2f`) — artifact context service (v1/v2 bridge), billing hardening (migration 032, 4 subscription columns), DesignKit action cards, export/block/pipeline/market/sprint v2 support, sharing contract fix, entitlement gates, auth token readiness, module pathway validation, deployment docs rewrite
@@ -62,11 +66,11 @@ The codebase is launch-ready. The pre-deploy checklist is essentially done — w
 
 User-prioritized order for the next sessions. See [`TODO.md`](TODO.md) for the concrete actionable breakdown of each item.
 
-0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, codebase alignment audit, 3 security fixes, CI pipeline, 7 production bug fixes all landed. 229/229 backend + 37/37 frontend tests pass.
-1. ⚠️ **Deploy verification + security hygiene** — push 2 pending commits, verify Railway deploy, 5-min smoke test, rotate 3 webhook secrets, export og-image.png. (Detail in [`TODO.md`](TODO.md) `🔴 P0` block.)
-2. **Notion integration** — first integration to exit `coming_soon`. Push design sheet + blocks + pipeline to a Notion page hierarchy. OAuth infrastructure + Fernet token storage already in place.
-3. **Discovery v2 SSE streaming tests** — `/discovery/{id}/init` + `/message` mock coverage. ~2h. Last big backend test gap.
-4. _(open — pick from Medium-Term Features below)_
+0. ✅ **All phases shipped + production hardened.** Phases 1-6, audit closure, codebase alignment audit, 3 security fixes, CI pipeline, 7 production bug fixes all landed.
+1. ✅ **Deploy verification + security hygiene** — all P0 cleared (commits deployed, og-image, smoke test, secret rotation; 2026-05-30).
+2. ✅ **Discovery v2 SSE streaming tests** — done 2026-05-30 (`test_discovery_sse.py`, on `main`).
+3. ⚙️ **Notion integration** — built on `feature/notion-integration` (OAuth + push design kit, 25 tests). **Awaiting activation**: set Railway `NOTION_CLIENT_ID/SECRET/REDIRECT_URI`, then merge + OAuth smoke test. See [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) "Activation".
+4. **Next integration** — Trello or Linear (convert MVP blocks to cards/issues), reusing the Notion OAuth + push scaffold. _Or pick from Medium-Term Features below._
 
 ---
 

@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     # Integration token encryption
     INTEGRATION_TOKEN_KEY: str = ""
 
+    # Notion integration (OAuth). All three must be set for the Notion
+    # connect flow to work; when any is empty the integration reports
+    # "not configured" and the routes return 503 instead of breaking.
+    # Register a PUBLIC integration at https://www.notion.so/my-integrations
+    # and set the redirect URI to <backend-origin>/api/v1/integrations/notion/callback.
+    NOTION_CLIENT_ID: str = ""
+    NOTION_CLIENT_SECRET: str = ""
+    NOTION_REDIRECT_URI: str = ""
+
     # Resend inbound email webhook verification
     RESEND_WEBHOOK_SECRET: str = ""
 

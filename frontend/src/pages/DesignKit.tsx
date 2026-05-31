@@ -6,6 +6,7 @@ import apiClient from '../lib/apiClient'
 import { extractError } from '../lib/extractError'
 import { hasMeaningfulValue } from '../lib/fieldValue'
 import { Sidebar } from '../components/layout/Sidebar'
+import { NotionPushButton } from '../components/integrations/NotionPushButton'
 
 interface ModuleLibraryItem {
   id: string
@@ -779,6 +780,8 @@ export function DesignKit() {
               >
                 Export
               </button>
+              {/* Push to Notion (404-safe when Notion isn't connected) */}
+              <NotionPushButton projectId={projectId} />
             </div>
           </div>
 
