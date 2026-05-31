@@ -662,7 +662,7 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Built the Step-by-Step Guided Tour (feature #26) + the Blog with public pages and admin CMS (feature #27). **Not yet committed/deployed** — all changes are uncommitted in the working tree on `main`, awaiting the user's go-ahead (Phase 2 ships migration 033 to the prod DB on push).
+**Task:** Built + **shipped** the Step-by-Step Guided Tour (feature #26) + the Blog with public pages and admin CMS (feature #27). Merged to `main` (`--no-ff` merge `4a15472`) and pushed (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (migration 033 → `blog_posts`). Local feature branch deleted post-merge.
 
 Three phases, each verified before moving on:
 - **Phase 1 — Tutorial (frontend-only):** `walkthroughStore.ts` (Zustand+persist), `tourSteps.ts` (7 steps), `GuidedTour.tsx` (themed overlay, progress dots, keyboard nav), `HelpButton.tsx` (fixed top-right "?", one-time auto-launch). Mounted globally for signed-in users in `App.tsx`; Settings gained "Replay Walkthrough" + reset now clears both tutorial systems. Added a shared-test-harness `localStorage` polyfill in `src/test/setup.ts` (jsdom here exposes none, which `zustand/persist` needs).
@@ -673,4 +673,4 @@ _Prior task (2026-05-31): Notion integration shipped to production — merged (`
 
 **Date:** 2026-05-31
 **Test coverage:** **Backend 293 collected across 12 files — 288 passed · 1 skipped (PG-only upsert) · 4 deselected** (`-k "not PromptComposition"`); blog = 23 tests in `test_blog.py`. **Frontend 60/60 across 9 files** (+ tutorial-store/GuidedTour/blogApi/Blog tests); `tsc -b --noEmit` clean, ESLint clean, **full `npm run build` green incl. prerender**.
-**Residual (non-blocking):** **commit + deploy when the user is ready** (migration 033 runs on push); manually test the tour + blog live (Rule #8); **bootstrap an admin** (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) before the Blog CMS is usable; decide whether the tour auto-launch should be new-signups-only; consider build-time blog prerender for max SEO (Known Issue #6); SAST-H1 (rate-limit sharing); DEP-H1 (js-cookie CVE via Clerk, upstream); stale `AGENTS.md`; PG-only upsert test path.
+**Residual (non-blocking):** **bootstrap an admin** (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) before the Blog CMS is usable; **manually verify the tour + blog live** once Railway finishes deploying (Rule #8 — e.g. probe `GET /api/v1/blog/posts` → `[]`); decide whether the tour auto-launch should be new-signups-only; consider build-time blog prerender for max SEO (Known Issue #6); SAST-H1 (rate-limit sharing); DEP-H1 (js-cookie CVE via Clerk, upstream); stale `AGENTS.md`; PG-only upsert test path.

@@ -38,9 +38,9 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-31) — Step-by-Step Tutorial + Blog (built locally, NOT yet committed/deployed)
+## Current Session (2026-05-31) — Step-by-Step Tutorial + Blog (SHIPPED: merged 4a15472 + deployed)
 
-Built two features end to end across three verified phases. **Nothing is committed or deployed** — all changes are uncommitted in the working tree on `main`, awaiting the user's go-ahead (Phase 2 ships **migration 033** to the prod DB on push). CLAUDE.md → 2.18.0.
+Built two features end to end across three verified phases, then **merged to `main` (`--no-ff` merge `4a15472`) and pushed** (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (**migration 033** → `blog_posts`). The local feature branch was deleted post-merge. CLAUDE.md → 2.18.0.
 
 ### What was built (in the working tree)
 - **Feature #26 — Guided Tour (frontend-only):** linear onboarding walkthrough — `GuidedTour.tsx` overlay (7 steps, progress dots, keyboard nav), floating top-right **"?" launcher** (`HelpButton.tsx`, mounted globally for signed-in users in `App.tsx`, one-time auto-launch), `walkthroughStore.ts` (Zustand+persist — only durable flags persist), `tourSteps.ts`. Settings → "Replay Walkthrough" + reset clears both tutorial systems. Polyfilled `localStorage` in `src/test/setup.ts` (jsdom exposes none; `zustand/persist` needs it on `setState`).
@@ -52,7 +52,7 @@ Built two features end to end across three verified phases. **Nothing is committ
 - Frontend **60/60** (9 files); `tsc -b --noEmit` clean; ESLint clean; **full `npm run build` green incl. prerender**.
 
 ### Gotchas / decisions (READ before touching the blog or committing)
-- **Not committed yet** — when the user says go: branch/commit per their preference, push → Railway auto-deploys + runs `alembic upgrade head` (migration 033 creates `blog_posts`).
+- **Shipped on 3 commits + a merge** — `51fad70` (backend), `45bb756` (frontend), `fdae7fa` (docs), merge `4a15472`; `feature/tutorial-and-blog` deleted (was local-only). Live UI verification of the tour + blog is still pending (Rule #8 — the user tests).
 - **Blog CMS needs an admin** — the "Blog" tab + `/blog/admin/*` routes are `require_admin`. Bootstrap via `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` (canonical row). Public blog reads need no auth.
 - **`await db.refresh(post)` after flush** in the create/update/view routes — server-default `created_at`/`updated_at` (and the view-count UPDATE's `onupdate`) expire the attribute; serializing it would trigger an async lazy-load → `MissingGreenlet`. Refresh reloads it synchronously inside the async route.
 - **Blog SEO is client-rendered** — Helmet meta + JSON-LD are present and Googlebot renders JS, but per-post **static prerender is a fast-follow** (Known Issue #6) because it couples the frontend build to backend availability at build time.

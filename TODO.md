@@ -17,11 +17,11 @@
 
 ---
 
-## 🟢 Tutorial + Blog (built 2026-05-31 — awaiting commit/deploy)
+## 🟢 Tutorial + Blog (SHIPPED 2026-05-31)
 
-Both features are built + fully verified locally (backend 293→288 pass, frontend 60/60, `tsc`/ESLint/`npm run build` all green) but **not committed/deployed** — Phase 2 ships **migration 033** to the prod DB on push. See [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md) "Current Session".
+Both features are built, fully verified (backend 293→288 pass, frontend 60/60, `tsc`/ESLint/`npm run build` all green), and **shipped** — merged `--no-ff` (`4a15472`) + pushed; Railway auto-deployed + ran migration 033. See [CONTEXT_HANDOFF.md](CONTEXT_HANDOFF.md) "Current Session".
 
-- [ ] **Commit + deploy** the tutorial + blog when ready → Railway runs `alembic upgrade head` (migration 033 creates `blog_posts`). User decides when (touches prod DB).
+- [x] **Commit + deploy** — ✅ DONE 2026-05-31. Merged `--no-ff` (`4a15472`) + pushed (`7a70335..4a15472`); Railway auto-deployed both services; migration 033 ran via the pre-deploy hook.
 - [ ] **Bootstrap an admin** before the Blog CMS is usable — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'`. Then Admin → "Blog" tab + `/blog/admin/*` work. (Public blog reads need no auth.)
 - [ ] **Manually test live** (Rule #8): tour auto-launch on a fresh sign-in + "?" replay + Settings "Replay Walkthrough"; publish a post from the admin CMS → renders at `/blog/{slug}` with correct title/meta.
 - [ ] **Decide tour auto-launch scope** — currently fires once for *everyone* lacking the `ideai-walkthrough` localStorage key (incl. existing users, one time). Make it new-signups-only? Needs a "new user" signal (account age / backend flag).

@@ -6,7 +6,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ### Added — Step-by-step Guided Tour + Blog with admin CMS (2026-05-31)
 
-> **Status: built locally, NOT yet committed/deployed.** All changes are uncommitted on `main` awaiting the user's go-ahead — Phase 2 ships **migration 033** to the prod DB on push. CLAUDE.md → 2.18.0.
+> **Status: SHIPPED 2026-05-31.** Merged to `main` (`--no-ff` merge commit `4a15472`) and pushed (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (**migration 033** → `blog_posts`). CLAUDE.md → 2.18.0. **Post-deploy:** make yourself admin (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) to use the Blog CMS; live UI verification still pending (Rule #8).
 
 **Guided Tour (linear onboarding — feature #26)**
 - New step-by-step walkthrough, distinct from the ambient hints (#15): a themed glass-card overlay (`frontend/src/components/tutorial/GuidedTour.tsx`) with 7 steps (idea → discovery → design kit → prompts → export → ready), progress dots, Back/Skip/Next, keyboard nav (←/→/Esc), per-step deep-links.
