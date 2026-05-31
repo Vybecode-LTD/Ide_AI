@@ -65,3 +65,62 @@ h1, h2, h3, h4, h5, h6 {
 ::selection {
   background: rgba(0, 229, 255, 0.2);
 }
+
+/* ── Blog post Markdown content (no @tailwindcss/typography plugin) ── */
+.blog-content {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
+.blog-content > :first-child { margin-top: 0; }
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content h4 {
+  color: #fff;
+  font-weight: 900;
+  line-height: 1.25;
+  margin: 2rem 0 0.75rem;
+}
+.blog-content h1 { font-size: 1.75rem; }
+.blog-content h2 { font-size: 1.4rem; }
+.blog-content h3 { font-size: 1.15rem; }
+.blog-content p { margin: 0 0 1.1rem; }
+.blog-content a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.blog-content a:hover { opacity: 0.85; }
+.blog-content strong { color: #fff; font-weight: 700; }
+.blog-content ul,
+.blog-content ol { margin: 0 0 1.1rem; padding-left: 1.4rem; }
+.blog-content ul { list-style: disc; }
+.blog-content ol { list-style: decimal; }
+.blog-content li { margin: 0.35rem 0; }
+.blog-content blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1rem;
+  margin: 1.25rem 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+.blog-content code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  color: var(--color-accent);
+}
+.blog-content pre {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0 0 1.25rem;
+}
+.blog-content pre code { background: none; padding: 0; color: #e6e6e6; }
+.blog-content img { border-radius: var(--radius-card); margin: 1.25rem 0; max-width: 100%; }
+.blog-content hr { border: none; border-top: 1px solid var(--color-border); margin: 2rem 0; }
+.blog-content table { width: 100%; border-collapse: collapse; margin: 0 0 1.25rem; font-size: 0.9rem; }
+.blog-content th,
+.blog-content td { border: 1px solid var(--color-border); padding: 0.5rem 0.75rem; text-align: left; }
+.blog-content th { background: rgba(255, 255, 255, 0.04); color: #fff; }

@@ -21,6 +21,8 @@ import { SharedProject } from './pages/SharedProject'
 import { PrivacyPolicy } from './pages/PrivacyPolicy'
 import { TermsOfService } from './pages/TermsOfService'
 import { setClerkInstance } from './lib/apiClient'
+import { HelpButton } from './components/tutorial/HelpButton'
+import { GuidedTour } from './components/tutorial/GuidedTour'
 
 /* ── Lazy-loaded module components ─────────────────────────────── */
 const Discovery = lazy(() => import('./pages/Discovery').then(m => ({ default: m.Discovery })))
@@ -39,6 +41,8 @@ const PathwayExecute = lazy(() => import('./pages/PathwayExecute').then(m => ({ 
 const ModuleSessionPage = lazy(() => import('./pages/ModuleSession').then(m => ({ default: m.ModuleSession })))
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })))
 const DesignKit = lazy(() => import('./pages/DesignKit').then(m => ({ default: m.DesignKit })))
+const Blog = lazy(() => import('./pages/Blog').then(m => ({ default: m.Blog })))
+const BlogPost = lazy(() => import('./pages/BlogPost').then(m => ({ default: m.BlogPost })))
 
 /**
  * Component registry — maps component_key (from pathway modules) to lazy components.
@@ -128,6 +132,7 @@ function RootRoute() {
 
 export default function App() {
   const clerk = useClerk()
+  const { isSignedIn } = useAuth()
 
   // Provide Clerk instance to apiClient for token injection
   useEffect(() => {
@@ -173,6 +178,10 @@ export default function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
 
+        {/* Public blog (no auth, no app shell) */}
+        <Route path="/blog" element={<Suspense fallback={<ModuleLoading />}><Blog /></Suspense>} />
+        <Route path="/blog/:slug" element={<Suspense fallback={<ModuleLoading />}><BlogPost /></Suspense>} />
+
         {/* Public shared project view (no auth required) */}
         <Route path="/shared/:token" element={<SharedProject />} />
 
@@ -213,6 +222,14 @@ export default function App() {
           element={<ProtectedRoute><ModuleRouter /></ProtectedRoute>}
         />
       </Routes>
+
+      {/* Global step-by-step tutorial: floating "?" launcher + walkthrough overlay (signed-in only) */}
+      {isSignedIn && (
+        <>
+          <HelpButton />
+          <GuidedTour />
+        </>
+      )}
     </>
   )
 }
