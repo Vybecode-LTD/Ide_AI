@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.13.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.13.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -58,7 +58,7 @@ The Notion integration went live. Reviewed the branch for correctness, verified 
 
 ### Residual (non-blocking)
 - ⏳ **Confirm the end-to-end push** — Design Kit → Push to Notion → page renders in Notion. The **connect** half was verified live; the **push** half is deployed + tested (24 tests) but not explicitly re-confirmed by the user this session.
-- 🌿 **Delete the merged branch** — `feature/notion-integration` (local + `origin`) is fully merged into `main` (`32ec540`) and safe to delete.
+- ✅ **Merged branch deleted** — `feature/notion-integration` removed from local + `origin` (2026-05-31), after confirming it was fully merged into `32ec540`.
 - Carryovers: SAST-H1 (rate-limit sharing endpoints), DEP-H1 (js-cookie CVE upstream), stale `AGENTS.md`, PG-only upsert test (needs a Postgres harness).
 
 ### Health
@@ -414,7 +414,7 @@ The blockers from the 2026-05-28 handoff are **done**: all commits pushed + depl
 
 **Still open (non-blocking):**
 - ⏳ **Confirm the Notion end-to-end push** — Design Kit → Push to Notion → page renders in Notion. OAuth **connect** was verified live this session; the **push** is deployed + tested (24 tests) but not explicitly live-confirmed.
-- 🌿 **Delete the merged `feature/notion-integration` branch** (local + `origin`) — fully merged as `32ec540`; safe to delete.
+- ✅ **Deleted the merged `feature/notion-integration` branch** (local + `origin`, 2026-05-31) — was fully merged as `32ec540`.
 - **SAST-H1** — rate limiting on anonymous sharing endpoints (`/sharing/public/{token}/comments|ratings`); install `slowapi`.
 - **DEP-H1** — js-cookie CVE, transitive from `@clerk/shared` (upstream).
 - **AGENTS.md is stale** — wrong drive path / "React 18" / "Codex API" / old repo URL; reconcile-or-delete.

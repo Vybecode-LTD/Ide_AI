@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.12.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.12.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -167,7 +167,7 @@ Last audited: 2026-05-23
 
 - **Notion integration is LIVE** — merged `feature/notion-integration` → `main` (`--no-ff`, `32ec540`) + pushed; Railway auto-deployed both services. Railway env set: `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET`, `NOTION_REDIRECT_URI`, `INTEGRATION_TOKEN_KEY` (Fernet — **never rotate** or stored tokens break). User registered a **public** Notion integration. **OAuth connect verified live.**
   - **⏳ Residual:** confirm the end-to-end **push** (Design Kit → Notion page renders) — connect verified, push tested (24 tests) but not live-confirmed this session.
-  - **🌿 Cleanup:** `feature/notion-integration` (local + origin) is fully merged into `main` — safe to delete.
+  - **✅ Cleanup done:** `feature/notion-integration` deleted (local + origin, 2026-05-31) after confirming it was fully merged into `main`.
   - **Gotcha:** the first connect click can return "not found" right after a Railway env change/deploy (propagation lag) — a retry works (diagnosed via a prod-callback probe → `307 → ?notion=error`, proving the route was live).
 
 ## ✅ Recently Done (2026-05-30 — Notion integration built)
