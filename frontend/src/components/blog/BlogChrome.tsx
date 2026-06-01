@@ -5,31 +5,6 @@
  */
 import { Link } from 'react-router-dom'
 
-export function BlogNav() {
-  return (
-    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/[0.08]">
-      <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/brandmark.png" alt="Ide/AI" className="h-7 w-7 object-contain" />
-          <span className="text-base font-black tracking-tight">
-            Ide<span className="text-accent">/AI</span>
-          </span>
-        </Link>
-        <div className="flex items-center gap-4 text-xs text-text-muted">
-          <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
-          <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-          <Link
-            to="/sign-up"
-            className="px-3 py-1.5 rounded-lg bg-accent text-background text-xs font-semibold hover:bg-accent/90 transition-colors"
-          >
-            Get Started
-          </Link>
-        </div>
-      </div>
-    </nav>
-  )
-}
-
 /** Conversion call-to-action — the whole point of the blog as a funnel. */
 export function BlogCTA() {
   return (

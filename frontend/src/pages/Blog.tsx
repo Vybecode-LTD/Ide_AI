@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { BlogNav, BlogFooter, BlogCTA } from '../components/blog/BlogChrome'
+import { BlogFooter, BlogCTA } from '../components/blog/BlogChrome'
+import { PublicHeader } from '../components/layout/PublicHeader'
 import { formatBlogDate } from '../lib/blogFormat'
 import { listPublishedPosts } from '../lib/blogApi'
 import type { BlogPostSummary } from '../types/blog'
@@ -76,7 +77,7 @@ export function Blog() {
         <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
       </Helmet>
 
-      <BlogNav />
+      <PublicHeader />
 
       <main className="max-w-4xl mx-auto px-4 py-12 pb-20">
         <header className="mb-10">

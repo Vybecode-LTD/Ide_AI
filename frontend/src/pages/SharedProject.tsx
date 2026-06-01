@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Card } from '../components/ui/Card'
 import { FeedbackPanel } from '../components/sharing/FeedbackPanel'
+import { PublicHeader } from '../components/layout/PublicHeader'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -165,7 +166,8 @@ export function SharedProject() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      <PublicHeader />
+      {/* Project header */}
       <div className="border-b border-border bg-surface/50">
         <div className="max-w-5xl mx-auto px-6 py-6">
           <div className="flex items-center gap-3 mb-2">

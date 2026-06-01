@@ -4,6 +4,13 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Unified public header across all logged-out pages (2026-05-31)
+
+- New shared **`frontend/src/components/layout/PublicHeader.tsx`** replaces four divergent headers (Landing's, the legal pages', and the blog's `BlogNav`) and adds a header to pages that had none. Every logged-out page now shares one brand bar: logo, `Blog`/`Pricing` links, `Sign In`, and a `Get Started Free` CTA.
+  - **Landing** keeps its section anchors (Features/How It Works/FAQ) via the component's `links` prop and its `fixed` hero-overlay positioning; all other pages use the default `sticky` bar.
+  - Applied to: Landing/Pricing, Privacy, Terms, Blog, BlogPost, **Sign In + Sign Up** (previously headerless), and the public **Shared Project** view (adds a conversion CTA there). `BlogNav` removed from `BlogChrome.tsx`.
+- Frontend-only — no backend/migration. `tsc -b` + ESLint clean; **60/60** frontend tests; full `npm run build` green incl. prerender.
+
 ### Added — Step-by-step Guided Tour + Blog with admin CMS (2026-05-31)
 
 > **Status: SHIPPED 2026-05-31.** Merged to `main` (`--no-ff` merge commit `4a15472`) and pushed (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (**migration 033** → `blog_posts`). CLAUDE.md → 2.18.0. **Post-deploy:** make yourself admin (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) to use the Blog CMS; live UI verification still pending (Rule #8).

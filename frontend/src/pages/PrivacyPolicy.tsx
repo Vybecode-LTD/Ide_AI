@@ -4,6 +4,7 @@
  */
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
+import { PublicHeader } from '../components/layout/PublicHeader'
 
 const EFFECTIVE_DATE = 'May 26, 2026'
 const COMPANY = 'VybeCode LTD'
@@ -56,26 +57,8 @@ export function PrivacyPolicy() {
         <link rel="canonical" href={`${SITE}/privacy`} />
       </Helmet>
 
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-white/[0.08]">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/brandmark.png" alt="Ide/AI" className="h-7 w-7 object-contain" />
-            <span className="text-base font-black tracking-tight">
-              Ide<span className="text-accent">/AI</span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-4 text-xs text-text-muted">
-            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link
-              to="/sign-up"
-              className="px-3 py-1.5 rounded-lg bg-accent text-background text-xs font-semibold hover:bg-accent/90 transition-colors"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </nav>
+      {/* Unified public header */}
+      <PublicHeader />
 
       {/* Content */}
       <main className="max-w-3xl mx-auto px-4 py-12 pb-20">

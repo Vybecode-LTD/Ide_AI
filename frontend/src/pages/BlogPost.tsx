@@ -9,7 +9,8 @@ import { Link, useParams } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { BlogNav, BlogFooter, BlogCTA } from '../components/blog/BlogChrome'
+import { BlogFooter, BlogCTA } from '../components/blog/BlogChrome'
+import { PublicHeader } from '../components/layout/PublicHeader'
 import { formatBlogDate } from '../lib/blogFormat'
 import { getPublishedPost } from '../lib/blogApi'
 import type { BlogPost as BlogPostType } from '../types/blog'
@@ -49,7 +50,7 @@ export function BlogPost() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background text-white">
-        <BlogNav />
+        <PublicHeader />
         <div className="flex justify-center py-24">
           <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
         </div>
@@ -64,7 +65,7 @@ export function BlogPost() {
           <title>Post not found — Ide/AI Blog</title>
           <meta name="robots" content="noindex" />
         </Helmet>
-        <BlogNav />
+        <PublicHeader />
         <main className="max-w-3xl mx-auto px-4 py-24 text-center">
           <h1 className="text-2xl font-black mb-2">Post not found</h1>
           <p className="text-sm text-text-muted mb-6">
@@ -134,7 +135,7 @@ export function BlogPost() {
         <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
       </Helmet>
 
-      <BlogNav />
+      <PublicHeader />
 
       <main className="max-w-3xl mx-auto px-4 py-12 pb-20">
         <Link to="/blog" className="text-xs text-text-muted hover:text-white transition-colors">

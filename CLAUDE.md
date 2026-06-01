@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.18.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.18.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -217,6 +217,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   ├── auth/ProtectedRoute.tsx # Clerk auth gate
 │   │   │   ├── billing/               # CheckoutRedirect helpers
 │   │   │   ├── layout/Sidebar.tsx     # Desktop sidebar + mobile bottom nav, profile container, inbox badge
+│   │   │   ├── layout/PublicHeader.tsx # Unified top nav across ALL logged-out pages (landing, legal, blog, auth, shared)
 │   │   │   ├── partner/               # PartnerCard, PartnerSelector, ActivePartnerBadge
 │   │   │   ├── home/                  # PresetCard, TemplateGrid
 │   │   │   ├── discovery/             # ChatBubble, TopBar, ProgressPanel, QuickChips

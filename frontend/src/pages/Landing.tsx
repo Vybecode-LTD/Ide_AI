@@ -9,6 +9,16 @@ import { motion } from 'framer-motion'
 import apiClient from '../lib/apiClient'
 import { PLANS, type Cycle, type Plan } from '../lib/plans'
 import { Helmet } from 'react-helmet-async'
+import { PublicHeader, type PublicNavLink } from '../components/layout/PublicHeader'
+
+/* ── Public nav links (Landing keeps its section anchors) ─────── */
+const NAV_LINKS: PublicNavLink[] = [
+  { label: 'Features', href: '#features' },
+  { label: 'How It Works', href: '#how-it-works' },
+  { label: 'Pricing', href: '#pricing' },
+  { label: 'Blog', to: '/blog' },
+  { label: 'FAQ', href: '#faq' },
+]
 
 /* ── Feature cards ────────────────────────────────────────────── */
 const FEATURES = [
@@ -230,36 +240,8 @@ export function Landing() {
         <script type="application/ld+json">{JSON.stringify(WEBSITE_SCHEMA)}</script>
       </Helmet>
       <div className="min-h-screen bg-background text-white overflow-x-hidden">
-      {/* ─── Nav ─────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 inset-x-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/brandmark.png" alt="Ide/AI" className="h-9 md:h-11 w-9 md:w-11 object-contain" />
-            <span className="ml-2 text-xl md:text-2xl font-black text-white tracking-tight">Ide<span className="text-accent">/AI</span></span>
-          </Link>
-          <div className="hidden md:flex items-center gap-8 text-sm text-text-muted">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>
-            <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link
-              to="/sign-in"
-              className="text-sm text-text-muted hover:text-white transition-colors hidden sm:inline"
-            >
-              Sign In
-            </Link>
-            <Link
-              to="/sign-up"
-              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-accent text-background hover:bg-accent/90 transition-colors shadow-[0_0_20px_rgba(0,229,255,0.15)]"
-            >
-              Get Started Free
-            </Link>
-          </div>
-        </div>
-      </nav>
+      {/* ─── Nav (unified PublicHeader across all public pages) ──── */}
+      <PublicHeader fixed links={NAV_LINKS} />
 
       {/* ─── Hero ────────────────────────────────────────────────── */}
       <section className="relative pt-32 pb-20 md:pt-44 md:pb-32 px-4">
