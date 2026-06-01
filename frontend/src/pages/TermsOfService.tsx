@@ -8,7 +8,8 @@ import { PublicHeader } from '../components/layout/PublicHeader'
 
 const EFFECTIVE_DATE = 'May 26, 2026'
 const COMPANY = 'VybeCode LTD'
-const CONTACT_EMAIL = 'support@myide.ai'
+const COMPANY_URL = 'https://vybeco.de'
+const CONTACT_EMAIL = 'info@vybeco.de'
 const SITE = 'https://myide.ai'
 
 function H2({ children }: { children: React.ReactNode }) {
@@ -354,7 +355,7 @@ export function TermsOfService() {
               {CONTACT_EMAIL}
             </a>
           </p>
-          <p>Website: <a href={SITE} className="text-accent hover:underline">{SITE}</a></p>
+          <p>Website: <a href={COMPANY_URL} className="text-accent hover:underline">{COMPANY_URL}</a></p>
         </div>
       </main>
 
@@ -362,7 +363,8 @@ export function TermsOfService() {
       <footer className="py-8 px-4 border-t border-white/10">
         <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-text-muted">
-            &copy; {new Date().getFullYear()} {COMPANY}. All rights reserved.
+            &copy; {new Date().getFullYear()}{' '}
+            <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">{COMPANY}</a>. All rights reserved.
           </span>
           <div className="flex items-center gap-5 text-xs text-text-muted">
             <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>

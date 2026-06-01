@@ -29,7 +29,8 @@ export function BlogFooter() {
     <footer className="py-8 px-4 border-t border-white/10">
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
         <span className="text-xs text-text-muted">
-          &copy; {new Date().getFullYear()} VybeCode LTD. All rights reserved.
+          &copy; {new Date().getFullYear()}{' '}
+          <a href="https://vybeco.de" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">VybeCode LTD</a>. All rights reserved.
         </span>
         <div className="flex items-center gap-5 text-xs text-text-muted">
           <Link to="/blog" className="hover:text-white transition-colors">Blog</Link>

@@ -9,16 +9,7 @@ import { motion } from 'framer-motion'
 import apiClient from '../lib/apiClient'
 import { PLANS, type Cycle, type Plan } from '../lib/plans'
 import { Helmet } from 'react-helmet-async'
-import { PublicHeader, type PublicNavLink } from '../components/layout/PublicHeader'
-
-/* ── Public nav links (Landing keeps its section anchors) ─────── */
-const NAV_LINKS: PublicNavLink[] = [
-  { label: 'Features', href: '#features' },
-  { label: 'How It Works', href: '#how-it-works' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Blog', to: '/blog' },
-  { label: 'FAQ', href: '#faq' },
-]
+import { PublicHeader } from '../components/layout/PublicHeader'
 
 /* ── Feature cards ────────────────────────────────────────────── */
 const FEATURES = [
@@ -169,14 +160,21 @@ export function Landing() {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
 
-  // Auto-scroll to pricing when accessed via /pricing
+  // Scroll to a section when arriving via /pricing or a "/#hash" link — the
+  // unified header's section links (Features/How It Works/FAQ/Pricing) point
+  // here so they work from any page, not just the landing page.
   useEffect(() => {
-    if (location.pathname === '/pricing') {
+    const id = location.hash
+      ? location.hash.slice(1)
+      : location.pathname === '/pricing'
+        ? 'pricing'
+        : null
+    if (id) {
       setTimeout(() => {
-        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
       }, 300)
     }
-  }, [location.pathname])
+  }, [location.pathname, location.hash])
 
   const isPricing = location.pathname === '/pricing'
   const canonical = isPricing ? 'https://myide.ai/pricing' : 'https://myide.ai'
@@ -241,7 +239,7 @@ export function Landing() {
       </Helmet>
       <div className="min-h-screen bg-background text-white overflow-x-hidden">
       {/* ─── Nav (unified PublicHeader across all public pages) ──── */}
-      <PublicHeader fixed links={NAV_LINKS} />
+      <PublicHeader fixed />
 
       {/* ─── Hero ────────────────────────────────────────────────── */}
       <section className="relative pt-32 pb-20 md:pt-44 md:pb-32 px-4">

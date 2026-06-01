@@ -6,9 +6,10 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ### Changed — Unified public header across all logged-out pages (2026-05-31)
 
-- New shared **`frontend/src/components/layout/PublicHeader.tsx`** replaces four divergent headers (Landing's, the legal pages', and the blog's `BlogNav`) and adds a header to pages that had none. Every logged-out page now shares one brand bar: logo, `Blog`/`Pricing` links, `Sign In`, and a `Get Started Free` CTA.
-  - **Landing** keeps its section anchors (Features/How It Works/FAQ) via the component's `links` prop and its `fixed` hero-overlay positioning; all other pages use the default `sticky` bar.
+- New shared **`frontend/src/components/layout/PublicHeader.tsx`** replaces four divergent headers (Landing's, the legal pages', and the blog's `BlogNav`) and adds a header to pages that had none. Every logged-out page now shows the **same** nav — Features · How It Works · Pricing · Blog · FAQ — plus `Sign In` and a `Get Started Free` CTA.
+  - Section links route to the landing sections (`/#features`, `/#how-it-works`, `/#pricing`, `/#faq`) so they work from **any** page; Landing gained a hash-scroll handler that scrolls to the target on arrival. Landing uses `fixed` hero-overlay positioning; all other pages use the default `sticky` bar.
   - Applied to: Landing/Pricing, Privacy, Terms, Blog, BlogPost, **Sign In + Sign Up** (previously headerless), and the public **Shared Project** view (adds a conversion CTA there). `BlogNav` removed from `BlogChrome.tsx`.
+- **Footer/contact rebrand to the parent company:** the "VybeCode LTD" credit in the Blog/Privacy/Terms footers now links to `https://vybeco.de`, and the Privacy/Terms contact block shows `info@vybeco.de` + `https://vybeco.de` (canonical URLs + in-body product references stay `myide.ai`).
 - Frontend-only — no backend/migration. `tsc -b` + ESLint clean; **60/60** frontend tests; full `npm run build` green incl. prerender.
 
 ### Added — Step-by-step Guided Tour + Blog with admin CMS (2026-05-31)

@@ -21,8 +21,11 @@ export interface PublicNavLink {
 }
 
 const DEFAULT_LINKS: PublicNavLink[] = [
+  { label: 'Features', to: '/#features' },
+  { label: 'How It Works', to: '/#how-it-works' },
+  { label: 'Pricing', to: '/#pricing' },
   { label: 'Blog', to: '/blog' },
-  { label: 'Pricing', to: '/pricing' },
+  { label: 'FAQ', to: '/#faq' },
 ]
 
 interface PublicHeaderProps {
