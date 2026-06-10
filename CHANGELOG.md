@@ -4,6 +4,11 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Security — Patch all 4 high-severity npm vulnerabilities (2026-06-10)
+
+- `npm audit fix` bumped transitive deps within existing semver ranges: **react-router/react-router-dom → 7.17.0** (new high-severity advisory affecting 7.0.0–7.14.2) and **js-cookie → 3.0.7** (closes the long-standing **DEP-H1** CVE that rode in via `@clerk/shared`). `npm audit` now reports **0 vulnerabilities**.
+- Lockfile-only change (`package.json` ranges already covered both). Verified: 60/60 Vitest, `tsc -b --noEmit` clean, full `npm run build` green incl. prerender.
+
 ### Changed — Unified public header across all logged-out pages (2026-05-31)
 
 - New shared **`frontend/src/components/layout/PublicHeader.tsx`** replaces four divergent headers (Landing's, the legal pages', and the blog's `BlogNav`) and adds a header to pages that had none. Every logged-out page now shows the **same** nav — Features · How It Works · Pricing · Blog · FAQ — plus `Sign In` and a `Get Started Free` CTA.
