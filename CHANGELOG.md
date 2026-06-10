@@ -4,6 +4,12 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Added — Production observability: Sentry, automated DB backups, uptime checks (2026-06-10)
+
+- **Sentry error tracking, deploy-dark pattern (both services).** Backend: `sentry-sdk[fastapi]`; `create_app()` initializes Sentry only when `SENTRY_DSN` is set (`SENTRY_TRACES_SAMPLE_RATE` defaults 0.1; `send_default_pii=False`). Frontend: `@sentry/react` initialized via **dynamic import** only when `VITE_SENTRY_DSN` is set — zero bundle cost otherwise; `ErrorBoundary.componentDidCatch` also reports (render errors never reach `window.onerror`). **Activation:** create a Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway.
+- **Weekly DB backup workflow** (`.github/workflows/db-backup.yml`) — Mondays 04:00 UTC + manual dispatch: `pg_dump --format=custom` → gzip → GitHub artifact (90-day retention), independent of Railway snapshots. **Activation:** add repo secret `DATABASE_PUBLIC_URL` (Railway Postgres public connection string); until then the job skips with a notice.
+- **Uptime check workflow** (`.github/workflows/uptime-check.yml`) — every 30 min curls `https://myide.ai/` and the backend `/api/v1/health`; a failure triggers GitHub's workflow-failure email. Complements, not replaces, a dedicated monitor.
+
 ### Security — Rate limiting (SAST-H1), backend CVE sweep, Clerk clock-skew leeway (2026-06-10)
 
 - **SAST-H1 closed — per-IP rate limiting via `slowapi`** (new `app/core/rate_limit.py`, wired in `main.py`). Limits on the anonymous/public surface: shared-project **comments** + **ratings** POST (10/min), **password verify** (10/min — brute-force guard), shared-project GET (30/min — view-count inflation), inbound-email webhook (60/min, generous for Svix retries), and the authenticated-but-Anthropic-costing `POST /pathways/detect` (10/min). Keys on the first `X-Forwarded-For` hop (Railway edge) with socket fallback; in-memory storage (single-instance deploy — switch to Redis storage if the backend ever scales out). `RATE_LIMIT_ENABLED=false` disables it (test suite default); **7 new regression tests** in `backend/tests/test_rate_limit.py` (429 on spam, per-IP keying, first-XFF-hop bucketing, disabled-mode inertness).

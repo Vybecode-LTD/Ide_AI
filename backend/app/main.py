@@ -15,6 +15,19 @@ from app.routers import admin, auth, billing, blocks, blog, branching, clerk_web
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
     is_production = settings.ENVIRONMENT == "production"
+
+    # Error tracking — no-op unless SENTRY_DSN is set in the environment.
+    if settings.SENTRY_DSN:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            environment=settings.ENVIRONMENT,
+            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+            send_default_pii=False,  # never ship user PII to Sentry
+        )
+
+
     app = FastAPI(
         title=settings.APP_NAME,
         version="0.1.0",

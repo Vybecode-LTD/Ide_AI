@@ -17,6 +17,19 @@ import App from './App'
 
 const queryClient = new QueryClient()
 
+// Error tracking — dynamic import so the Sentry bundle is only fetched when
+// a DSN is configured (no-op + zero bundle cost otherwise).
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
+if (SENTRY_DSN) {
+  import('@sentry/react').then((Sentry) => {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      environment: import.meta.env.MODE,
+      sendDefaultPii: false,
+    })
+  })
+}
+
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 if (!CLERK_PUBLISHABLE_KEY) {

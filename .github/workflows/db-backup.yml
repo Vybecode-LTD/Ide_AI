@@ -1,0 +1,59 @@
+# Weekly PostgreSQL backup — uploads a compressed pg_dump as a GitHub
+# Actions artifact (90-day retention), independent of Railway's snapshots.
+#
+# SETUP (one-time): add a repo secret DATABASE_PUBLIC_URL containing the
+# Railway Postgres *public* connection string (Railway → Postgres service →
+# Connect → "Public Network" URL). The internal DATABASE_URL is not
+# reachable from GitHub runners. Until the secret is set, the job exits
+# early with a notice instead of failing.
+name: db-backup
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check secret is configured
+        id: check
+        env:
+          DB_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::notice::DATABASE_PUBLIC_URL secret not set — skipping backup."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install recent pg_dump (PGDG)
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /etc/apt/trusted.gpg.d/pgdg.asc > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump database
+        if: steps.check.outputs.configured == 'true'
+        env:
+          DB_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+        run: |
+          STAMP=$(date -u +%Y-%m-%d)
+          pg_dump "$DB_URL" --no-owner --no-privileges --format=custom \
+            --file="ideai-backup-${STAMP}.dump"
+          gzip "ideai-backup-${STAMP}.dump"
+          ls -lh ideai-backup-*.dump.gz
+
+      - name: Upload backup artifact
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: ideai-backup-*.dump.gz
+          retention-days: 90
+          if-no-files-found: error
