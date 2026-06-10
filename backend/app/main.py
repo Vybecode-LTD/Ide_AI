@@ -4,8 +4,11 @@ Configures CORS middleware and mounts all API routers under /api/v1.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.routers import admin, auth, billing, blocks, blog, branching, clerk_webhook, design_sheet, discovery, exports, inbox, integrations, library, market, meta, module_pathway, modules, pathways, pipeline, projects, prompts, sharing, sprints, templates, webhooks
 
 
@@ -20,6 +23,10 @@ def create_app() -> FastAPI:
         openapi_url=None if is_production else "/api/openapi.json",
         redirect_slashes=False,
     )
+
+    # Per-IP rate limiting on public endpoints (SAST-H1)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(
         CORSMiddleware,

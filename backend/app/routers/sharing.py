@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func as sa_func
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.project import Project
 from app.models.project_share import ProjectShare
 from app.models.share_comment import ShareComment
@@ -193,7 +194,9 @@ async def revoke_share(
 
 
 @router.get("/public/{token}")
+@limiter.limit("30/minute")
 async def get_shared_project(
+    request: Request,
     token: str,
     db: AsyncSession = Depends(get_db),
 ):
@@ -222,7 +225,9 @@ async def get_shared_project(
 
 
 @router.post("/public/{token}/verify")
+@limiter.limit("10/minute")
 async def verify_shared_password(
+    request: Request,
     token: str,
     payload: VerifyPasswordRequest,
     db: AsyncSession = Depends(get_db),
@@ -330,7 +335,9 @@ async def get_comments(
 
 
 @router.post("/public/{token}/comments", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def add_comment(
+    request: Request,
     token: str,
     payload: CommentCreate,
     authorization: Optional[str] = Header(None),
@@ -393,7 +400,9 @@ async def get_ratings(
 
 
 @router.post("/public/{token}/ratings", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def add_rating(
+    request: Request,
     token: str,
     payload: RatingCreate,
     authorization: Optional[str] = Header(None),

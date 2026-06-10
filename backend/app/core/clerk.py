@@ -37,6 +37,10 @@ def verify_clerk_token(token: str) -> dict:
 
     decode_kwargs: dict = {
         "algorithms": ["RS256"],
+        # 30s clock-skew tolerance: PyJWT's default leeway is 0, so any small
+        # drift between Clerk's clock and the server can reject freshly minted
+        # tokens (iat/nbf marginally in the future) with spurious 401s.
+        "leeway": 30,
         "options": {
             "verify_exp": True,
             "verify_iat": True,

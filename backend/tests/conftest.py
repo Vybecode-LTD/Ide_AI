@@ -13,6 +13,9 @@ import uuid
 # Set minimal env vars BEFORE importing app modules (settings reads on import).
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("ANTHROPIC_KEY", "test-key-not-real")
+# Disable per-IP rate limiting so repeated test requests never 429
+# (test_rate_limit.py re-enables it on its own Limiter instance).
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import json
 

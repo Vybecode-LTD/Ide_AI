@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Viewer access token for password-protected shares
     SHARE_ACCESS_SECRET: str = ""
 
+    # Per-IP rate limiting on public/anonymous endpoints (SAST-H1).
+    # Disabled by the test suite so repeated test requests never 429.
+    RATE_LIMIT_ENABLED: bool = True
+
     # Clerk JWT hardening (optional but recommended for production)
     CLERK_ISSUER: str = ""
     CLERK_AUDIENCE: str = ""

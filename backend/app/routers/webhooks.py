@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.rate_limit import limiter
 from app.models.idea_inbox import IdeaInbox
 from app.models.user import User
 from app.services import inbox_pubsub
@@ -48,6 +49,7 @@ def _verify_resend_webhook(raw_body: bytes, headers: dict[str, str]) -> dict:
 
 
 @router.post("/inbound-email", status_code=status.HTTP_200_OK)
+@limiter.limit("60/minute")  # generous — Svix retries legitimately burst
 async def inbound_email(request: Request):
     """
     Handle inbound email from Resend.
