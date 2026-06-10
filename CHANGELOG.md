@@ -4,6 +4,12 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Hygiene sweep: tour auto-launch scope, stale AGENTS.md removed, inbox test debt (2026-06-10)
+
+- **Guided Tour auto-launch is now new-signups-only** (`HelpButton.tsx`): the one-time auto-launch fires only for accounts **≤ 7 days old** (age from `authStore.user.created_at`; HelpButton self-hydrates the store on pages without a Sidebar). Existing users get `autoLaunched` marked silently — no overlay pop — and keep the "?" launcher + Settings → "Replay Walkthrough". Resolves the open TODO decision.
+- **Deleted stale `AGENTS.md`** — it pointed Codex sessions at the wrong repo URL (`PromptMonster-Media-Ltd`), an obsolete `D:\` working directory, and outdated stack facts. CLAUDE.md is the single source of truth.
+- **6 new inbox tests** (`backend/tests/test_inbox.py`, from the TODO Testing Debt list): `/inbox/count` correctness (empty / excludes-promoted / user-scoped) and promote partner-style validation (junk falls back to `strategist`, valid style honored, foreign item → 404).
+
 ### Added — Production observability: Sentry, automated DB backups, uptime checks (2026-06-10)
 
 - **Sentry error tracking, deploy-dark pattern (both services).** Backend: `sentry-sdk[fastapi]`; `create_app()` initializes Sentry only when `SENTRY_DSN` is set (`SENTRY_TRACES_SAMPLE_RATE` defaults 0.1; `send_default_pii=False`). Frontend: `@sentry/react` initialized via **dynamic import** only when `VITE_SENTRY_DSN` is set — zero bundle cost otherwise; `ErrorBoundary.componentDidCatch` also reports (render errors never reach `window.onerror`). **Activation:** create a Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway.

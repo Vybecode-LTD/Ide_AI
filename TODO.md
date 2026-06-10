@@ -1,10 +1,22 @@
 # Ide/AI — TODO
 
-> **Version:** 3.13.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.14.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
 ---
+
+## 🟠 Needs YOUR action (2026-06-10 production-hardening session)
+
+The code-side production-readiness work is done (see Recently Done + CHANGELOG). What's left needs a human with prod access / a browser (Rule #8):
+
+- [ ] **Merge + push `chore/production-hardening`** → Railway auto-deploys both services (no migration in this batch).
+- [ ] **Bootstrap an admin** — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` — the Blog CMS is unusable until then.
+- [ ] **Activate Sentry** — create a (free-tier) Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway. Code no-ops until set.
+- [ ] **Activate DB backups** — add GitHub repo secret `DATABASE_PUBLIC_URL` (Railway Postgres → Connect → Public Network URL). The weekly workflow skips with a notice until set.
+- [ ] **Live smoke after deploy** — tour auto-launch on a *fresh* sign-up (existing accounts no longer auto-launch), "?" replay, publish a blog post → renders at `/blog/{slug}`, Notion end-to-end push (Design Kit → page renders), spam a shared link's comment box → 429 after 10.
+- [ ] **Re-run the ROADMAP smoke-test checklist** (signup → discovery → export → plan limit → Stripe checkout → admin).
+- [ ] **Optional DB cleanup** — delete the orphan `is_admin=TRUE` user row (check FKs first; SQL in the DB cleanup section below).
 
 ## 🔴 P0 — none open (cleared 2026-05-30)
 
@@ -24,7 +36,7 @@ Both features are built, fully verified (backend 293→288 pass, frontend 60/60,
 - [x] **Commit + deploy** — ✅ DONE 2026-05-31. Merged `--no-ff` (`4a15472`) + pushed (`7a70335..4a15472`); Railway auto-deployed both services; migration 033 ran via the pre-deploy hook.
 - [ ] **Bootstrap an admin** before the Blog CMS is usable — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'`. Then Admin → "Blog" tab + `/blog/admin/*` work. (Public blog reads need no auth.)
 - [ ] **Manually test live** (Rule #8): tour auto-launch on a fresh sign-in + "?" replay + Settings "Replay Walkthrough"; publish a post from the admin CMS → renders at `/blog/{slug}` with correct title/meta.
-- [ ] **Decide tour auto-launch scope** — currently fires once for *everyone* lacking the `ideai-walkthrough` localStorage key (incl. existing users, one time). Make it new-signups-only? Needs a "new user" signal (account age / backend flag).
+- [x] **Decide tour auto-launch scope** — ✅ DONE 2026-06-10. Now **new-signups-only**: auto-launch fires only for accounts ≤ 7 days old (age from `authStore.user.created_at`); existing users are marked `autoLaunched` silently and keep the "?" + "Replay Walkthrough".
 - [ ] **Blog SEO fast-follow (optional):** build-time prerender of published posts + dynamic `sitemap.xml` entries (Known Issue #6). Couples the frontend build to backend availability — design accordingly. Until then, blog pages are client-rendered with full Helmet meta + JSON-LD (Googlebot renders JS).
 - [ ] **"?" position polish (optional):** sits `top-3 right-3`; on mobile pages with a TopBar the Clerk avatar shares that corner — nudge if it crowds.
 
@@ -59,11 +71,11 @@ Phase 4 + audit closure + integration tests are all shipped. Phase 5 builds the 
 ## 🛡 Security hygiene (recommended)
 
 - [x] ~~**Rotate 3 webhook signing secrets**~~ — **DONE 2026-05-30** (webhook signing secrets + API keys for Clerk/Stripe/Resend rotated, Railway env updated, sign-in verified). _(Duplicate of the cleared P0 item above.)_
-- [ ] **SAST-H1: Rate limiting on sharing endpoints** — `/sharing/public/{token}/comments` and `/sharing/public/{token}/ratings` are anonymous and have no rate limiting. Install `slowapi` (or `fastapi-limiter`), add per-IP limits (e.g. 10 req/min per token). Also consider rate-limiting the webhook endpoints.
+- [x] ~~**SAST-H1: Rate limiting on sharing endpoints**~~ — **DONE 2026-06-10**. `slowapi` per-IP limits (X-Forwarded-For aware) on public comments/ratings/verify (10/min), shared GET (30/min), inbound-email webhook (60/min), `/pathways/detect` (10/min). `RATE_LIMIT_ENABLED` flag; 7 regression tests in `test_rate_limit.py`.
 - [x] ~~**SAST-H2: OpenAPI docs in production**~~ — **DONE 2026-05-28**. `docs_url`, `redoc_url`, `openapi_url` now `None` when `ENVIRONMENT=production`.
 - [x] ~~**SAST-M1: Stripe error leak**~~ — **DONE 2026-05-28**. Generic message returned to client, raw error logged.
 - [x] ~~**SAST-M2: Content-Security-Policy**~~ — **DONE 2026-05-28**. CSP header added to Caddyfile.
-- [ ] **DEP-H1: js-cookie CVE** — transitive from `@clerk/shared` v3.0.5. Check if upgrading `@clerk/clerk-react` resolves it. If not, document as upstream and monitor.
+- [x] ~~**DEP-H1: js-cookie CVE**~~ — **DONE 2026-06-10**. `npm audit fix` bumped js-cookie → 3.0.7 (and react-router → 7.17.0, a newer advisory); `npm audit` now reports 0 vulnerabilities.
 
 ---
 
@@ -122,9 +134,9 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 ### Backend (extend existing test suite)
 - [ ] Test `_link_existing_email_user` race scenario (webhook-first user creation)
 - [ ] Test `_idempotent_create_user` ON CONFLICT path (race with another request)
-- [ ] Test `validate_partner_style` rejection cases in inbox promotion
-- [ ] Test `/inbox/count` returns correct unpromoted count
-- [ ] Test SSE event ordering: `sheet_update` fires before `done` when extraction succeeds
+- [x] ~~Test `validate_partner_style` rejection cases in inbox promotion~~ — **DONE 2026-06-10** (`test_inbox.py`, 6 tests)
+- [x] ~~Test `/inbox/count` returns correct unpromoted count~~ — **DONE 2026-06-10** (`test_inbox.py`)
+- [x] ~~Test SSE event ordering: `sheet_update` fires before `done`~~ — already covered by `test_discovery_sse.py` (2026-05-30)
 
 ### Frontend (31 tests landed in `01af5a6`)
 - [x] ~~Vitest setup + first test (extractError function — pure, no UI)~~ — 14 tests
@@ -145,11 +157,11 @@ Most error sites are now toast-surfaced (commit `28ead2d`). What's left:
 
 ## 🛡️ Security Hardening (Optional)
 
-- [ ] **Rate limit `POST /pathways/detect`** — currently unauthenticated could spam Anthropic calls (though Clerk verification gates it... double-check this).
-- [ ] **Audit `Sharing` public endpoints** — comments/ratings accept arbitrary text. Add length limits + basic profanity filter or moderation queue.
-- [ ] **Audit `Inbox` webhook endpoint** — currently has 256KB payload cap. Consider also rate-limiting per-user.
-- [ ] **Verify Clerk JWT clock skew tolerance** — `pyjwt` default is 0; some clock drift in production could cause spurious 401s. Set `leeway=30` in `verify_clerk_token`.
-- [ ] **Audit Stripe webhook idempotency** — verify duplicate webhook events don't double-charge or double-create.
+- [x] ~~**Rate limit `POST /pathways/detect`**~~ — **DONE 2026-06-10**. Confirmed it IS Clerk-gated; added 10/min per-IP limit + 5000-char description cap anyway (bounds Anthropic spend).
+- [x] ~~**Audit `Sharing` public endpoints**~~ — **DONE 2026-06-10**. Length limits already enforced (content ≤2000, name ≤100, email ≤255, score 0–5); rate limiting added (SAST-H1). Profanity filter/moderation queue deliberately not added (product decision, revisit with real users).
+- [x] ~~**Audit `Inbox` webhook endpoint**~~ — **DONE 2026-06-10**. 256KB cap + Svix signature + idempotency already in place; added 60/min per-IP rate limit.
+- [x] ~~**Verify Clerk JWT clock skew tolerance**~~ — **DONE 2026-06-10**. `leeway=30` set in `verify_clerk_token`.
+- [x] ~~**Audit Stripe webhook idempotency**~~ — **DONE 2026-06-10**. Idempotent by construction: signature verified; every handler is an absolute-value UPDATE (no creation/increment/charge). Accepted residual: out-of-order delivery could transiently write stale subscription state; self-corrects on the next event.
 
 ---
 
@@ -161,15 +173,15 @@ cd frontend && npm.cmd outdated
 cd backend && pip list --outdated
 ```
 
-Last audited: 2026-05-23
-- Frontend: 2 high-severity vulnerabilities (pre-existing, in transitive deps not directly used)
-- Backend: TBD — no recent audit
+Last audited: **2026-06-10 — both stacks clean.**
+- Frontend: `npm audit` → **0 vulnerabilities** (react-router → 7.17.0, js-cookie → 3.0.7).
+- Backend: `pip-audit` on the exported poetry.lock → **no known vulnerabilities** (26 advisories across 10 packages patched via `poetry update`: pyjwt 2.13, starlette 1.2.1, python-multipart 0.0.32, cryptography 48, pillow 12.2, requests, urllib3, idna, lxml, mako).
 
 ---
 
 ## 🗑️ Cleanup
 
-- [ ] Delete `AGENTS.md` from project root if it's not actively used (currently untracked).
+- [x] ~~Delete `AGENTS.md` from project root~~ — **DONE 2026-06-10** (was tracked + badly stale: wrong repo URL, obsolete `D:\` paths).
 - [ ] Review `docs/claude-code-package/` — older audit packages can be archived.
 - [ ] Remove `frontend/src/components/voice/` if voice never gets used (currently wired up, but Web Speech API has limited browser support).
 - [ ] Migrate `frontend/src/lib/categories.ts` references — if any modules are extracted to their own pages, this might shrink.

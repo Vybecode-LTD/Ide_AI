@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 2.18.1 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.19.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > This file is the single source of truth for Claude Code sessions working on this project.
 > Read this file first on every session start.
@@ -110,6 +110,8 @@ The full process takes 15–30 minutes: describe an idea, configure options, go 
 | Billing | **Stripe** — checkout sessions, billing portal, webhook sync |
 | Email | Resend API — inbound email webhooks for Idea Inbox |
 | Deployment | Railway (2 services — backend + frontend exposed publicly), Docker |
+| Observability | **Sentry** (backend `sentry-sdk[fastapi]`, frontend `@sentry/react` via dynamic import — both no-op until `SENTRY_DSN`/`VITE_SENTRY_DSN` set) · weekly pg_dump backup + 30-min uptime checks via GitHub Actions |
+| Rate limiting | **slowapi** per-IP limits (X-Forwarded-For aware) on public sharing comments/ratings/verify, inbound-email webhook, `/pathways/detect` · `RATE_LIMIT_ENABLED` flag (tests disable) |
 | AI Streaming | Server-Sent Events (SSE) for discovery chat, market analysis, module responses |
 | Export | fpdf2 (PDF), python-docx (DOCX), Jinja2 templates, ZIP bundling |
 
@@ -186,7 +188,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 │   │   │   └── sharing_service.py, library_service.py, memory_service.py, transcript_service.py
 │   │   ├── alembic/versions/          # Database migrations (001–033, linear chain)
 │   │   └── templates/                 # Jinja2 templates for prompts + exports
-│   ├── tests/                         # backend tests across 12 files (293 collected · 288 pass · 1 skip · 4 deselected)
+│   ├── tests/                         # backend tests across 14 files (306 collected · 305 pass · 1 skip)
 │   ├── pyproject.toml, Dockerfile, railway.toml
 ├── frontend/
 │   ├── src/
@@ -504,7 +506,7 @@ C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
 - A **linear, re-openable walkthrough** distinct from the ambient hints (#15) — teaches a first-timer how Ide/AI works end to end (idea → discovery → design kit → prompts → export).
 - Themed glass-card overlay (`GuidedTour.tsx`): 7 steps, progress dots, Back/Skip/Next, keyboard nav (←/→/Esc), optional per-step deep-links, finish CTA → `/home`.
 - **Floating "?" launcher** (`HelpButton.tsx`) fixed top-right, mounted globally for signed-in users in `App.tsx` (gated on `isSignedIn`). Re-opens the tour any time.
-- **Auto-launches once** for new users (one-time, persisted) via the HelpButton mount effect — existing users without the localStorage key also see it once on next visit.
+- **Auto-launches once for NEW signups only** (accounts ≤ 7 days old, judged from `authStore.user.created_at`; HelpButton self-hydrates authStore on pages without a Sidebar). Existing users are marked `autoLaunched` silently — no overlay — and keep the "?" launcher + Settings replay. _(Changed 2026-06-10; was everyone-once.)_
 - Settings → "Replay Walkthrough" reopens it; "Reset Tutorial" now clears BOTH this tour and the ambient hints.
 - Store: `frontend/src/stores/walkthroughStore.ts` (Zustand + persist; only durable flags `completedTour`/`autoLaunched` persist — live `isOpen`/`currentStep` never persist, so a refresh never reopens mid-session). localStorage key `ideai-walkthrough`. Content: `frontend/src/components/tutorial/tourSteps.ts`.
 - **Frontend-only** — no backend, no migration.
@@ -663,15 +665,14 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task:** Built + **shipped** the Step-by-Step Guided Tour (feature #26) + the Blog with public pages and admin CMS (feature #27). Merged to `main` (`--no-ff` merge `4a15472`) and pushed (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (migration 033 → `blog_posts`). Local feature branch deleted post-merge.
+**Task:** Production-hardening sweep (P0→P4 from the 2026-06-10 readiness audit), on branch **`chore/production-hardening`** (4 commits, NOT yet merged/pushed — merging is the user's call since push = deploy):
+- **P0 — npm CVEs:** `npm audit fix` → react-router 7.17.0 + js-cookie 3.0.7 (closes DEP-H1); `npm audit` now 0 vulns.
+- **P1 — SAST-H1 + backend CVE sweep:** slowapi per-IP rate limiting (`app/core/rate_limit.py`; public sharing comments/ratings/verify 10/min, shared GET 30/min, inbound-email webhook 60/min, `/pathways/detect` 10/min; XFF-aware keying; `RATE_LIMIT_ENABLED` flag; 7 tests in `test_rate_limit.py`). `poetry update` cleared all 26 pip-audit advisories (pyjwt 2.13, starlette **1.2.1**, etc.) — lock now audits clean. Clerk JWT `leeway=30`. `/pathways/detect` description capped 5000 chars. Stripe webhook idempotency audited: idempotent by construction, no change.
+- **P3 — observability:** Sentry both services (deploy-dark: no-op until DSN env set), `.github/workflows/db-backup.yml` (weekly pg_dump → 90-day artifact; needs `DATABASE_PUBLIC_URL` repo secret), `.github/workflows/uptime-check.yml` (30-min health pings).
+- **P4 — hygiene:** tour auto-launch now new-signups-only (≤7-day account age); stale `AGENTS.md` deleted; 6 inbox tests (`test_inbox.py`: /inbox/count correctness + promote partner-style validation).
 
-Three phases, each verified before moving on:
-- **Phase 1 — Tutorial (frontend-only):** `walkthroughStore.ts` (Zustand+persist), `tourSteps.ts` (7 steps), `GuidedTour.tsx` (themed overlay, progress dots, keyboard nav), `HelpButton.tsx` (fixed top-right "?", one-time auto-launch). Mounted globally for signed-in users in `App.tsx`; Settings gained "Replay Walkthrough" + reset now clears both tutorial systems. Added a shared-test-harness `localStorage` polyfill in `src/test/setup.ts` (jsdom here exposes none, which `zustand/persist` needs).
-- **Phase 2 — Blog backend:** `blog_post.py` model + migration `033`, `schemas/blog.py`, `routers/blog.py` (public read + admin-only audit-logged write), registered in `main.py`/`models/__init__.py`/`conftest.py`. Gotcha solved: `await db.refresh()` after flush so server-default timestamps serialize without an async lazy-load (`MissingGreenlet`).
-- **Phase 3 — Blog frontend + SEO:** installed `react-markdown` + `remark-gfm` (raw HTML off = XSS-safe); public `pages/Blog.tsx` + `pages/BlogPost.tsx` (Helmet meta + `BlogPosting`/`BreadcrumbList` JSON-LD), `components/blog/BlogChrome.tsx`, `lib/blogApi.ts` + `lib/blogFormat.ts` + `types/blog.ts`; admin `components/admin/AdminBlogManager.tsx` ("Blog" tab in `Admin.tsx`); `.blog-content` prose styles; `/blog` added to `sitemap.xml`; "Blog" link added to the Landing nav + footer. **Bonus build fix:** `scripts/prerender.mjs` now wraps the SSR import in `pathToFileURL()`, so the full `npm run build` (incl. prerender) runs on Windows.
+_Prior task (2026-05-31): shipped the Guided Tour (#26) + Blog (#27) — merged `4a15472`, deployed, migration 033. Before that: Notion integration live (`32ec540`)._
 
-_Prior task (2026-05-31): Notion integration shipped to production — merged (`32ec540`), deployed, OAuth connect verified live; `feature/notion-integration` branch deleted (local + origin)._
-
-**Date:** 2026-05-31
-**Test coverage:** **Backend 293 collected across 12 files — 288 passed · 1 skipped (PG-only upsert) · 4 deselected** (`-k "not PromptComposition"`); blog = 23 tests in `test_blog.py`. **Frontend 60/60 across 9 files** (+ tutorial-store/GuidedTour/blogApi/Blog tests); `tsc -b --noEmit` clean, ESLint clean, **full `npm run build` green incl. prerender**.
-**Residual (non-blocking):** **bootstrap an admin** (`UPDATE users SET is_admin=TRUE WHERE id='<from /auth/me>'`) before the Blog CMS is usable; **manually verify the tour + blog live** once Railway finishes deploying (Rule #8 — e.g. probe `GET /api/v1/blog/posts` → `[]`); decide whether the tour auto-launch should be new-signups-only; consider build-time blog prerender for max SEO (Known Issue #6); SAST-H1 (rate-limit sharing); DEP-H1 (js-cookie CVE via Clerk, upstream); stale `AGENTS.md`; PG-only upsert test path.
+**Date:** 2026-06-10
+**Test coverage:** **Backend 306 collected across 14 files — 305 passed · 1 skipped (PG-only upsert)** (run in the poetry env, where the 4 PromptComposition tests also pass). **Frontend 60/60 across 9 files**; `tsc -b --noEmit` clean, ESLint clean, **full `npm run build` green incl. prerender**; `npm audit` + `pip-audit` (locked set) both **0 vulnerabilities**.
+**Residual (non-blocking, mostly user actions — see TODO.md "Needs YOUR action"):** merge + push the branch (= deploy); bootstrap an admin (Blog CMS); set `SENTRY_DSN`/`VITE_SENTRY_DSN` in Railway + `DATABASE_PUBLIC_URL` repo secret; live-verify tour/blog/Notion-push/429s; orphan user row cleanup; PG-backed test harness (the 1 perpetual skip + auth ON CONFLICT race paths); frontend component tests for DesignKit edit/save + Notion components; blog build-time prerender (Known Issue #6).
