@@ -4,6 +4,32 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Hygiene sweep: tour auto-launch scope, stale AGENTS.md removed, inbox test debt (2026-06-10)
+
+- **Guided Tour auto-launch is now new-signups-only** (`HelpButton.tsx`): the one-time auto-launch fires only for accounts **≤ 7 days old** (age from `authStore.user.created_at`; HelpButton self-hydrates the store on pages without a Sidebar). Existing users get `autoLaunched` marked silently — no overlay pop — and keep the "?" launcher + Settings → "Replay Walkthrough". Resolves the open TODO decision.
+- **Deleted stale `AGENTS.md`** — it pointed Codex sessions at the wrong repo URL (`PromptMonster-Media-Ltd`), an obsolete `D:\` working directory, and outdated stack facts. CLAUDE.md is the single source of truth.
+- **6 new inbox tests** (`backend/tests/test_inbox.py`, from the TODO Testing Debt list): `/inbox/count` correctness (empty / excludes-promoted / user-scoped) and promote partner-style validation (junk falls back to `strategist`, valid style honored, foreign item → 404).
+
+### Added — Production observability: Sentry, automated DB backups, uptime checks (2026-06-10)
+
+- **Sentry error tracking, deploy-dark pattern (both services).** Backend: `sentry-sdk[fastapi]`; `create_app()` initializes Sentry only when `SENTRY_DSN` is set (`SENTRY_TRACES_SAMPLE_RATE` defaults 0.1; `send_default_pii=False`). Frontend: `@sentry/react` initialized via **dynamic import** only when `VITE_SENTRY_DSN` is set — zero bundle cost otherwise; `ErrorBoundary.componentDidCatch` also reports (render errors never reach `window.onerror`). **Activation:** create a Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway.
+- **Weekly DB backup workflow** (`.github/workflows/db-backup.yml`) — Mondays 04:00 UTC + manual dispatch: `pg_dump --format=custom` → gzip → GitHub artifact (90-day retention), independent of Railway snapshots. **Activation:** add repo secret `DATABASE_PUBLIC_URL` (Railway Postgres public connection string); until then the job skips with a notice.
+- **Uptime check workflow** (`.github/workflows/uptime-check.yml`) — every 30 min curls `https://myide.ai/` and the backend `/api/v1/health`; a failure triggers GitHub's workflow-failure email. Complements, not replaces, a dedicated monitor.
+
+### Security — Rate limiting (SAST-H1), backend CVE sweep, Clerk clock-skew leeway (2026-06-10)
+
+- **SAST-H1 closed — per-IP rate limiting via `slowapi`** (new `app/core/rate_limit.py`, wired in `main.py`). Limits on the anonymous/public surface: shared-project **comments** + **ratings** POST (10/min), **password verify** (10/min — brute-force guard), shared-project GET (30/min — view-count inflation), inbound-email webhook (60/min, generous for Svix retries), and the authenticated-but-Anthropic-costing `POST /pathways/detect` (10/min). Keys on the first `X-Forwarded-For` hop (Railway edge) with socket fallback; in-memory storage (single-instance deploy — switch to Redis storage if the backend ever scales out). `RATE_LIMIT_ENABLED=false` disables it (test suite default); **7 new regression tests** in `backend/tests/test_rate_limit.py` (429 on spam, per-IP keying, first-XFF-hop bucketing, disabled-mode inertness).
+- **Backend dependency CVE sweep — 26 advisories in 10 locked packages → 0.** `poetry update` within existing constraints: pyjwt → 2.13.0 (4 advisories — auth-critical), starlette 0.52.1 → **1.2.1**, python-multipart → 0.0.32, cryptography → 48.0.1, pillow → 12.2.0, requests, urllib3, idna, lxml, mako. `pip-audit` on the exported lock now reports **no known vulnerabilities**; full suite green on the updated env (299 pass · 1 skip).
+- **Clerk JWT verification gains `leeway=30`** (`core/clerk.py`) — PyJWT's default 0s leeway could 401 freshly minted tokens under small clock drift.
+- **`POST /pathways/detect` description capped at 5000 chars** — the text is forwarded into an Anthropic call.
+- **Stripe webhook idempotency audited — no change needed:** signature is verified and every handler is an absolute-value `UPDATE` (no row creation / increments / charge creation), so duplicate deliveries are idempotent by construction. Accepted residual: out-of-order delivery could transiently write stale subscription state; it self-corrects on the next event.
+- Comment/rating input length limits were **already enforced** (content ≤2000, name ≤100, email ≤255, score 0–5) — verified, no change.
+
+### Security — Patch all 4 high-severity npm vulnerabilities (2026-06-10)
+
+- `npm audit fix` bumped transitive deps within existing semver ranges: **react-router/react-router-dom → 7.17.0** (new high-severity advisory affecting 7.0.0–7.14.2) and **js-cookie → 3.0.7** (closes the long-standing **DEP-H1** CVE that rode in via `@clerk/shared`). `npm audit` now reports **0 vulnerabilities**.
+- Lockfile-only change (`package.json` ranges already covered both). Verified: 60/60 Vitest, `tsc -b --noEmit` clean, full `npm run build` green incl. prerender.
+
 ### Changed — Unified public header across all logged-out pages (2026-05-31)
 
 - New shared **`frontend/src/components/layout/PublicHeader.tsx`** replaces four divergent headers (Landing's, the legal pages', and the blog's `BlogNav`) and adds a header to pages that had none. Every logged-out page now shows the **same** nav — Features · How It Works · Pricing · Blog · FAQ — plus `Sign In` and a `Get Started Free` CTA.

@@ -3,11 +3,12 @@ pathways.py — API endpoints for concept pathway definitions.
 Serves pathway metadata to the frontend for dynamic UI rendering.
 Includes AI-powered pathway detection from project descriptions.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.user import User
 from app.pathways import PathwayRegistry
 from app.routers.auth import get_current_user
@@ -17,7 +18,8 @@ router = APIRouter(prefix="/pathways", tags=["pathways"])
 
 
 class DetectRequest(BaseModel):
-    description: str
+    # Length-capped: this text is forwarded into an Anthropic call.
+    description: str = Field(min_length=1, max_length=5000)
 
 
 @router.get("")
@@ -28,7 +30,9 @@ async def list_pathways():
 
 
 @router.post("/detect")
+@limiter.limit("10/minute")  # authenticated, but each call costs an Anthropic request
 async def detect_pathway_endpoint(
+    request: Request,
     payload: DetectRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

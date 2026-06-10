@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.6.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.7.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
@@ -162,10 +162,11 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 - **Storybook** for the design system components (Button, Card, Badge, Modal, etc.)
 
 ### Infrastructure
-- **Sentry / error tracking** — currently relies on Railway logs
-- **Performance monitoring** — backend latency, AI call duration, p99 response times
+- ~~**Sentry / error tracking**~~ — ✅ **DONE 2026-06-10** (code-side; no-op until `SENTRY_DSN`/`VITE_SENTRY_DSN` set in Railway). Sentry traces (`SENTRY_TRACES_SAMPLE_RATE=0.1`) also give basic backend latency/perf visibility.
+- **Performance monitoring (deep)** — p99 dashboards, AI-call duration breakdowns beyond Sentry traces
 - **Database query observability** — slow query log
-- **Backup automation** — Railway has snapshots but no automated weekly export
+- ~~**Backup automation**~~ — ✅ **DONE 2026-06-10** (`.github/workflows/db-backup.yml`, weekly pg_dump → 90-day artifact; needs `DATABASE_PUBLIC_URL` repo secret)
+- ~~**Uptime alerting**~~ — ✅ **DONE 2026-06-10** (`.github/workflows/uptime-check.yml`, 30-min pings; consider UptimeRobot for sub-minute detection later)
 
 ---
 

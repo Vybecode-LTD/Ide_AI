@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.14.0 · **Last updated:** 2026-05-31 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.15.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,35 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-05-31) — Step-by-Step Tutorial + Blog (SHIPPED: merged 4a15472 + deployed)
+## Current Session (2026-06-10) — Production-hardening sweep (P0→P4) on `chore/production-hardening` (NOT yet merged)
+
+Ran a full production-readiness audit (all docs verified against disk + fresh test/audit runs), then executed the resulting P0→P4 plan. **4 commits on branch `chore/production-hardening` — deliberately NOT merged/pushed: push = Railway deploy, that's the user's call.** No DB migration in this batch.
+
+### Commits (on the branch)
+| Hash | What |
+|------|------|
+| `15b3286` | **P0** `fix(deps)`: npm audit fix — react-router → 7.17.0 (new high CVE), js-cookie → 3.0.7 (**closes DEP-H1**); npm audit now 0 vulns |
+| `697a6bd` | **P1** `feat(security)`: slowapi per-IP rate limiting (**SAST-H1 closed**) + backend CVE sweep (26 pip-audit advisories → 0: pyjwt 2.13, starlette 0.52.1→**1.2.1**, python-multipart, cryptography 48, pillow…) + Clerk JWT `leeway=30` + `/pathways/detect` 5000-char cap; 7 tests in `test_rate_limit.py` |
+| `0324359` | **P3** `feat(ops)`: Sentry both services (no-op until `SENTRY_DSN`/`VITE_SENTRY_DSN` set; frontend via dynamic import = zero bundle cost unconfigured; ErrorBoundary reports render errors) + `.github/workflows/db-backup.yml` (weekly pg_dump → 90-day artifact; needs `DATABASE_PUBLIC_URL` secret, skips w/ notice until set) + `uptime-check.yml` (30-min pings) |
+| _(4th)_ | **P4** `chore`: tour auto-launch → **new-signups-only** (≤7-day account age via `authStore.user.created_at`; HelpButton self-hydrates authStore); stale `AGENTS.md` **deleted**; 6 inbox tests (`test_inbox.py`); docs reconciled |
+
+### Key decisions / gotchas
+- **Rate limiter keys on the FIRST `X-Forwarded-For` hop** (Railway edge) — `app/core/rate_limit.py`; in-memory storage is fine single-instance, switch to Redis storage if the backend scales out. **Tests disable it** via `RATE_LIMIT_ENABLED=false` in `conftest.py` (set BEFORE app import); `test_rate_limit.py` re-enables per-test with `limiter.reset()`.
+- **starlette jumped 0.52.1 → 1.2.1** in the CVE sweep (within fastapi 0.135's constraint) — full suite green on the new env, but it's the highest-risk bump in the batch; watch the first deploy.
+- **pip-audit must target the exported lock**, not the global interpreter: `poetry export -f requirements.txt --without-hashes -o req.txt && pip-audit -r req.txt --disable-pip --no-deps` (the `poetry-plugin-export` plugin was installed for this).
+- **Stripe webhook idempotency audited — intentionally no change**: handlers are absolute-value UPDATEs (no create/increment/charge). Accepted residual: out-of-order retries could transiently write stale subscription state; self-corrects next event.
+- **Local pytest now runs in the poetry venv** (`poetry run python -m pytest`) so the updated deps are what's tested; the 4 PromptComposition tests pass there (no `-k` deselect needed). Counts: **306 collected · 305 pass · 1 skip** across 14 files.
+- The audit found `/pathways/detect` IS Clerk-gated (an old TODO doubted it) and sharing input length limits already existed — both verified, documented, closed.
+
+### Verification (all green, 2026-06-10)
+Backend **305 pass · 1 skip** (14 files); frontend **60/60**, `tsc` clean, ESLint clean, full `npm run build` incl. prerender; `npm audit` **0** vulns; `pip-audit` (locked set) **0** vulns.
+
+### What the USER must do next (see TODO.md "Needs YOUR action")
+Merge + push the branch (= deploy) → bootstrap an admin → set Sentry DSNs + `DATABASE_PUBLIC_URL` secret → live-verify (tour on a fresh signup, blog publish, Notion push, comment-spam 429) → re-run the ROADMAP smoke checklist → optional orphan-row cleanup.
+
+---
+
+## Previous Session (2026-05-31) — Step-by-Step Tutorial + Blog (SHIPPED: merged 4a15472 + deployed)
 
 Built two features end to end across three verified phases, then **merged to `main` (`--no-ff` merge `4a15472`) and pushed** (`7a70335..4a15472`) → Railway auto-deployed both services; backend ran `alembic upgrade head` (**migration 033** → `blog_posts`). The local feature branch was deleted post-merge. CLAUDE.md → 2.18.0.
 

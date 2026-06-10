@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     # Viewer access token for password-protected shares
     SHARE_ACCESS_SECRET: str = ""
 
+    # Per-IP rate limiting on public/anonymous endpoints (SAST-H1).
+    # Disabled by the test suite so repeated test requests never 429.
+    RATE_LIMIT_ENABLED: bool = True
+
+    # Sentry error tracking. Empty (the default) disables Sentry entirely —
+    # safe to deploy dark, same pattern as the Notion integration.
+    SENTRY_DSN: str = ""
+    # Fraction of requests traced for performance monitoring (0.0–1.0).
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+
     # Clerk JWT hardening (optional but recommended for production)
     CLERK_ISSUER: str = ""
     CLERK_AUDIENCE: str = ""

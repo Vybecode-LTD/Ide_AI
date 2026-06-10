@@ -1,0 +1,29 @@
+# Uptime check — pings the production frontend and backend health endpoint
+# every 30 minutes. A failed run triggers GitHub's workflow-failure email to
+# the repo owner. Complements (not replaces) a dedicated monitor like
+# UptimeRobot/BetterStack; GitHub cron is best-effort and may lag a few
+# minutes under load.
+name: uptime-check
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Backend health
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+            https://backend-production-9c212.up.railway.app/api/v1/health)
+          echo "backend /api/v1/health -> $code"
+          [ "$code" = "200" ]
+
+      - name: Frontend
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 https://myide.ai/)
+          echo "frontend -> $code"
+          [ "$code" = "200" ]
