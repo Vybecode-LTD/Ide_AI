@@ -4,6 +4,12 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — CLAUDE.md leaned to a map (2026-10-15)
+
+- **CLAUDE.md 2.19.0 → 3.0.0:** from 58 KB to a short brief (identity, current state, commands, a brief architecture, critical gotchas, conventions, a project map). It loads on every turn, so this saves about 14K tokens a session, plus about 10K more because the four vendored directive manuals are no longer `@include`d (they're linked by path under "Process references").
+- **Nothing was dropped; every section moved verbatim, heading unchanged:** What This Software Does, Tech Stack, Project Structure, Design System, Database Migrations, API Routes and Known Issues → appended to ARCHITECTURE.md; Features → new FEATURES.md; Project Identity, Documentation Discipline, Binding Directives, Critical Rules, Git Workflow, Session Recovery, Documentation and Last Completed Task → new WORKFLOW.md. The whole previous file is kept as `docs/archive/CLAUDE.pre-lean-2026-10-15.md`.
+- **Corrected:** the working directory is `C:\DEV\Ide_AI`; the OneDrive path the old brief named is obsolete.
+
 ### Changed — Hygiene sweep: tour auto-launch scope, stale AGENTS.md removed, inbox test debt (2026-06-10)
 
 - **Guided Tour auto-launch is now new-signups-only** (`HelpButton.tsx`): the one-time auto-launch fires only for accounts **≤ 7 days old** (age from `authStore.user.created_at`; HelpButton self-hydrates the store on pages without a Sidebar). Existing users get `autoLaunched` marked silently — no overlay pop — and keep the "?" launcher + Settings → "Replay Walkthrough". Resolves the open TODO decision.
