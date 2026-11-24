@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.limits import DESCRIPTION_MAX_CHARS
+
 
 class ProjectCreate(BaseModel):
     """Schema for creating a new project."""
@@ -15,7 +17,7 @@ class ProjectCreate(BaseModel):
     audience: str = Field(default="consumers", max_length=50)
     complexity: str = Field(default="medium", max_length=50)
     tone: str = Field(default="casual", max_length=50)
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=DESCRIPTION_MAX_CHARS)
     accent_color: Optional[str] = Field(default="#00E5FF", max_length=20)
     pathway_id: str = Field(default="software_product", max_length=50)
     ai_partner_style: str = Field(default="strategist", max_length=30)
@@ -49,7 +51,7 @@ class ProjectRead(BaseModel):
 class ProjectUpdate(BaseModel):
     """Schema for partial project update."""
     name: Optional[str] = Field(None, max_length=200)
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=DESCRIPTION_MAX_CHARS)
     platform: Optional[str] = Field(None, max_length=50)
     audience: Optional[str] = Field(None, max_length=50)
     complexity: Optional[str] = Field(None, max_length=50)

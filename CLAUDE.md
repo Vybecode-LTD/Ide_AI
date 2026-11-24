@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.1.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.2.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -13,9 +13,12 @@ and **a push to `main` deploys both.**
 ## Current State
 - **Phase:** back in work after five idle months. A full audit ran on 2026-11-23; its report is
   `dev plans/project-assessment-2026-11-23.md`, kept out of git because **this repository is public**.
-- **Live:** `60443a0` (2026-06-10) on both services. `main` is at `bbfa182` (docs only since).
-- **In flight:** branch `fix/module-start-and-edit-rollback` (module session start, edits rolling back,
-  Exports crash; all with tests), open as pull request #1. Merging deploys, and is the owner's call.
+  It stays public, deliberately open source (owner, 2026-11-24).
+- **Live:** pull request #1, merged 2026-11-24 (module session start, edits persisting, Exports limit
+  error; all with tests). The deploy before it was `60443a0` (2026-06-10).
+- **In flight:** pull request #2 (`fix/module-response-write-race`: saves made during a model call
+  survive) and pull request #3 (`fix/input-length-caps`: length caps on chat messages and descriptions).
+  Merging each deploys, and is the owner's call.
 - **Waiting on the owner:** the checks and decisions in section 6 of the audit report (TODO.md, top).
 - **CI:** all three GitHub workflows are disabled and the Test Pipeline has never passed. A red run gates
   nothing until the pipeline is rebuilt.

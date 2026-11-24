@@ -148,7 +148,11 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task (2026-11-24):** Full project audit, then three fixes on branch **`fix/module-start-and-edit-rollback`** (pull request #1; merging is the owner's call): module session start (500 on every call), edits rolling back (`eager_defaults` on `Base`), and the Exports plan-limit crash. Backend 317 pass · 1 skip (16 files); frontend 68/68 (10 files); `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session". The audit report is `dev plans/project-assessment-2026-11-23.md` (local only).
+**Task (2026-11-24, second session):** Length caps on text sent to Claude, on branch **`fix/input-length-caps`** (pull request #3; merging is the owner's call): 4,000 characters for a chat message or module answer, 10,000 for a project description, 2,000 for a block description, with a counter and a clear over-limit message in the UI. Backend 336 pass · 1 skip; frontend 81/81; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
+
+_The entry below is the previous task._
+
+**Task (2026-11-24):** Full project audit, then three fixes on branch **`fix/module-start-and-edit-rollback`** (merged as pull request #1 on 2026-11-24): module session start (500 on every call), edits rolling back (`eager_defaults` on `Base`), and the Exports plan-limit crash. Backend 317 pass · 1 skip (16 files); frontend 68/68 (10 files); `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session". The audit report is `dev plans/project-assessment-2026-11-23.md` (local only).
 
 _The entry below is the previous task. Its branch was merged as `60443a0` and deployed on 2026-06-10._
 

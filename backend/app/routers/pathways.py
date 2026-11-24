@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.limits import DESCRIPTION_MAX_CHARS
 from app.core.rate_limit import limiter
 from app.models.user import User
 from app.pathways import PathwayRegistry
@@ -18,8 +19,9 @@ router = APIRouter(prefix="/pathways", tags=["pathways"])
 
 
 class DetectRequest(BaseModel):
-    # Length-capped: this text is forwarded into an Anthropic call.
-    description: str = Field(min_length=1, max_length=5000)
+    # Length-capped: this text is forwarded into an Anthropic call. Same cap as
+    # a project description, because the Home page sends the idea to both.
+    description: str = Field(min_length=1, max_length=DESCRIPTION_MAX_CHARS)
 
 
 @router.get("")
