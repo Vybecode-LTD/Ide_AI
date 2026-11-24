@@ -1,0 +1,3 @@
+# Tests only (CI's db-backup job). The runtime pins come from requirements.txt.
+-r requirements.txt
+pytest==9.2.0

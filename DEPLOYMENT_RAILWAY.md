@@ -1,6 +1,6 @@
 # Ide/AI — Railway Deployment Guide
 
-> **Last updated:** 2026-05-27
+> **Last updated:** 2026-11-24
 
 Step-by-step guide to deploy Ide/AI (React frontend + FastAPI backend + PostgreSQL) on [Railway](https://railway.com).
 
@@ -163,6 +163,16 @@ This runs after the Docker image builds but before the new container replaces th
 
 ---
 
+## Database Backups
+
+A fourth service, `db-backup`, is a Railway cron job built from `ops/db-backup/`: every night it dumps
+Postgres into a private Railway bucket, checks the dump reads back, keeps the newest 30, and fails
+loudly (with an optional heartbeat monitor) when anything goes wrong. Setup, settings and the restore
+drill: [`ops/db-backup/README.md`](ops/db-backup/README.md). Never back up through GitHub Actions: this
+repository is public, so workflow artifacts are downloadable.
+
+---
+
 ## Troubleshooting
 
 ### Backend can't connect to Postgres
@@ -190,8 +200,11 @@ Ide_AI/
 ├── backend/
 │   ├── Dockerfile         ← Multi-stage production build
 │   └── railway.toml       ← Build + deploy config (pre-deploy: alembic)
-└── frontend/
-    ├── Dockerfile         ← Multi-stage build → Caddy static server
-    ├── Caddyfile          ← SPA routing + caching headers
-    └── railway.toml       ← Build + deploy config
+├── frontend/
+│   ├── Dockerfile         ← Multi-stage build → Caddy static server
+│   ├── Caddyfile          ← SPA routing + caching headers
+│   └── railway.toml       ← Build + deploy config
+└── ops/db-backup/
+    ├── Dockerfile         ← Python 3.12 + pg_dump 17
+    └── railway.toml       ← Cron schedule (07:00 UTC), restart policy Never
 ```

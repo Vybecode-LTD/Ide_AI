@@ -1,0 +1,14 @@
+# Railway config for the db-backup cron service (root directory ops/db-backup).
+# Check after the first deploy that the service's Settings show this schedule
+# and restart policy: a setting in this file is not proof Railway applied it.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["/ops/db-backup/**"]
+
+[deploy]
+# 07:00 UTC daily: 02:00 Eastern in winter, 03:00 in summer.
+cronSchedule = "0 7 * * *"
+# A cron run that fails must stay failed, so it shows in Railway and the
+# heartbeat monitor; a restart would hide it.
+restartPolicyType = "NEVER"

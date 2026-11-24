@@ -4,6 +4,15 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Added — Private nightly database backups (2026-11-24, audit C-4)
+
+- **`ops/db-backup/`, a Railway cron service** (07:00 UTC daily): `pg_dump --format=custom` of the production database, checked before upload (`pg_restore --list` must read it and list table data), uploaded to a private S3-compatible bucket (a Railway bucket by default), size checked after upload, then all but the newest 30 dumps deleted. Only objects named `ideai-<UTC time>.dump` under the prefix are ever deleted.
+- **It fails loudly.** A missing setting, a failed or empty dump, an unreadable archive or a short upload ends the run with exit code 1 and nothing pruned. An optional heartbeat URL (healthchecks.io style) is pinged on success and `/fail` on failure, so a failed night and a night that never ran both alert. No log line holds a URL, password or key.
+- **`python backup.py restore-check`** downloads the newest dump, reads it back and, given `RESTORE_DATABASE_URL`, restores it into an empty scratch database in one transaction and reports users, projects and the migration revision. It refuses a target that holds any table or matches the production URL.
+- **Removed `.github/workflows/db-backup.yml`.** It never produced a backup (its secret was never set, and each run skipped the dump and still passed), and on this public repository each dump would have been a downloadable artifact.
+- **Tests:** `ops/db-backup/test_backup.py`, 37: settings, naming, pruning, redaction, every failure path, exit codes and the heartbeat, against a fake bucket and fake tools; plus one run of the real `pg_dump`, `pg_restore` and `psql` (dump, upload, restore, count rows) and one real boto3 client. Those two skip without their tools, except in CI, where `BACKUP_REQUIRE_INTEGRATION=1` makes a skip a failure. All 37 pass locally against a throwaway PostgreSQL 18. The Docker image has not been built locally (no Docker on this machine).
+- **Setup is the owner's** (a bucket, the service, references for its variables, the heartbeat, one restore drill): `ops/db-backup/README.md`. **DEPLOYMENT_RAILWAY.md** gains a Database Backups section. **ROADMAP.md 2.7.0 → 2.8.0:** backup automation and uptime alerting are no longer marked done. **TODO.md:** the 2026-06-10 backup item points at the new service.
+
 ### Security — Dependency updates: both stacks audit clean (2026-11-24, audit H-4)
 
 - **Backend:** `poetry update` within the existing ranges took `pip-audit` on the exported lock from 104 advisories in 10 packages to none: anyio 4.16.0, certifi 2026.11.20, cryptography 50.0.2, dnspython 2.9.2, fpdf2 2.9.0, Pillow 13.0.0 (67 of the 104), pydantic-settings 2.16.3, PyJWT 2.15.1, Starlette 1.10.0 (FastAPI 0.135.4) and urllib3 2.8.0.

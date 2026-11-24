@@ -1,6 +1,6 @@
 # Ide/AI — Roadmap
 
-> **Version:** 2.7.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 2.8.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Forward-looking priorities. See [`TODO.md`](TODO.md) for concrete actionable items, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, and [`CHANGELOG.md`](CHANGELOG.md) for what already shipped.
 
@@ -165,8 +165,8 @@ The toast migration + fetchPathway wraps are done. Remaining polish items:
 - ~~**Sentry / error tracking**~~ — ✅ **DONE 2026-06-10** (code-side; no-op until `SENTRY_DSN`/`VITE_SENTRY_DSN` set in Railway). Sentry traces (`SENTRY_TRACES_SAMPLE_RATE=0.1`) also give basic backend latency/perf visibility.
 - **Performance monitoring (deep)** — p99 dashboards, AI-call duration breakdowns beyond Sentry traces
 - **Database query observability** — slow query log
-- ~~**Backup automation**~~ — ✅ **DONE 2026-06-10** (`.github/workflows/db-backup.yml`, weekly pg_dump → 90-day artifact; needs `DATABASE_PUBLIC_URL` repo secret)
-- ~~**Uptime alerting**~~ — ✅ **DONE 2026-06-10** (`.github/workflows/uptime-check.yml`, 30-min pings; consider UptimeRobot for sub-minute detection later)
+- **Backup automation** — built 2026-11-24, not yet running: a nightly Railway cron service (`ops/db-backup/`) dumps Postgres to a private bucket, verifies it and fails loudly. Needs the one-time setup in `ops/db-backup/README.md`, then one restore drill. It replaces the 2026-06-10 `db-backup.yml` workflow, which never produced a backup and, on a public repository, would have published each dump as an artifact.
+- **Uptime alerting** — `.github/workflows/uptime-check.yml` (30-min pings) has been off since GitHub disabled it for inactivity, and scheduled workflows switch off after 60 days without a commit. Move to an external monitor (UptimeRobot, Better Stack or healthchecks.io).
 
 ---
 
