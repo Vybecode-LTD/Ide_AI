@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.15.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.16.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -16,6 +16,12 @@ The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; th
 - [ ] **Answer "decisions that are the owner's"** in section 6 (repository visibility first).
 - [ ] **Next code work, in order:** the rest of step 1, then step 2 (backups, a CI that runs, error tracking, dependency updates).
 
+**Without the report** (a fresh clone does not have it), the open items are:
+
+- **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres; whether this repository is meant to be public.
+- **Owner decisions:** positioning; target audience; whether to retire the v1 flow; analytics and consent; pricing.
+- **Code, in order:** the rest of step 1 (in progress on its own branch); private database backups; a CI pipeline built for this repo; frontend error tracking; dependency updates; one AI client layer (current models, usage metering, stream error handling).
+
 The 2026-06-10 list below is partly superseded: the hardening branch **was** merged and deployed that day.
 
 ## 🟠 Needs YOUR action (2026-06-10 production-hardening session)
@@ -25,7 +31,7 @@ The code-side production-readiness work is done (see Recently Done + CHANGELOG).
 - [ ] **Merge + push `chore/production-hardening`** → Railway auto-deploys both services (no migration in this batch).
 - [ ] **Bootstrap an admin** — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` — the Blog CMS is unusable until then.
 - [ ] **Activate Sentry** — create a (free-tier) Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway. Code no-ops until set.
-- [ ] **Activate DB backups** — add GitHub repo secret `DATABASE_PUBLIC_URL` (Railway Postgres → Connect → Public Network URL). The weekly workflow skips with a notice until set.
+- [ ] **Activate DB backups** — **not with `db-backup.yml` while this repository is public:** it stores the dump as a workflow artifact, which any signed-in GitHub user can download from a public repo. The workflow is also disabled (GitHub switches scheduled workflows off after 60 days without a commit), and its secret was never set, so it has never produced a backup. Use private storage instead (Railway volume backups, or a job that writes to a private bucket), then test one restore.
 - [ ] **Live smoke after deploy** — tour auto-launch on a *fresh* sign-up (existing accounts no longer auto-launch), "?" replay, publish a blog post → renders at `/blog/{slug}`, Notion end-to-end push (Design Kit → page renders), spam a shared link's comment box → 429 after 10.
 - [ ] **Re-run the ROADMAP smoke-test checklist** (signup → discovery → export → plan limit → Stripe checkout → admin).
 - [ ] **Optional DB cleanup** — delete the orphan `is_admin=TRUE` user row (check FKs first; SQL in the DB cleanup section below).

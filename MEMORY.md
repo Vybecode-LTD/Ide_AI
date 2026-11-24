@@ -13,7 +13,7 @@
 2. ✅ Read `CONTEXT_HANDOFF.md` (latest session state, what just happened, what's open)
 3. ✅ Read `TODO.md` (what to work on next, ordered by priority)
 4. ✅ Glance at `ROADMAP.md` if user asks about future direction
-5. ✅ Working directory is `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` — NEVER `D:\`
+5. ✅ Working directory is `C:\DEV\Ide_AI\` — never `D:\`, and never the old OneDrive folder
 6. ✅ This is Windows — use `npm.cmd` not `npm`, use `python` not `python3`
 
 ---
@@ -81,7 +81,7 @@
 - **Migration child-table names must match `__tablename__` exactly** — not the model class name. Always grep the model first.
 - **SSE generators must emit `done` ALWAYS** — wrap risky steps (commit, extraction) in try/except so the generator continues to `yield`.
 - **Models read server timestamps back on every flush** — `Base` sets `eager_defaults=True` (`core/database.py`), so `updated_at` is loaded after an UPDATE and a route can return the object. Without it the response raises `MissingGreenlet` and the edit rolls back. A model with its own `__mapper_args__` must keep that key.
-- **`module_responses.responses` is shared by three writers** — the module chat (`messages`, `extracted`), v2 discovery (field values) and refresh-output (`__generated_output`). Always merge into the existing dict; never assign a fresh one.
+- **`module_responses.responses` is shared by three writers** — the module chat (`messages`, `extracted`), v2 discovery (field values) and refresh-output (`__generated_output`). Always merge into the existing dict; never assign a fresh one. After a model call, re-read the row first with `_reload_for_write` (`routers/modules.py`): another request may have saved to it while the model was working.
 - **Test write routes with the `request_client` fixture** (`tests/conftest.py`) — it gives each request its own session, as production does. The per-file `client` fixtures share one session and hide serialization faults.
 
 ### Frontend
@@ -135,46 +135,26 @@
 
 ```bash
 # Type-check frontend (after any frontend change)
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\frontend" && npx.cmd tsc -b --noEmit
+cd "C:\DEV\Ide_AI\frontend" && npx.cmd tsc -b --noEmit
 
 # Validate Python syntax (after any backend change)
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\backend" && python -c "import ast; ast.parse(open('app/routers/auth.py').read()); print('OK')"
+cd "C:\DEV\Ide_AI\backend" && python -c "import ast; ast.parse(open('app/routers/auth.py').read()); print('OK')"
 
 # Run backend tests
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\backend" && python -m pytest tests/ -v
+cd "C:\DEV\Ide_AI\backend" && python -m pytest tests/ -v
 
 # Git status + recent commits
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI" && git status --short && git log --oneline -5
+cd "C:\DEV\Ide_AI" && git status --short && git log --oneline -5
 
 # Install a new frontend dep
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\frontend" && npm.cmd install <pkg> --save
+cd "C:\DEV\Ide_AI\frontend" && npm.cmd install <pkg> --save
 
 # Install a new backend dep
-cd "C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\backend" && pip install <pkg> && pip freeze > requirements.txt
+cd "C:\DEV\Ide_AI\backend" && pip install <pkg> && pip freeze > requirements.txt
 ```
 
 ---
 
 ## Most recent session signature (what to expect when resuming)
 
-- **Date:** 2026-05-23 (end-of-day marathon session — Phases 1-4 of v2 overhaul shipped + pushed)
-- **HEAD:** `(latest doc-update commit — check git log)` — last v2 work commit is `585cb7d`
-- **Remote:** `origin/main` is in sync with local `main` as of 2026-05-23 end-of-session push. **All 5 v2-overhaul + doc commits are pushed to GitHub and have triggered Railway auto-deploy.**
-- **Branch:** `main` (working tree clean except long-standing untracked AGENTS.md and docs/claude-code-package/2026-05-21-post-update-audit/)
-- **Last commits (in order, oldest first — all PUSHED):**
-  1. `a7257e0` — Phase 3 hotfix (5 audit-found bugs + doc sweep)
-  2. `b26837a` — Phase 4 features (ProgressPanel + v2 Discovery wiring + module-preview a11y)
-  3. `ff212f3` — Phase 4 audit closure (15 findings + 35 unit tests)
-  4. `57aa9d3` — HTTP integration tests + H1 greenlet bug fix (real production bug)
-  5. `f8d3165` — Doc lockdown (P0 block + sequencing + regression matrix)
-  6. `585cb7d` — Doc unification (closed staleness drift + cross-reference gaps)
-- **State:** Phases 1-4 + audit closure + integration tests + all docs ALL shipped and pushed. 91/91 backend tests pass. TypeScript build clean. Discovery v2 fully functional end-to-end on the frontend. Railway auto-deploy triggered on push.
-- **Next:**
-  1. **P0 (now reduced):** verify Railway deploy succeeded (both services healthy), run 5-min smoke test on https://myide.ai, rotate the 3 exposed webhook secrets. See TODO.md `🔴 P0 — DO TODAY`.
-  2. **Phase 5:** Design Kit page at `/design-kit/{projectId}` — see TODO.md Phase 5 (numbered 7 items with recommended sequencing) and CONTEXT_HANDOFF.md for the full picture. Recommended order: Vitest scaffold → DesignKit page shell + Edit + PATCH endpoint → Proceed destination swap + Library resume routing → Refresh + Add Modules polish.
-  3. **Phase 6:** Additional Discovery for newly-added modules
-- **Key files added this session:**
-  - `frontend/src/components/discovery/ProgressPanel.tsx`
-  - `backend/tests/test_discovery_v2.py` (35 service-layer tests)
-  - `backend/tests/test_discovery_v2_integration.py` (15 HTTP-route tests)
-  - Project memory: `discovery-v2-architecture.md` (auto-loaded; reflects Phases 1-4 shipped + pushed state)
+This section used to hold a per-session snapshot, and it went stale. The current state now lives in one place: the "Current Session" block at the top of [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md), with next actions at the top of [`TODO.md`](TODO.md). Run `git status -sb` and `git log --oneline -5` before trusting either.
