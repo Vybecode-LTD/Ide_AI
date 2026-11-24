@@ -23,8 +23,19 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 class Base(DeclarativeBase):
-    """Base class for all ORM models."""
-    pass
+    """Base class for all ORM models.
+
+    ``eager_defaults`` makes every flush read server-generated values back
+    with the statement itself (RETURNING on PostgreSQL). Without it, an
+    UPDATE leaves ``updated_at`` (``onupdate=func.now()``) expired, and a
+    route that returns the object fails while the response is serialized:
+    the lazy load runs outside the async context, raises ``MissingGreenlet``,
+    and ``get_db`` rolls the edit back. A model that sets its own
+    ``__mapper_args__`` must keep this key
+    (``tests/test_request_scoped_writes.py`` checks every model).
+    """
+
+    __mapper_args__ = {"eager_defaults": True}
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
