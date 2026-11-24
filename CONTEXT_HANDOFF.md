@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.18.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.19.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,26 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, merged as pull request #3 on 2026-11-24)
+## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (local, NOT pushed)
+
+Third session of the day. Branch cut from `main` at `f542d37`; six commits, nothing pushed. Pushing, opening pull request #4 and merging (which deploys both services) are the owner's call.
+
+- **Docs** (first commit): PRs #2 and #3 recorded as merged and live.
+- **Dependencies (H-4):** `pip-audit` 104 → 0, `npm audit` 27 → 0, all within the existing version ranges. Held back on purpose: SQLAlchemy at 2.0.x (2.1 fixes no advisory, and the SQLite-only tests would not catch a PostgreSQL flush change), `eslint-plugin-react-hooks` at 7.0.x (7.1's React Compiler rules flag 26 existing sites), the Anthropic SDK at 0.84 (step 3). Frontend image on Node 24; backend image pins Poetry 2.4.1.
+- **Backups (C-4):** `ops/db-backup/`, a Railway cron service (07:00 UTC) that dumps to a private bucket, verifies, prunes to 30 and fails loudly, with an optional heartbeat and a `restore-check` command. `db-backup.yml` deleted. Not running until the owner sets it up (`ops/db-backup/README.md`).
+- **CI (H-2):** `.github/workflows/ci.yml`, path-filtered, one "CI result" gate; backend on Python 3.12 with Alembic on PostgreSQL 17, frontend on Node 24, the backup job with real tools and an image build, gitleaks. `test-pipeline.yml` deleted. **It has never run on GitHub**: the first run is on the push.
+- **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend now drops request bodies and frame locals. Off until the DSNs are set.
+
+### Verification (2026-11-24)
+Backend **346 pass · 1 skip** (Python 3.14 locally, and the same on a Python 3.12 venv); ruff's runtime-error rules clean; `pip-audit` clean. Frontend **97/97** (16 files); `tsc`, ESLint (zero warnings), full build with prerender, `npm audit` clean. Backup job **37/37** in a clean Python 3.12 venv, including the real `pg_dump`/`pg_restore`/`psql` round trip. Alembic upgrade → downgrade base → upgrade on a throwaway PostgreSQL 18. gitleaks: no leaks. **Not checked locally:** any Docker build (no Docker here), and the GitHub-hosted CI steps.
+
+### Warnings
+- `alembic check` reports wide drift between models and migrations (nullable flags and indexes), so CI does not gate on it.
+- Local port 55432 is taken by another program on this machine; a throwaway Postgres (`initdb` in the scratchpad, `pg_ctl -o "-p 55433"`) works.
+
+---
+
+## Earlier Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, merged as pull request #3 on 2026-11-24)
 
 Second session of the day, on the rest of audit step 1.
 

@@ -4,6 +4,13 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Session state for audit step 2 (2026-11-24)
+
+- **CLAUDE.md 3.3.0 → 3.4.0:** Current State names what `chore/safety-nets` holds and the new CI; Commands gains the backup job's tests.
+- **CONTEXT_HANDOFF.md 3.18.0 → 3.19.0:** new Current Session block (third session of 2026-11-24).
+- **TODO.md 3.17.0 → 3.18.0:** the owner's steps for this branch (push and merge, backups and the restore drill, Sentry, a ruleset on `main`, an uptime monitor), and what was held back on purpose.
+- **WORKFLOW.md:** Last Completed Task.
+
 ### Fixed — Error tracking can actually be turned on, and sends no user data (2026-11-24, audit H-3, part of M-20)
 
 - **The browser half could not have worked.** `frontend/Dockerfile` never passed `VITE_SENTRY_DSN` into the build, so a DSN set in Railway never reached the bundle; and the Caddyfile's CSP blocked Sentry's ingest hosts, so reports would have been refused anyway. The Dockerfile now declares the build argument (and tags each release with `RAILWAY_GIT_COMMIT_SHA`), and `connect-src` allows `*.ingest.sentry.io`, `*.ingest.us.sentry.io` and `*.ingest.de.sentry.io`.

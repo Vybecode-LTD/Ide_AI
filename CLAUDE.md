@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.3.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.4.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -18,11 +18,13 @@ and **a push to `main` deploys both.**
   module session start, edits persisting, the Exports limit error (#1); module saves made during a model
   call survive (#2); length caps on chat messages and descriptions (#3). All with tests. Not yet confirmed
   by a signed-in user on myide.ai. The deploy before them was `60443a0` (2026-06-10).
-- **In flight:** audit step 2 on branch `chore/safety-nets`. Pushing, opening its pull request and
-  merging (which deploys) are the owner's call.
-- **Waiting on the owner:** the checks and decisions in section 6 of the audit report (TODO.md, top).
-- **CI:** all three GitHub workflows are disabled and the Test Pipeline has never passed. A red run gates
-  nothing until the pipeline is rebuilt.
+- **In flight:** audit step 2 on branch `chore/safety-nets` (dependency updates, private nightly backups
+  in `ops/db-backup/`, a new CI, working error tracking), local and not pushed; its pull request would be
+  #4. Pushing, opening it and merging (which deploys) are the owner's call.
+- **Waiting on the owner:** the checks and decisions in section 6 of the audit report, and the setup steps
+  the branch needs (backup service, Sentry DSNs, a ruleset on `main`): TODO.md, top.
+- **CI:** on the branch, `.github/workflows/ci.yml` replaces the old pipeline; its one gate is the
+  "CI result" check. It has not run on GitHub yet. On `main` the old workflows are disabled and gate nothing.
 
 Next steps, blockers and warnings live in CONTEXT_HANDOFF.md and TODO.md, this project's equivalents of
 docs/HANDOFF.md.
@@ -36,6 +38,7 @@ docs/HANDOFF.md.
 | Frontend type-check (after every change) | `frontend` | `npx.cmd tsc -b --noEmit` |
 | Frontend tests | `frontend` | `npx.cmd vitest run` |
 | Frontend build, with prerender | `frontend` | `npm.cmd run build` |
+| Backup job tests | `ops/db-backup` | `python -m pytest` (setup and restore drill: its `README.md`) |
 
 ## Architecture (brief)
 - **Flow:** idea → options → AI discovery chat (partner style shapes *how* it asks) → structured extraction →

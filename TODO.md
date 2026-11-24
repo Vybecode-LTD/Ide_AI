@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.17.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.18.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -17,13 +17,20 @@ The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; th
 - [ ] **Confirm the fixes live:** on myide.ai, rename a project or reorder a block (it should save), start an AI module session (it should ask its first question), and paste more than 4,000 characters into the discovery chat (Send should be disabled).
 - [ ] **Work through "checks only the owner can make"** in section 6 of the report.
 - [ ] **Answer the rest of "decisions that are the owner's"** in section 6.
-- [ ] **Next code work, in order:** step 2 (backups, a CI that runs, error tracking, dependency updates), then step 3 (one AI client layer).
+- [x] **Audit step 2 built 2026-11-24** on `chore/safety-nets`: dependency updates (both audits clean), private nightly backups (`ops/db-backup/`), a CI for this repo (`.github/workflows/ci.yml`), error tracking that can be turned on. Local only.
+- [ ] **OK to push `chore/safety-nets` and open pull request #4?** Its CI runs on GitHub for the first time there. Merging deploys both services; after the merge, check the Frontend deploy (the first build on Node 24) and the Backend health.
+- [ ] **After the merge, set up the backups** (Railway: a bucket, the `db-backup` service with variable references, a healthchecks.io heartbeat), then **run the restore drill once**: [`ops/db-backup/README.md`](ops/db-backup/README.md).
+- [ ] **Turn on error tracking:** a Sentry project, `SENTRY_DSN` on Backend, `VITE_SENTRY_DSN` on Frontend, then rebuild the Frontend.
+- [ ] **Protect `main`** (GitHub ruleset): require a pull request and the **CI result** check, block force pushes. Optionally turn on Railway's "Wait for CI" on both services.
+- [ ] **Uptime:** `.github/workflows/uptime-check.yml` is disabled (GitHub switches off scheduled workflows after 60 days without a commit). Point an external monitor (UptimeRobot, Better Stack or healthchecks.io) at `https://myide.ai/` and the backend `/api/v1/health`.
+- [ ] **Next code work:** step 3, one AI client layer (current models and SDK, usage ledger, stream error handling, structured outputs, database sessions out of streams).
 
 **Without the report** (a fresh clone does not have it), the open items are:
 
 - **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres.
 - **Owner decisions:** positioning; target audience; whether to retire the v1 flow; analytics and consent; pricing.
-- **Code, in order:** private database backups; a CI pipeline built for this repo; frontend error tracking; dependency updates; one AI client layer (current models, usage metering, stream error handling).
+- **Owner setup for step 2:** the items above (push and merge, backups, Sentry, the ruleset, an uptime monitor).
+- **Code, in order:** one AI client layer (current models, usage metering, stream error handling); later, SQLAlchemy 2.1 and the React Compiler lint rules (both held back on purpose), the ruff and `alembic check` debt.
 
 The 2026-06-10 list below is partly superseded: the hardening branch **was** merged and deployed that day.
 

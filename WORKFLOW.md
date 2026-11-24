@@ -148,6 +148,10 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
+**Task (2026-11-24, third session):** Audit step 2 on branch **`chore/safety-nets`** (local, not pushed; pushing, opening pull request #4 and merging are the owner's call): dependency updates with both audits clean, private nightly database backups as a Railway cron service (`ops/db-backup/`), a CI built for this repo (`.github/workflows/ci.yml`, gate "CI result"), and error tracking that can be turned on without sending user data. Backend 346 pass · 1 skip; frontend 97/97; backup job 37/37; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
+
+_The entry below is the previous task._
+
 **Task (2026-11-24, second session):** Length caps on text sent to Claude, on branch **`fix/input-length-caps`** (merged as pull request #3 on 2026-11-24 and deployed, alongside #2, module saves made during a model call): 4,000 characters for a chat message or module answer, 10,000 for a project description, 2,000 for a block description, with a counter and a clear over-limit message in the UI. Backend 336 pass · 1 skip; frontend 81/81; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
 
 _The entry below is the previous task._
