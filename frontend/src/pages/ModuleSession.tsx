@@ -10,10 +10,12 @@ import { TopBar } from '../components/layout/TopBar'
 import { PathwayProgress } from '../components/pathway/PathwayProgress'
 import { QuickChips } from '../components/discovery/QuickChips'
 import { Button } from '../components/ui/Button'
+import { CharLimitHint } from '../components/ui/CharLimitHint'
 import { StageInterlude, Whisper } from '../components/tutorial'
 import { useSSE } from '../hooks/useSSE'
 import { useModulePathwayStore } from '../stores/modulePathwayStore'
 import apiClient from '../lib/apiClient'
+import { CHAT_MESSAGE_MAX_CHARS, charCount, isOverLimit } from '../lib/inputLimits'
 import toast from 'react-hot-toast'
 import type { ModuleStartResponse } from '../types/modulePathway'
 
@@ -37,6 +39,8 @@ export function ModuleSession() {
   const [messages, setMessages] = useState<Message[]>([])
   const [streamingContent, setStreamingContent] = useState('')
   const [input, setInput] = useState('')
+  const inputLength = charCount(input)
+  const inputTooLong = inputLength > CHAT_MESSAGE_MAX_CHARS
   const [chips, setChips] = useState<string[]>([])
   const [isComplete, setIsComplete] = useState(false)
   const [moduleLabel, setModuleLabel] = useState('')
@@ -139,6 +143,8 @@ export function ModuleSession() {
     (text?: string) => {
       const content = text || input.trim()
       if (!content || isStreaming || !projectId || !moduleId) return
+      // Over the cap the server answers 422; CharLimitHint already says why.
+      if (isOverLimit(content, CHAT_MESSAGE_MAX_CHARS)) return
 
       setMessages(prev => [...prev, { role: 'user', content }])
       setInput('')
@@ -265,17 +271,26 @@ export function ModuleSession() {
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                   placeholder="Type your answer..."
+                  aria-label="Your answer"
+                  aria-invalid={inputTooLong || undefined}
+                  aria-describedby="module-input-limit"
                   disabled={isStreaming}
                   className="flex-1 bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-text-muted focus:outline-none focus:border-accent/40 disabled:opacity-50"
                 />
                 <Button
                   onClick={() => handleSend()}
-                  disabled={isStreaming || !input.trim()}
+                  disabled={isStreaming || !input.trim() || inputTooLong}
                   className="px-4"
                 >
                   Send
                 </Button>
               </div>
+              <CharLimitHint
+                id="module-input-limit"
+                count={inputLength}
+                max={CHAT_MESSAGE_MAX_CHARS}
+                className="mt-1.5"
+              />
             </div>
           )}
         </div>

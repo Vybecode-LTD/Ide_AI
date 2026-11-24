@@ -4,7 +4,9 @@ session.py — Pydantic v2 schemas for Discovery Session and message payloads.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.core.limits import CHAT_MESSAGE_MAX_CHARS
 
 
 class SessionCreate(BaseModel):
@@ -36,8 +38,11 @@ class SessionRead(BaseModel):
 
 
 class MessagePayload(BaseModel):
-    """Schema for sending a message in a discovery session."""
-    content: str
+    """Schema for sending a message in a discovery session.
+
+    Length-capped: each message is sent to Claude and replayed on later turns.
+    """
+    content: str = Field(min_length=1, max_length=CHAT_MESSAGE_MAX_CHARS)
 
 
 class ProgressPayload(BaseModel):

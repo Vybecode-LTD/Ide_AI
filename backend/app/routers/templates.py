@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from app.core.database import get_db
+from app.core.limits import DESCRIPTION_MAX_CHARS
 from app.models.design_sheet import DesignSheet
 from app.models.project import Project
 from app.models.project_template import ProjectTemplate
@@ -73,7 +74,8 @@ class TemplateRead(BaseModel):
 
 
 class UseTemplatePayload(BaseModel):
-    extra_description: Optional[str] = None
+    # Appended to the project description, which is sent to Claude.
+    extra_description: Optional[str] = Field(None, max_length=DESCRIPTION_MAX_CHARS)
     ai_partner_style: Optional[str] = None
 
 

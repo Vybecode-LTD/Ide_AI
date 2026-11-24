@@ -17,6 +17,7 @@ import { PartnerSelector } from '../components/partner/PartnerSelector'
 import { VoiceMicButton } from '../components/voice/VoiceMicButton'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { CharLimitHint } from '../components/ui/CharLimitHint'
 import { StageInterlude, PulseBeacon, Whisper } from '../components/tutorial'
 import { useSSE } from '../hooks/useSSE'
 import type { FieldSummary, FieldUpdate } from '../hooks/useSSE'
@@ -24,6 +25,7 @@ import { usePathwayStore } from '../stores/pathwayStore'
 import apiClient from '../lib/apiClient'
 import toast from 'react-hot-toast'
 import { extractError } from '../lib/extractError'
+import { CHAT_MESSAGE_MAX_CHARS, charCount, isOverLimit } from '../lib/inputLimits'
 import type { PartnerStyleMeta } from '../types/project'
 
 interface Message {
@@ -63,6 +65,8 @@ export function Discovery() {
   const [chips, setChips] = useState<string[]>(INITIAL_CHIPS)
   const [sheet, setSheet] = useState<SheetData>({ confidence_score: 0 })
   const [input, setInput] = useState('')
+  const inputLength = charCount(input)
+  const inputTooLong = inputLength > CHAT_MESSAGE_MAX_CHARS
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [showSheet, setShowSheet] = useState(false)
   const [partnerStyle, setPartnerStyle] = useState('strategist')
@@ -310,6 +314,8 @@ export function Discovery() {
 
   const sendMessage = useCallback(async (content: string) => {
     if (!sessionId || !content.trim() || isStreaming) return
+    // Over the cap the server answers 422; CharLimitHint already says why.
+    if (isOverLimit(content, CHAT_MESSAGE_MAX_CHARS)) return
 
     setMessages((prev) => [...prev, { role: 'user', content }])
     setInput('')
@@ -513,13 +519,21 @@ export function Discovery() {
                   onKeyDown={handleKeyDown}
                   placeholder="Type or speak your response..."
                   aria-label="Enter your response to the AI partner"
+                  aria-invalid={inputTooLong || undefined}
+                  aria-describedby="discovery-input-limit"
                   className="flex-1 bg-surface border border-border rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-sm text-white placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 resize-none h-11 md:h-12 max-h-32"
                   rows={1}
                 />
-                <Button onClick={() => sendMessage(input)} disabled={!input.trim() || isStreaming}>
+                <Button onClick={() => sendMessage(input)} disabled={!input.trim() || isStreaming || inputTooLong}>
                   Send
                 </Button>
               </div>
+              <CharLimitHint
+                id="discovery-input-limit"
+                count={inputLength}
+                max={CHAT_MESSAGE_MAX_CHARS}
+                className="mt-1.5"
+              />
             </div>
             </Whisper>
           </div>

@@ -16,6 +16,8 @@ import toast from 'react-hot-toast'
 import apiClient from '../lib/apiClient'
 import { extractError, getEntitlementDetail, type EntitlementDetail } from '../lib/extractError'
 import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
+import { CharLimitHint } from '../components/ui/CharLimitHint'
+import { DESCRIPTION_MAX_CHARS, charCount } from '../lib/inputLimits'
 import { useAuthStore } from '../stores/authStore'
 import { PulseBeacon, Whisper } from '../components/tutorial'
 
@@ -40,6 +42,8 @@ export function Home() {
   const selectedCategory = searchParams.get('category')
 
   const [idea, setIdea] = useState('')
+  const ideaLength = charCount(idea)
+  const ideaTooLong = ideaLength > DESCRIPTION_MAX_CHARS
 
   // Billing success — initialize from URL param (avoids setState in effect).
   const [billingSuccess, setBillingSuccess] = useState(
@@ -204,6 +208,8 @@ export function Home() {
   /** Main submit handler — create project directly (category already chosen). */
   const handleSubmit = async () => {
     if (!idea.trim() && !activeTemplate) return
+    // Over the cap the server answers 422; CharLimitHint already says why.
+    if (ideaTooLong) return
     setLoading(true)
     try {
       await createProject()
@@ -328,9 +334,18 @@ export function Home() {
                 placeholder={activeTemplate
                   ? 'Add any additional idea detail (optional)...'
                   : 'Describe your idea in one sentence...'}
+                aria-label="Describe your idea"
+                aria-invalid={ideaTooLong || undefined}
+                aria-describedby="home-idea-limit"
                 className={`w-full bg-transparent px-4 md:px-6 pb-2 text-white text-base md:text-lg placeholder:text-text-muted focus:outline-none resize-none h-20 md:h-24 ${
                   activeTemplate ? 'pt-2' : 'pt-3 md:pt-4'
                 }`}
+              />
+              <CharLimitHint
+                id="home-idea-limit"
+                count={ideaLength}
+                max={DESCRIPTION_MAX_CHARS}
+                className="px-4 md:px-6 pb-1"
               />
               {/* Category badge + change link */}
               <div className="px-4 md:px-6 pb-3 flex items-center gap-2">
@@ -391,7 +406,7 @@ export function Home() {
               Templates are an optional selection, so the button comes first. */}
           <div className="mb-6 md:mb-8">
             <PulseBeacon id="home:start">
-              <Button size="lg" onClick={handleSubmit} disabled={(!idea.trim() && !activeTemplate) || loading}>
+              <Button size="lg" onClick={handleSubmit} disabled={(!idea.trim() && !activeTemplate) || ideaTooLong || loading}>
                 {loading ? 'Creating...' : 'Start Discovery →'}
               </Button>
             </PulseBeacon>

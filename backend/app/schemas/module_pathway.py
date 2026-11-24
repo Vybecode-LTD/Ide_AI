@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.limits import CHAT_MESSAGE_MAX_CHARS
+
 
 # --- Categorization ---
 
@@ -89,8 +91,11 @@ class ModuleStartResponse(BaseModel):
 
 
 class ModuleRespondPayload(BaseModel):
-    """User's response to a module question."""
-    content: str
+    """User's response to a module question.
+
+    Length-capped: each answer is sent to Claude and replayed on later turns.
+    """
+    content: str = Field(min_length=1, max_length=CHAT_MESSAGE_MAX_CHARS)
 
 
 class ModuleRespondResponse(BaseModel):
