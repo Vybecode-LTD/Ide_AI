@@ -138,7 +138,7 @@ Railway will build the Docker image, run `alembic upgrade head` (pre-deploy), an
 | `CLERK_AUTHORIZED_PARTIES` | — | Expected JWT audience for production hardening |
 | `SHARE_ACCESS_SECRET` | — | Secret for generating share access tokens |
 | `INTEGRATION_TOKEN_KEY` | — | Fernet key for encrypting OAuth tokens |
-| `SENTRY_DSN` | — | Optional. Sentry DSN for backend error reports (`app/core/error_tracking.py`); events carry no request bodies, frame locals or personal data |
+| `SENTRY_DSN` | — | Optional. Sentry DSN for backend error reports (`app/core/error_tracking.py`); events carry no request bodies, headers, cookies, query strings, frame locals or log-line breadcrumbs, and share tokens in URLs are masked. Exception messages and ERROR-level log text are sent as written, so keep user data out of them |
 
 ### Frontend Service
 
@@ -146,7 +146,7 @@ Railway will build the Docker image, run `alembic upgrade head` (pre-deploy), an
 |----------|-------------|
 | `VITE_API_BASE_URL` | Full public backend URL + `/api/v1` (e.g. `https://backend-production-xxxx.up.railway.app/api/v1`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key for frontend auth |
-| `VITE_SENTRY_DSN` | Optional. Sentry DSN for browser error reports (`src/lib/errorTracking.ts`); off when unset. The CSP already allows Sentry's ingest hosts |
+| `VITE_SENTRY_DSN` | Optional. Sentry DSN for browser error reports (`src/lib/errorTracking.ts`); off when unset. Events carry no request data, console or click breadcrumbs, or query strings, and share tokens are masked; exception messages are sent as written. The CSP already allows Sentry's ingest hosts |
 
 > **Important:** `VITE_*` variables are baked into the JS bundle at build time. Changing them requires a redeploy.
 
@@ -168,7 +168,7 @@ This runs after the Docker image builds but before the new container replaces th
 ## Database Backups
 
 A fourth service, `db-backup`, is a Railway cron job built from `ops/db-backup/`: every night it dumps
-Postgres into a private Railway bucket, checks the dump reads back, keeps the newest 30, and fails
+Postgres into a private Railway bucket, checks the dump's table of contents, keeps the newest 30, and fails
 loudly (with an optional heartbeat monitor) when anything goes wrong. Setup, settings and the restore
 drill: [`ops/db-backup/README.md`](ops/db-backup/README.md). Never back up through GitHub Actions: this
 repository is public, so workflow artifacts are downloadable.

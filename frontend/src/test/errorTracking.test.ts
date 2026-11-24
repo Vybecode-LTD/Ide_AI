@@ -28,6 +28,15 @@ describe('scrubUrl', () => {
     expect(scrubUrl('/shared/abc123/comments')).toBe('/shared/[token]/comments')
   })
 
+  it('masks share tokens in the public sharing API, the URLs fetch breadcrumbs record', () => {
+    const api = 'https://backend-production-9c212.up.railway.app/api/v1'
+    expect(scrubUrl(`${api}/sharing/public/Zx81kLm_secret-token`)).toBe(`${api}/sharing/public/[token]`)
+    for (const sub of ['comments', 'ratings', 'verify', 'csv']) {
+      expect(scrubUrl(`${api}/sharing/public/tok9/${sub}`)).toBe(`${api}/sharing/public/[token]/${sub}`)
+    }
+    expect(scrubUrl('/sharing/public/tok9/csv')).toBe('/sharing/public/[token]/csv')
+  })
+
   it('drops query strings and fragments', () => {
     expect(scrubUrl('https://myide.ai/settings?code=oauth-code&state=s#tab')).toBe('https://myide.ai/settings')
     expect(scrubUrl('/discovery/42#message-7')).toBe('/discovery/42')
@@ -56,7 +65,7 @@ describe('scrubEvent', () => {
     expect(JSON.stringify(out)).not.toMatch(/jwt|secret startup|someone@|203\.0\.113/)
   })
 
-  it('drops console breadcrumbs and scrubs URLs in the rest', () => {
+  it('drops console and DOM breadcrumbs and scrubs URLs in the rest', () => {
     const out = scrubEvent({
       breadcrumbs: [
         { category: 'console', message: 'draft: my secret startup idea' },
@@ -68,12 +77,38 @@ describe('scrubEvent', () => {
     expect(out.breadcrumbs).toEqual([
       { category: 'fetch', data: { url: 'https://api.example/x', method: 'GET', status_code: 200 } },
       { category: 'navigation', data: { from: '/shared/[token]', to: '/home' } },
-      { category: 'ui.click', message: 'button.send' },
     ])
   })
 
-  it('scrubBreadcrumb returns null only for console crumbs', () => {
+  it('drops click and input breadcrumbs, whose messages carry aria-labels with project content', () => {
+    // The SDK writes the clicked element as a selector with its aria-label, and the
+    // Blocks board labels its buttons with the block's name.
+    const click = { category: 'ui.click', message: 'div.board > button[aria-label="Delete Acme payroll AI"]' }
+    const input = { category: 'ui.input', message: 'textarea[name="idea"][title="Acme payroll AI"]' }
+    expect(scrubBreadcrumb(click)).toBeNull()
+    expect(scrubBreadcrumb(input)).toBeNull()
+    const out = scrubEvent({ breadcrumbs: [click, input] })
+    expect(JSON.stringify(out)).not.toContain('Acme payroll AI')
+  })
+
+  it('masks the share token in fetch and xhr breadcrumbs from a shared project page', () => {
+    const api = 'https://backend-production-9c212.up.railway.app/api/v1'
+    const fetchCrumb = scrubBreadcrumb({
+      category: 'fetch',
+      data: { url: `${api}/sharing/public/Zx81kLm_secret-token`, method: 'GET', status_code: 200 },
+    })
+    const xhrCrumb = scrubBreadcrumb({
+      category: 'xhr',
+      data: { url: `/sharing/public/Zx81kLm_secret-token/csv`, method: 'GET' },
+    })
+    expect(fetchCrumb?.data?.url).toBe(`${api}/sharing/public/[token]`)
+    expect(xhrCrumb?.data?.url).toBe('/sharing/public/[token]/csv')
+    expect(JSON.stringify([fetchCrumb, xhrCrumb])).not.toContain('Zx81kLm_secret-token')
+  })
+
+  it('scrubBreadcrumb returns null only for console and DOM crumbs', () => {
     expect(scrubBreadcrumb({ category: 'console', message: 'x' })).toBeNull()
+    expect(scrubBreadcrumb({ category: 'ui.click', message: 'x' })).toBeNull()
     expect(scrubBreadcrumb({ category: 'xhr' })).toEqual({ category: 'xhr' })
   })
 })

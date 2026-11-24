@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.4.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.4.2 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -35,7 +35,7 @@ docs/HANDOFF.md.
 |---|---|---|
 | Backend tests | `backend` | `poetry run python -m pytest` |
 | Migrations | `backend` | `alembic upgrade head` |
-| Backend dependency audit | `backend` | `poetry export -f requirements.txt --without-hashes -o req.txt && pip-audit -r req.txt --disable-pip --no-deps` |
+| Backend dependency audit | `backend` | `poetry export -f requirements.txt --all-extras --without-hashes -o req.txt && pip-audit -r req.txt --disable-pip --no-deps` (CI's command; without `--all-extras` it skips pytest and the other dev tools) |
 | Frontend type-check (after every change) | `frontend` | `npx.cmd tsc -b --noEmit` |
 | Frontend tests | `frontend` | `npx.cmd vitest run` |
 | Frontend build, with prerender | `frontend` | `npm.cmd run build` |

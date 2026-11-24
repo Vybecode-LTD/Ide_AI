@@ -1,7 +1,7 @@
 """
 Nightly PostgreSQL backup for Ide/AI, run as a Railway cron service.
 
-    pg_dump (custom format) -> check it reads back (pg_restore --list)
+    pg_dump (custom format) -> check its table of contents (pg_restore --list)
     -> upload to a private S3-compatible bucket -> prune old dumps
     -> optional heartbeat ping
 
@@ -184,8 +184,20 @@ def same_database(a: str, b: str) -> bool:
         return False
 
 
-def run_command(cmd: Sequence[str]) -> "subprocess.CompletedProcess[str]":
-    return subprocess.run(list(cmd), capture_output=True, text=True, check=False)
+# Railway skips a cron run while the previous one is still going, so a command
+# that hangs would silently stop every later backup. Two hours is far longer
+# than this database takes and far shorter than the daily schedule.
+COMMAND_TIMEOUT_SECONDS = 2 * 60 * 60
+
+
+def run_command(
+    cmd: Sequence[str], timeout: float = COMMAND_TIMEOUT_SECONDS
+) -> "subprocess.CompletedProcess[str]":
+    try:
+        return subprocess.run(list(cmd), capture_output=True, text=True, check=False, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # from None: the TimeoutExpired text repeats the arguments, URL included.
+        raise BackupError(f"{cmd[0]} did not finish within {timeout:g} seconds and was stopped.") from None
 
 
 def _check(result: "subprocess.CompletedProcess[str]", what: str, secrets: list[str]) -> None:
@@ -201,6 +213,7 @@ def dump_database(cfg: Config, path: Path, run: Runner) -> None:
             "--format=custom",
             "--no-owner",
             "--no-privileges",
+            "--lock-wait-timeout=5min",  # a long-held lock fails the night instead of hanging it
             f"--file={path}",
             f"--dbname={cfg.database_url}",
         ]
@@ -209,7 +222,10 @@ def dump_database(cfg: Config, path: Path, run: Runner) -> None:
 
 
 def verify_dump(path: Path, run: Runner, secrets: list[str]) -> int:
-    """Prove the archive reads back; return how many tables carry data."""
+    """Check the archive's table of contents; return how many tables carry data.
+
+    This reads the listing, not the rows: only the restore drill proves the data.
+    """
     if not path.exists() or path.stat().st_size == 0:
         raise BackupError("pg_dump wrote an empty file.")
     result = run(["pg_restore", "--list", str(path)])
@@ -320,7 +336,7 @@ def run_restore_check(cfg: Config, *, client: Any, run: Runner, now: datetime, w
     client.download_file(cfg.bucket, latest, str(path))
     secrets = cfg.secrets()
     tables = verify_dump(path, run, secrets)
-    log(f"Newest dump {latest} ({hours:.1f} hours old, {len(dumps)} kept) reads back: {tables} tables with data.")
+    log(f"Newest dump {latest} ({hours:.1f} hours old, {len(dumps)} kept) lists {tables} tables with data.")
     if not cfg.restore_database_url:
         log("RESTORE_DATABASE_URL is not set, so nothing was restored. Set it to an empty scratch database to restore.")
         return latest

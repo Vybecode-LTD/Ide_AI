@@ -7,8 +7,12 @@
  *
  * What leaves the browser is kept to the error itself: no default personal
  * data, no session replay, no tracing, no request bodies, cookies or headers,
- * no console breadcrumbs (they can hold a user's text), and every URL loses
- * its query string and fragment, with share-link tokens masked.
+ * no console breadcrumbs (they can hold a user's text), no click or input
+ * breadcrumbs (the SDK records the element's aria-label, name and title, and
+ * the Blocks board puts block names in aria-labels), and every URL loses
+ * its query string and fragment, with share-link tokens masked (in the page
+ * URL `/shared/<token>` and in the public API URL `/sharing/public/<token>`
+ * that a shared project's fetches record as breadcrumbs).
  * @module lib/errorTracking
  */
 import type * as SentryNamespace from '@sentry/react'
@@ -35,7 +39,7 @@ export interface ScrubbableBreadcrumb {
   data?: { [key: string]: unknown }
 }
 
-const SHARE_TOKEN = /\/shared\/[^/?#]+/g
+const SHARE_TOKEN = /\/(shared|sharing\/public)\/[^/?#]+/g
 const URL_FIELDS = ['url', 'from', 'to'] as const
 
 let loading: Promise<Sentry | null> | null = null
@@ -43,7 +47,7 @@ let loading: Promise<Sentry | null> | null = null
 /** Drop the query string and fragment, and mask share-link tokens. */
 export function scrubUrl(url: string): string {
   const [withoutQuery] = url.split(/[?#]/, 1)
-  return withoutQuery.replace(SHARE_TOKEN, '/shared/[token]')
+  return withoutQuery.replace(SHARE_TOKEN, '/$1/[token]')
 }
 
 /** Remove request payloads, user data and URL secrets from an event. */
@@ -61,9 +65,9 @@ export function scrubEvent<T extends ScrubbableEvent>(event: T): T {
   return event
 }
 
-/** Drop console breadcrumbs; scrub URLs in the rest. */
+/** Drop console and DOM (`ui.*`) breadcrumbs; scrub URLs in the rest. */
 export function scrubBreadcrumb<T extends ScrubbableBreadcrumb>(crumb: T): T | null {
-  if (crumb.category === 'console') return null
+  if (crumb.category === 'console' || crumb.category?.startsWith('ui.')) return null
   if (crumb.data) {
     const data = { ...crumb.data }
     for (const field of URL_FIELDS) {

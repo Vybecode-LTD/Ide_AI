@@ -41,7 +41,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT" = "pull_request" ]; then
-            git diff --name-only HEAD^1 HEAD > changed.txt
+            # --no-renames: a moved file lists both paths, so moving one out of
+            # backend/ still runs the backend job.
+            git diff --name-only --no-renames HEAD^1 HEAD > changed.txt
           else
             echo ".github/workflows/ci.yml" > changed.txt
           fi

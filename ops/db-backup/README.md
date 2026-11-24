@@ -1,10 +1,12 @@
 # Database backup: a Railway cron service
 
-Every night `backup.py` dumps the production PostgreSQL database with `pg_dump`, checks that the dump
-reads back (`pg_restore --list`, and at least one table with data), uploads it to a **private**
-S3-compatible bucket, checks the stored size, and deletes all but the newest 30 dumps. Any problem,
-including a missing setting, ends the run with exit code 1, and an optional heartbeat monitor emails
-when a night fails or never runs.
+Every night `backup.py` dumps the production PostgreSQL database with `pg_dump`, checks the dump's
+table of contents (`pg_restore --list` must list at least one table with data), uploads it to a
+**private** S3-compatible bucket, checks the stored size, and deletes all but the newest 30 dumps. The
+nightly check does not read table rows: only the restore drill below restores the data and reads it.
+Any problem, including a missing setting or a `pg_dump` that waits more than 5 minutes for a lock or
+runs past 2 hours, ends the run with exit code 1, and an optional heartbeat monitor emails when a
+night fails or never runs.
 
 It replaces `.github/workflows/db-backup.yml`. That workflow never produced a backup (its secret was
 never set, and it skipped the dump while reporting success), and on this public repository its
@@ -56,18 +58,23 @@ python -m venv "$env:LOCALAPPDATA\IdeAI\backup-venv"
 ```
 
 Then, in the same window, set the four `BACKUP_S3_*` values from the bucket's Credentials tab
-(`$env:BACKUP_S3_BUCKET = "..."` and so on: this window only, never in a file), and run:
+(`$env:BACKUP_S3_BUCKET = "..."` and so on: this window only, never in a file). This window doesn't
+see the service's variables, so if `db-backup` sets `BACKUP_PREFIX`, `BACKUP_S3_REGION` or
+`BACKUP_S3_URL_STYLE`, set the same values here too (otherwise the defaults `postgres/`, `auto` and
+`virtual` apply, and a different prefix would restore the wrong folder or find nothing). Then run:
 
 ```powershell
 $env:RESTORE_DATABASE_URL = "postgresql://postgres@localhost:5432/ideai_restore_drill"
 & "$env:LOCALAPPDATA\IdeAI\backup-venv\Scripts\python.exe" C:\DEV\Ide_AI\ops\db-backup\backup.py restore-check
 ```
 
-It downloads the newest dump, reads it back, restores it in one transaction and ends with
+It downloads the newest dump, checks its table of contents, restores it in one transaction, counts
+the restored users and projects, and ends with
 `Restore OK into the scratch database: <n> users, <n> projects, migration <id>.`
 Close the window, then `dropdb -h localhost -U postgres ideai_restore_drill`.
 
-Without `RESTORE_DATABASE_URL`, `restore-check` only downloads and reads back the newest dump. It
+Without `RESTORE_DATABASE_URL`, `restore-check` only downloads the newest dump and checks its table of
+contents. It
 refuses a target that already holds a table, and one that matches `BACKUP_DATABASE_URL` when that is
 set. `pg_restore` runs without `--clean`, so it never drops anything.
 

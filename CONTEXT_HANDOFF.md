@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.19.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.19.2 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -49,7 +49,7 @@ Third session of the day. Branch cut from `main` at `f542d37`; pushed and opened
 - **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend now drops request bodies and frame locals. Off until the DSNs are set.
 
 ### Verification (2026-11-24)
-Backend **346 pass · 1 skip** (Python 3.14 locally, and the same on a Python 3.12 venv); ruff's runtime-error rules clean; `pip-audit` clean. Frontend **97/97** (16 files); `tsc`, ESLint (zero warnings), full build with prerender, `npm audit` clean. Backup job **37/37** in a clean Python 3.12 venv, including the real `pg_dump`/`pg_restore`/`psql` round trip. Alembic upgrade → downgrade base → upgrade on a throwaway PostgreSQL 18. gitleaks: no leaks. **Not checked locally:** any Docker build (no Docker here), and the GitHub-hosted CI steps.
+Backend **352 pass · 1 skip** after the review fixes on pull request #4 (346 before them, the same on a Python 3.12 venv); ruff's runtime-error rules clean; `pip-audit` clean, dev extras included. Frontend **100/100** (16 files); `tsc`, ESLint (zero warnings), full build with prerender, `npm audit` clean. Backup job **37/37** in a clean Python 3.12 venv (38 after the review fixes, real round trip re-run on PostgreSQL 18), including the real `pg_dump`/`pg_restore`/`psql` round trip. Alembic upgrade → downgrade base → upgrade on a throwaway PostgreSQL 18. gitleaks: no leaks. **Not checked locally:** any Docker build (no Docker here), and the GitHub-hosted CI steps. **First CI run on pull request #4:** Frontend, Secret scan and the path filter passed; Backend failed its dependency audit (pytest 8.4.2, now 9.2.0) and Database backup failed its image build (Debian already has a `backup` user, now `dbbackup`). Both fixed in one push, with the review fixes from Codex and CodeRabbit (CHANGELOG, top entry).
 
 ### Warnings
 - `alembic check` reports wide drift between models and migrations (nullable flags and indexes), so CI does not gate on it.

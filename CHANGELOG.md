@@ -4,6 +4,17 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fixed — What the first CI run and the reviews on pull request #4 caught (2026-11-24)
+
+- **Backup image:** `useradd ... backup` failed with exit 9 because Debian already has a `backup` system user. `ops/db-backup/Dockerfile` now runs as `dbbackup`. (No Docker on the dev machine, so CI's image build was the first build.)
+- **Backend dev dependencies:** pytest 8.4.2 had an advisory (PYSEC-2026-1845, fixed in 9.0.3). Now `pytest>=9.0.3,<10` (9.2.0 locked) with `pytest-asyncio>=1.3,<2` (1.5.0), since 0.26 caps pytest below 9. All 350 backend tests pass unchanged. The local audit had missed it because its export left out the dev extras; **CLAUDE.md 3.4.2**'s Commands row now uses CI's `--all-extras` export.
+- **Share tokens in API URLs** (Codex and CodeRabbit): see the error tracking entry below.
+- **Click and log breadcrumbs** (CodeRabbit): the browser drops `ui.*` breadcrumbs, whose selectors carry `aria-label`s that hold block names; the backend drops log-line breadcrumbs (`before_breadcrumb`), since INFO logs include a new user's email and model output. Tests for both, the backend one through a real SDK run with the defaults as the positive control. **DEPLOYMENT_RAILWAY.md** and **WORKFLOW.md** now say exactly what is and isn't sent: exception messages and ERROR-level log text go as written.
+- **Backups can't hang** (CodeRabbit): Railway skips a cron run while the last one is still going, so a stuck `pg_dump` would have stopped every later night silently. `pg_dump` now uses `--lock-wait-timeout=5min`, and every tool call stops after 2 hours with a `BackupError` (which pings `/fail`). Tested with a command that sleeps.
+- **Backup README** (CodeRabbit): the nightly check reads the dump's table of contents, not its rows (the restore drill is the only full read), and the drill must copy any non-default `BACKUP_PREFIX`, `BACKUP_S3_REGION` or `BACKUP_S3_URL_STYLE` from the service.
+- **CI path filter** (CodeRabbit): `git diff --no-renames`, so moving a file out of `backend/` or `frontend/` still runs that job.
+- **CONTEXT_HANDOFF.md 3.19.2:** verification numbers and the first CI run.
+
 ### Changed — Session state for audit step 2 (2026-11-24)
 
 - **CLAUDE.md 3.3.0 → 3.4.0:** Current State names what `chore/safety-nets` holds and the new CI; Commands gains the backup job's tests.
@@ -18,6 +29,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 - **One module, `frontend/src/lib/errorTracking.ts`,** replaces the two inline dynamic imports in `main.tsx` and `ErrorBoundary.tsx`. It loads the SDK once, only with a DSN; an error reported while the SDK is loading is sent once it has loaded; a failed load is logged and ignored. Every event loses request cookies, headers, bodies and user data; console breadcrumbs are dropped (they can hold a user's text); every URL loses its query and fragment, and `/shared/<token>` becomes `/shared/[token]`. No replay and no tracing.
 - **Backend: `app/core/error_tracking.py`** sets `max_request_body_size="never"` and `include_local_variables=False` besides `send_default_pii=False`. With the SDK's defaults, an error event carried request bodies up to 10 KB (a whole chat message) and the locals of each stack frame.
 - **Tests:** frontend `errorTracking.test.ts` (scrubbing, loading once, the loading race, a failed load), `ErrorBoundary.test.tsx`, and `deployConfig.test.ts`, which checks the Dockerfile's build argument and Node major and matches sample Sentry, Clerk and backend URLs against the CSP (3 of its 5 tests fail against `main`'s files). Backend `test_error_tracking.py` (6), including one that runs Sentry for real in a subprocess against a capturing transport: a marker sent in the request body shows up in the event with the SDK's defaults and not with ours.
+- **Share tokens in API URLs are masked too** (from Codex's review of pull request #4): a shared project's fetches to `/sharing/public/<token>` (and its `comments`, `ratings`, `verify` and `csv` subpaths) become breadcrumbs, and an unprotected share's token opens the project. Both halves now mask `/sharing/public/<token>` as well as `/shared/<token>`. The backend also gains a `before_send` (and `before_send_transaction`, since traces are sampled) that keeps only the request's method and a scrubbed URL, and drops query strings from breadcrumb URLs. Tests: breadcrumb and URL cases in `frontend/src/test/errorTracking.test.ts`; in `backend/tests/test_error_tracking.py`, the real-SDK run now also requests a share URL with a query string, with the SDK's defaults as the positive control.
 - **Turning it on is the owner's step:** a Sentry project, then `SENTRY_DSN` on the Backend service and `VITE_SENTRY_DSN` on the Frontend service (then rebuild the frontend). **DEPLOYMENT_RAILWAY.md** lists both variables; **ROADMAP.md** no longer calls error tracking done.
 
 ### Added — A CI built for this repository (2026-11-24, audit H-2)

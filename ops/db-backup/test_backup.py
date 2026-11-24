@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import os
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -241,12 +242,25 @@ def test_backup_dumps_verifies_uploads_and_prunes(tmp_path):
     assert s3.objects[key] == tools.dump_bytes
     dump_cmd = tools.ran("pg_dump")[0]
     assert {"--format=custom", "--no-owner", "--no-privileges", f"--dbname={DB_URL}"} <= set(dump_cmd)
+    assert "--lock-wait-timeout=5min" in dump_cmd  # a held lock fails the night instead of hanging it
     assert len(s3.deleted) == 3 and key not in s3.deleted
     assert sorted(backup.our_dumps(s3.objects, "postgres/")) == [
         key_at(NOW - timedelta(days=2)), key_at(NOW - timedelta(days=1)), key
     ]
     assert "Backup OK" in logs[-1] and "3 tables with data" in logs[-1]
     assert not any(secret in line for line in logs for secret in SECRETS)
+
+
+def test_a_command_that_hangs_is_stopped_and_fails_without_its_arguments():
+    # Railway skips a cron run while the previous one is still going, so a hung
+    # pg_dump would silently stop every later backup.
+    assert backup.COMMAND_TIMEOUT_SECONDS < 24 * 60 * 60
+    hang = [sys.executable, "-c", "import time; time.sleep(30)", f"--dbname={DB_URL}"]
+    with pytest.raises(BackupError) as err:
+        backup.run_command(hang, timeout=0.5)
+    assert "did not finish" in str(err.value)
+    assert err.value.__cause__ is None and err.value.__suppress_context__
+    assert not any(secret in str(err.value) for secret in SECRETS)
 
 
 def test_pg_dump_failure_uploads_nothing_and_is_redacted(tmp_path):

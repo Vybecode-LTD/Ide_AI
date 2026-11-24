@@ -28,8 +28,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backup.py .
 
-RUN useradd --create-home --uid 10001 backup
-USER backup
+# Not "backup": Debian already has a system user by that name, so useradd fails.
+RUN useradd --create-home --uid 10001 dbbackup
+USER dbbackup
 
 # The cron runs this once per schedule; it must exit when done.
 CMD ["python", "backup.py"]
