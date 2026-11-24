@@ -373,7 +373,7 @@ The full process takes 15–30 minutes: describe an idea, configure options, go 
 ## Project Structure
 
 ```
-C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\
+C:\DEV\Ide_AI\
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                    # FastAPI app, CORS, router registration

@@ -4,6 +4,15 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fixed — Module data survives writes made during a model call; folder instructions (2026-11-24)
+
+Follow-up to pull request #1, from its review.
+
+- **A module session could undo a save made while the model was working.** `start`, `respond` and `refresh-output` read `module_responses.responses`, waited for the model, then saved a merge of the copy they had read. A field edit or discovery write committed in between was lost. Each now re-reads the row under `FOR UPDATE` right before saving (`_reload_for_write`), and the field PATCH locks the row for its own read-merge-save. `respond` runs its extraction call before taking the lock.
+- **Two starts for the same module** no longer replace each other's first question: the second one resumes the session the first created.
+- **Tests:** 4 in `test_module_session_routes.py`, each writing to the row from another session in the middle of the mocked model call. SQLite ignores `FOR UPDATE`, so they cover the re-read and merge; the lock itself is unexercised until there is a PostgreSQL test tier.
+- **Docs:** WORKFLOW.md, MEMORY.md and ARCHITECTURE.md still told sessions to work in a OneDrive folder, including six ready-to-paste commands; all now name `C:\DEV\Ide_AI`. MEMORY.md's stale May session signature is replaced by a pointer to the handoff. TODO.md 3.15.0 → 3.16.0: a list of open items that does not depend on the local audit report, and the backup item now warns against using `db-backup.yml` on a public repository.
+
 ### Fixed — Module sessions start again, edits persist, Exports limit error (2026-11-24)
 
 - **AI module sessions could not start.** `POST /modules/{project}/{module}/start` read a `pathway` variable the function never defined, so every start and resume returned a 500 (since `544bb2f`). `_ensure_module_in_project_pathway` now returns the pathway and `start_module` uses it.

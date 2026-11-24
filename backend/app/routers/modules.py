@@ -152,6 +152,22 @@ async def _ensure_module_in_project_pathway(
     return pathway
 
 
+async def _reload_for_write(module_resp: ModuleResponse, db: AsyncSession) -> dict:
+    """Re-read *module_resp* under a row lock and return a copy of its ``responses``.
+
+    Call this right before saving, after any model call. ``responses`` is
+    shared: while one request waits for the model, another can save a field
+    edit, v2 discovery values or the generated output to the same row.
+    Merging into the copy read before the wait would silently undo that.
+
+    ``FOR UPDATE`` holds the row until this request commits, so the merge and
+    the save are atomic on PostgreSQL. SQLite ignores the lock; the re-read
+    still applies. Do not make a model call between this and the commit.
+    """
+    await db.refresh(module_resp, with_for_update=True)
+    return dict(module_resp.responses or {})
+
+
 # ── Start Module ─────────────────────────────────────────────────────
 
 @router.post("/{project_id}/{module_id}/start")
@@ -197,16 +213,19 @@ async def start_module(
     # Resume: return existing active session messages instead of overwriting.
     # An active row with no conversation is not a session to resume: v2
     # discovery creates such rows to hold field values (handled below).
-    if module_resp and module_resp.status == "active" and messages:
+    def resume(session_messages: list) -> dict:
         return {
             "module_id": module_id,
             "label": defn["label"],
-            "messages": messages,
-            "question_number": sum(1 for m in messages if m.get("role") == "assistant"),
+            "messages": session_messages,
+            "question_number": sum(1 for m in session_messages if m.get("role") == "assistant"),
             "total_questions": max_q_start,
             "mode": mode,
             "resumed": True,
         }
+
+    if module_resp and module_resp.status == "active" and messages:
+        return resume(messages)
 
     # Completed: return transcript and extracted output for review
     if module_resp and module_resp.status == "complete":
@@ -237,8 +256,14 @@ async def start_module(
         # A row can exist without a conversation: v2 discovery stores field
         # values in it, and a skipped module leaves a marker. Start the
         # session in that row (the table holds one row per project and
-        # module) and keep everything else it carries.
-        kept = {k: v for k, v in stored.items() if k != "skipped"}
+        # module) and keep everything else it carries, as it is now: the
+        # question took seconds to generate and the row may have changed.
+        current = await _reload_for_write(module_resp, db)
+        if module_resp.status == "active" and current.get("messages"):
+            # Another start for this module finished first. Resume its
+            # session rather than replace its question with ours.
+            return resume(current["messages"])
+        kept = {k: v for k, v in current.items() if k != "skipped"}
         module_resp.responses = {**kept, "messages": [first_message]}
         module_resp.status = "active"
         # A pathway that was complete is open again once a module restarts.
@@ -345,16 +370,21 @@ async def respond_to_module(
         # Store assistant message
         messages.append({"role": "assistant", "content": response_text})
 
+        # Extract structured output before taking the row lock below: it is
+        # another model call, and the lock must not be held across one.
+        extracted = await extract_module_output(module_id, messages) if complete else None
+
         # Update module response record. This JSON column is shared: v2
         # discovery keeps field values in it and refresh-output keeps
-        # "__generated_output", so replace only the conversation.
-        module_resp.responses = {**(module_resp.responses or {}), "messages": messages}
+        # "__generated_output", so replace only the conversation, and merge
+        # into the row as it is now, not as it was before the stream.
+        current = await _reload_for_write(module_resp, db)
+        current["messages"] = messages
         if complete:
             module_resp.status = "complete"
             module_resp.completed_at = datetime.now(timezone.utc)
-            # Extract structured output
-            extracted = await extract_module_output(module_id, messages)
-            module_resp.responses = {**module_resp.responses, "extracted": extracted}
+            current["extracted"] = extracted
+        module_resp.responses = current
 
         # Sync pathway completion status when a module finishes
         pathway_new_status = None
@@ -522,12 +552,16 @@ async def update_module_responses(
     if not coerced:
         raise HTTPException(status_code=400, detail="No valid fields to update")
 
-    # Upsert: find existing response or create new one
+    # Upsert: find existing response or create new one. The row is locked
+    # for the read-merge-save so it cannot interleave with a module session
+    # or refresh-output saving to the same column (see _reload_for_write).
     mr_result = await db.execute(
-        select(ModuleResponse).where(
+        select(ModuleResponse)
+        .where(
             ModuleResponse.project_id == project_id,
             ModuleResponse.module_id == module_id,
         )
+        .with_for_update()
     )
     mr = mr_result.scalar_one_or_none()
 
@@ -595,9 +629,11 @@ async def refresh_module_output(
         project_name=project.name,
     )
 
-    # Store the generated output alongside field values
+    # Store the generated output alongside field values, merged into the row
+    # as it is now: generation took seconds and a field may have been edited.
     if mr:
-        mr.responses = {**(mr.responses or {}), "__generated_output": output}
+        current = await _reload_for_write(mr, db)
+        mr.responses = {**current, "__generated_output": output}
     else:
         mr = ModuleResponse(
             project_id=project_id,

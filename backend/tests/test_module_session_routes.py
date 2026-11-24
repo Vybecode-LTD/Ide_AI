@@ -28,39 +28,89 @@ MODULE = "audience_persona_builder"  # an AI-conversation module, not a page
 FIRST_QUESTION = "Who is this for? [CHIPS: Founders | Students]"
 
 
+OUTPUT_MODULE = "brand_identity_framework"  # has_output: supports refresh-output
+GENERATED = "# Brand\nGenerated output"
+
+
 @pytest.fixture
 def ai(monkeypatch):
-    """Replace the three Claude calls the module routes make."""
+    """Replace the Claude calls the module routes make.
+
+    Returns a dict of hooks. Set ``hooks["during"]`` to an async callable and
+    it runs in the middle of each mocked model call, which is where another
+    request can write to the same row in production.
+    """
+    hooks: dict = {}
+
+    async def _during():
+        if "during" in hooks:
+            await hooks["during"]()
 
     async def first_question(module_id, concept_sheet, **kwargs):
+        await _during()
         return FIRST_QUESTION
 
     async def stream(messages, system_prompt):
-        for token in ("Got it. ", "What do they struggle with?"):
-            yield token
+        yield "Got it. "
+        await _during()
+        yield "What do they struggle with?"
 
     async def extract(module_id, messages):
         return {"summary": "extracted"}
 
+    async def output(module_id, field_values, project_name):
+        await _during()
+        return GENERATED
+
     monkeypatch.setattr("app.routers.modules.generate_first_question", first_question)
     monkeypatch.setattr("app.routers.modules.stream_module_response", stream)
     monkeypatch.setattr("app.routers.modules.extract_module_output", extract)
+    monkeypatch.setattr("app.services.module_service.generate_module_output", output)
+    return hooks
 
 
-async def _project_with_pathway(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
+async def _project_with_pathway(
+    db: AsyncSession, user_id: uuid.UUID, module: str = MODULE
+) -> uuid.UUID:
     pid = uuid.uuid4()
     db.add(Project(id=pid, user_id=user_id, name="P", description="d", pathway_locked=True))
     await db.flush()
     db.add(
         ModulePathway(
             project_id=pid,
-            modules=[MODULE],
-            lite_deep_settings={MODULE: "lite"},
+            modules=[module],
+            lite_deep_settings={module: "lite"},
             status="active",
         )
     )
     await db.flush()
     return pid
+
+
+def _other_request_writes(pid: uuid.UUID, module: str, **changes):
+    """An async callable that commits *changes* to the row from another session.
+
+    ``responses`` keys are merged in; ``status`` replaces the status. This is
+    what a field edit, v2 discovery or a second tab does while this request
+    is still waiting for the model.
+    """
+
+    async def write():
+        async with TestSessionLocal() as other:
+            row = (
+                await other.execute(
+                    select(ModuleResponse).where(
+                        ModuleResponse.project_id == pid, ModuleResponse.module_id == module
+                    )
+                )
+            ).scalar_one()
+            status = changes.pop("status", None)
+            row.responses = {**(row.responses or {}), **changes}
+            if status:
+                row.status = status
+            await other.commit()
+
+    return write
 
 
 async def _rows(pid: uuid.UUID) -> list[ModuleResponse]:
@@ -212,3 +262,114 @@ class TestRespondToModule:
         assert stored["messages"][2]["content"] == "Got it. What do they struggle with?"
         assert stored["primary_persona"] == "Solo founders"
         assert stored["__generated_output"] == "# Persona\nSolo founders"
+
+
+class TestWritesDuringAModelCall:
+    """A model call takes seconds. Another request can write the row meanwhile.
+
+    Each route below reads the row, waits for the model, then saves. The save
+    must merge into the row as it is at that moment, not into the copy read
+    before the wait. (On PostgreSQL the re-read also takes a row lock; SQLite
+    ignores the lock, so these tests cover the re-read and merge only.)
+    """
+
+    @pytest.mark.asyncio
+    async def test_start_keeps_a_field_saved_while_the_question_was_generated(
+        self, db_session, test_user, request_client, ai
+    ):
+        pid = await _project_with_pathway(db_session, test_user.id)
+        db_session.add(
+            ModuleResponse(
+                project_id=pid,
+                module_id=MODULE,
+                responses={"primary_persona": "Solo founders"},
+                status="active",
+            )
+        )
+        await db_session.commit()
+        ai["during"] = _other_request_writes(pid, MODULE, pain_points=["Too slow"])
+
+        res = request_client.post(f"/api/v1/modules/{pid}/{MODULE}/start")
+
+        assert res.status_code == 200, res.text
+        stored = (await _rows(pid))[0].responses
+        assert stored["pain_points"] == ["Too slow"]
+        assert stored["primary_persona"] == "Solo founders"
+        assert len(stored["messages"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_start_resumes_when_another_start_finished_first(
+        self, db_session, test_user, request_client, ai
+    ):
+        pid = await _project_with_pathway(db_session, test_user.id)
+        db_session.add(
+            ModuleResponse(project_id=pid, module_id=MODULE, responses={}, status="active")
+        )
+        await db_session.commit()
+        winner = [{"role": "assistant", "content": "The other tab's question"}]
+        ai["during"] = _other_request_writes(pid, MODULE, messages=winner, status="active")
+
+        res = request_client.post(f"/api/v1/modules/{pid}/{MODULE}/start")
+
+        assert res.status_code == 200, res.text
+        assert res.json()["resumed"] is True
+        assert res.json()["messages"] == winner
+        assert (await _rows(pid))[0].responses["messages"] == winner
+
+    @pytest.mark.asyncio
+    async def test_answer_keeps_a_field_saved_during_the_stream(
+        self, db_session, test_user, request_client, ai
+    ):
+        pid = await _project_with_pathway(db_session, test_user.id)
+        db_session.add(
+            ModuleResponse(
+                project_id=pid,
+                module_id=MODULE,
+                responses={"messages": [{"role": "assistant", "content": FIRST_QUESTION}]},
+                status="active",
+            )
+        )
+        await db_session.commit()
+        ai["during"] = _other_request_writes(pid, MODULE, pain_points=["Too slow"])
+
+        res = request_client.post(
+            f"/api/v1/modules/{pid}/{MODULE}/respond", json={"content": "Founders"}
+        )
+
+        assert res.status_code == 200, res.text
+        assert _sse_events(res.text)[-1]["type"] == "done"
+        stored = (await _rows(pid))[0].responses
+        assert stored["pain_points"] == ["Too slow"]
+        assert [m["role"] for m in stored["messages"]] == ["assistant", "user", "assistant"]
+
+    @pytest.mark.asyncio
+    async def test_refresh_output_keeps_a_field_saved_during_generation(
+        self, db_session, test_user, request_client, ai
+    ):
+        pid = await _project_with_pathway(db_session, test_user.id, module=OUTPUT_MODULE)
+        db_session.add(
+            ModuleResponse(
+                project_id=pid,
+                module_id=OUTPUT_MODULE,
+                responses={"brand_name": "Acme"},
+                status="active",
+            )
+        )
+        await db_session.commit()
+        ai["during"] = _other_request_writes(pid, OUTPUT_MODULE, brand_voice="Plain")
+
+        res = request_client.post(f"/api/v1/modules/{pid}/{OUTPUT_MODULE}/refresh-output")
+
+        assert res.status_code == 200, res.text
+        async with TestSessionLocal() as fresh:
+            stored = (
+                await fresh.execute(
+                    select(ModuleResponse).where(
+                        ModuleResponse.project_id == pid,
+                        ModuleResponse.module_id == OUTPUT_MODULE,
+                    )
+                )
+            ).scalar_one().responses
+        assert stored["brand_voice"] == "Plain"
+        assert stored["brand_name"] == "Acme"
+        assert stored["__generated_output"] == GENERATED

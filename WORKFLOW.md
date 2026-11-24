@@ -8,7 +8,7 @@
 
 - **Name:** Ide/AI (codebase directory: `Ide_AI`, formerly known as ideaFORGE)
 - **Repo:** `github.com/Vybecode-LTD/Ide_AI`
-- **Working directory:** `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` — this is the ONLY working directory for this codebase. Any references in older docs to `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` are obsolete.
+- **Working directory:** `C:\DEV\Ide_AI\` — this is the ONLY working directory for this codebase. Any references in older docs to `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` are obsolete. An earlier version of this file named a OneDrive folder: that is obsolete too, and nothing may be written into OneDrive.
 - **Branch:** `main`
 - **Deployment:** Railway (2 public services: backend + frontend, no reverse proxy)
 
@@ -130,7 +130,7 @@ Scope notes for this project:
 6. **`CHANGELOG.md`** — what changed recently (skim the most recent dated entry to see the project's current arc)
 7. **`ROADMAP.md`** — only when discussing forward direction
 
-**Working directory:** ALWAYS `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — those paths are obsolete.
+**Working directory:** ALWAYS `C:\DEV\Ide_AI\`. Older docs may reference `D:\Development\Ide_AI\` or `D:\Development\ideaFORGE\` — those paths are obsolete. An earlier version of this file named a OneDrive folder: that is obsolete too, and nothing may be written into OneDrive.
 
 **Platform:** Windows. Use `npm.cmd` not `npm`, `python` not `python3`. Type-check after every frontend change: `npx.cmd tsc -b --noEmit`. Validate Python syntax via `python -c "import ast; ast.parse(open('...').read())"`.
 
