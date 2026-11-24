@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { extractError, getEntitlementDetail, isEntitlementError } from '../lib/extractError'
+import {
+  extractError,
+  getEntitlementDetail,
+  isEntitlementError,
+  withParsedBlobError,
+} from '../lib/extractError'
 
 describe('extractError', () => {
   it('returns fallback for null/undefined', () => {
@@ -123,5 +128,40 @@ describe('isEntitlementError', () => {
   it('returns false for regular 403', () => {
     const err = { response: { status: 403, data: { detail: 'Not allowed' } } }
     expect(isEntitlementError(err)).toBe(false)
+  })
+})
+
+describe('withParsedBlobError', () => {
+  const blob = (body: string) => new Blob([body], { type: 'application/json' })
+
+  it('parses a JSON blob body so an entitlement 403 is recognised', async () => {
+    const detail = { code: 'feature_limit_reached', current: 0, limit: 0, plan: 'free', message: 'Limit' }
+    const raw = { response: { status: 403, data: blob(JSON.stringify({ detail })) } }
+
+    const err = await withParsedBlobError(raw)
+
+    expect(getEntitlementDetail(err)).toEqual(detail)
+    expect(extractError(err, 'fallback')).toBe('Limit')
+  })
+
+  it('parses a JSON blob body with a string detail', async () => {
+    const raw = { response: { status: 400, data: blob(JSON.stringify({ detail: 'Bad platform' })) } }
+
+    expect(extractError(await withParsedBlobError(raw), 'fallback')).toBe('Bad platform')
+  })
+
+  it('returns the same error when the blob is not JSON', async () => {
+    const raw = { response: { status: 502, data: blob('<html>Bad gateway</html>') } }
+
+    expect(await withParsedBlobError(raw)).toBe(raw)
+  })
+
+  it('returns the same error when there is no blob body', async () => {
+    const plain = { response: { status: 404, data: { detail: 'Not found' } } }
+    const network = new Error('Network Error')
+
+    expect(await withParsedBlobError(plain)).toBe(plain)
+    expect(await withParsedBlobError(network)).toBe(network)
+    expect(await withParsedBlobError(null)).toBe(null)
   })
 })

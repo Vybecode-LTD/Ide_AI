@@ -3,7 +3,7 @@
 > Long-term context that Claude Code sessions should remember.
 > Read after CLAUDE.md on every session start.
 > Cross-references: [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state, [`TODO.md`](TODO.md) for next actions, [`CHANGELOG.md`](CHANGELOG.md) for change history.
-> **Last updated:** 2026-05-23
+> **Last updated:** 2026-11-24
 
 ---
 
@@ -80,6 +80,9 @@
 - **`datetime.utcnow()` is deprecated** — use `datetime.now(timezone.utc)`.
 - **Migration child-table names must match `__tablename__` exactly** — not the model class name. Always grep the model first.
 - **SSE generators must emit `done` ALWAYS** — wrap risky steps (commit, extraction) in try/except so the generator continues to `yield`.
+- **Models read server timestamps back on every flush** — `Base` sets `eager_defaults=True` (`core/database.py`), so `updated_at` is loaded after an UPDATE and a route can return the object. Without it the response raises `MissingGreenlet` and the edit rolls back. A model with its own `__mapper_args__` must keep that key.
+- **`module_responses.responses` is shared by three writers** — the module chat (`messages`, `extracted`), v2 discovery (field values) and refresh-output (`__generated_output`). Always merge into the existing dict; never assign a fresh one.
+- **Test write routes with the `request_client` fixture** (`tests/conftest.py`) — it gives each request its own session, as production does. The per-file `client` fixtures share one session and hide serialization faults.
 
 ### Frontend
 - **`h-screen` (100vh) breaks on iOS Safari** — use `.h-dvh` utility (100dvh with vh fallback).
@@ -88,6 +91,8 @@
 - **Zustand store actions are stable references** — safe to include in `useEffect` deps without infinite loops.
 - **Don't mutate Zustand state directly** — always use `set((s) => ({...}))` callback form for atomic updates.
 - **React Hot Toast uses portals + high z-index** — already wired globally in `App.tsx`. Just `import toast from 'react-hot-toast'` and call `toast.error(msg)` or `toast.success(msg)`.
+- **Only ever pass a string to `toast.error`** — an object crashes the render and the root error boundary replaces the app. Use `extractError(err, fallback)`, which always returns a string.
+- **A `responseType: 'blob'` request returns its error body as a Blob** — run the error through `withParsedBlobError` (`lib/extractError.ts`) before `getEntitlementDetail` or `extractError`.
 - **Sidebar is wrapped in ProtectedRoute everywhere except public pages** — safe to assume Clerk session exists in components mounted under it.
 
 ### Auth / race conditions

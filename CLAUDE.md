@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.0.0 · **Last updated:** 2026-10-15 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.1.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -11,11 +11,14 @@ PostgreSQL, Claude), React 19 + TypeScript + Vite 7 + Tailwind v4, Clerk auth, S
 and **a push to `main` deploys both.**
 
 ## Current State
-- **Phase:** production hardening done. `main` is at `60443a0` (2026-06-10), which merged the P0–P4 sweep
-  (CVE fixes, rate limiting, Sentry, backups, hygiene). No commits since.
-- **Waiting on the owner** (TODO.md, "Needs YOUR action"): Sentry DSNs in Railway and the backup secret in
-  GitHub, an admin bootstrap for the Blog CMS, and live checks of the tour, blog, Notion push and 429s.
-- **2026-10-15:** this file was leaned (3.0.0). Every section moved verbatim (map below).
+- **Phase:** back in work after five idle months. A full audit ran on 2026-11-23; its report is
+  `dev plans/project-assessment-2026-11-23.md`, kept out of git because **this repository is public**.
+- **Live:** `60443a0` (2026-06-10) on both services. `main` is at `bbfa182` (docs only since).
+- **In flight:** branch `fix/module-start-and-edit-rollback` (module session start, edits rolling back,
+  Exports crash; all with tests), open as pull request #1. Merging deploys, and is the owner's call.
+- **Waiting on the owner:** the checks and decisions in section 6 of the audit report (TODO.md, top).
+- **CI:** all three GitHub workflows are disabled and the Test Pipeline has never passed. A red run gates
+  nothing until the pipeline is rebuilt.
 
 Next steps, blockers and warnings live in CONTEXT_HANDOFF.md and TODO.md, this project's equivalents of
 docs/HANDOFF.md.

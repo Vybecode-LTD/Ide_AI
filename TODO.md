@@ -1,10 +1,22 @@
 # Ide/AI — TODO
 
-> **Version:** 3.14.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.15.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
 ---
+
+## 🔴 Needs YOUR action (2026-11-24, after the full audit)
+
+The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; this repo is public). Its section 6 holds the order of work.
+
+- [ ] **Review and merge pull request #1** (`fix/module-start-and-edit-rollback`). All suites green locally. Merging deploys both services. No CI runs on it: the workflows are disabled.
+- [ ] **Make one edit on myide.ai** (rename a project, or reorder a block). It tells us whether the "edit fails and rolls back" fault is live in production.
+- [ ] **Work through "checks only the owner can make"** in section 6 of the report.
+- [ ] **Answer "decisions that are the owner's"** in section 6 (repository visibility first).
+- [ ] **Next code work, in order:** the rest of step 1, then step 2 (backups, a CI that runs, error tracking, dependency updates).
+
+The 2026-06-10 list below is partly superseded: the hardening branch **was** merged and deployed that day.
 
 ## 🟠 Needs YOUR action (2026-06-10 production-hardening session)
 
