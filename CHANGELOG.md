@@ -4,6 +4,16 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Security — Dependency updates: both stacks audit clean (2026-11-24, audit H-4)
+
+- **Backend:** `poetry update` within the existing ranges took `pip-audit` on the exported lock from 104 advisories in 10 packages to none: anyio 4.16.0, certifi 2026.11.20, cryptography 50.0.2, dnspython 2.9.2, fpdf2 2.9.0, Pillow 13.0.0 (67 of the 104), pydantic-settings 2.16.3, PyJWT 2.15.1, Starlette 1.10.0 (FastAPI 0.135.4) and urllib3 2.8.0.
+- **SQLAlchemy is held below 2.1** (`<2.1.0`, now 2.0.58). The update would have taken it to 2.1.9, which fixes no advisory, and the tests run only on SQLite, so a change in how it flushes on PostgreSQL (the edit fix from #1 depends on `eager_defaults`) would not show. Moving to 2.1 is a separate, deliberate step. The two `.distinct(column)` calls in `routers/library.py` (DISTINCT ON) are deprecated in 2.1.
+- **The Anthropic SDK stays at 0.84** (`<0.85`): it has no advisory, and moving it belongs to audit step 3, the AI client layer.
+- **Frontend:** `npm update` within the existing ranges took `npm audit` from 27 (13 high, including axios, react-router, vite and undici) to 0: axios 1.21.1, react-router 7.18.6, vite 7.3.8, vitest 4.1.12, React 19.3.1. **`eslint-plugin-react-hooks` is held at 7.0.x** (`~7.0.1`): 7.1 turns on the React Compiler rules, which report 26 existing sites. Adopting them is lint work for later.
+- **Images:** the frontend builds on Node 24 LTS (`node:24-alpine`; Node 20 is past end of life). The backend image pins Poetry 2.4.1, the version that writes `poetry.lock`.
+- **ruff** joins the backend's dev extras (0.17.x), for CI.
+- **Tests:** backend 340 pass · 1 skip; frontend 81/81; `tsc`, ESLint (zero warnings) and the full build with prerender green.
+
 ### Changed — Docs record pull requests #1 to #3 as merged (2026-11-24)
 
 - **CLAUDE.md 3.2.0 → 3.3.0:** Current State lists #1, #2 and #3 as live (`main` at `f542d37`) instead of "in flight", and names the new branch for audit step 2.

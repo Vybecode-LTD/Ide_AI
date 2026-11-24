@@ -4,7 +4,9 @@
 # ────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Build static assets ──
-FROM node:20-alpine AS builder
+# Node 24 LTS (supported to April 2028). Node 20 reached end of life in April 2026.
+# CI's frontend job uses the same major (.github/workflows/ci.yml).
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 

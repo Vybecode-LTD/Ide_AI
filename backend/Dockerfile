@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir poetry
+# Pinned: poetry.lock is written by this version; an unpinned install can
+# re-resolve or refuse a lock from another version.
+RUN pip install --no-cache-dir poetry==2.4.1
 
 COPY pyproject.toml poetry.lock* ./
 
