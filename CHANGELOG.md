@@ -13,6 +13,14 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 - **Tests:** 12 backend tests in `test_module_session_routes.py` and `test_request_scoped_writes.py`, and 8 frontend tests (`Exports.test.tsx`, plus `withParsedBlobError` cases in `extractError.test.ts`). New `request_client` fixture in `tests/conftest.py` gives each request its own committed session, as production does; the existing shared-session fixtures could not see the rollback fault. One test asserts every model keeps `eager_defaults`.
 - **Not yet confirmed on production PostgreSQL:** the rollback fault was reproduced on the locked SQLAlchemy 2.0.48 with SQLite. MEMORY.md gains the matching pitfalls.
 
+### Security — Length caps on text sent to Claude (2026-11-24)
+
+- **Caps, enforced by the request schemas** (a longer value gets a 422 before the route runs): a discovery message or module answer 4,000 characters (`MessagePayload`, `ModuleRespondPayload`, which must now also be non-empty); a project description 10,000 (`ProjectCreate`, `ProjectUpdate`), as are a template's `extra_description` and the `/pathways/detect` text; a block description 2,000 (`BlockCreate`, `BlockUpdate`). The numbers live in `backend/app/core/limits.py`.
+- **`/pathways/detect` cap raised from 5,000 to 10,000** to match the description cap. The Home page sends the same idea to detection and to project creation, and detection is best-effort, so a longer idea used to lose detection without any message.
+- **UI:** `frontend/src/lib/inputLimits.ts` mirrors the numbers, and the new `CharLimitHint` shows a count from 80% of the cap and a red "Over the N-character limit" message past it. Discovery, the module session and the Home idea box disable sending while over, and Enter does nothing. Nothing is truncated, so a long paste is kept for editing. Counts are code points, as Python counts them, so an emoji is one character.
+- **Tests:** `backend/tests/test_input_length_caps.py` (19: each route rejects one over the cap on the right field, each schema accepts exactly the cap, and the frontend file must hold the same numbers, with a positive control on its parser). Frontend: `inputLimits.test.ts`, `CharLimitHint.test.tsx`, and `chatInputLimits.test.tsx`, which drives the Discovery and module-session pages and fails against the pages without the change.
+- **Docs:** CLAUDE.md 3.1.0 → 3.2.0 (current state; the repository stays public, owner's decision). CONTEXT_HANDOFF.md 3.16.0 → 3.17.0 (new session block). WORKFLOW.md: Last Completed Task.
+
 ### Changed — Session-state docs brought up to date (2026-11-24)
 
 - **CLAUDE.md 3.0.0 → 3.1.0:** Current State now gives the live deploy (`60443a0`), the fix branch in flight, and the state of CI.

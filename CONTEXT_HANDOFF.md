@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.16.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.17.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,7 +38,23 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24) — Full audit, then three fixes on `fix/module-start-and-edit-rollback` (merged as pull request #1 on 2026-11-24)
+## Current Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, pull request #3, NOT merged)
+
+Second session of the day, on the rest of audit step 1. Merging deploys both services; that is the owner's call.
+
+- **Caps (owner's choice, 2026-11-24):** a discovery message or module answer 4,000 characters; a project description, a template's extra detail and the pathway-detection text 10,000; a block description 2,000. One source each side: `backend/app/core/limits.py` and `frontend/src/lib/inputLimits.ts`. A backend test fails if they disagree.
+- **Server:** the request schemas reject one character over with a 422 before the route runs. Chat messages and module answers must also be non-empty. `/pathways/detect` went from 5,000 to 10,000, because the Home page sends the same idea text to detection and to project creation; at 5,000 a long idea would have lost detection silently.
+- **UI:** `CharLimitHint` shows a count from 80% of the cap and, past it, "Over the N-character limit. Shorten it to continue." Send (Discovery, module session) and Start Discovery (Home) are disabled and Enter does nothing while over. Text is never cut, so a long paste is not lost. Counts are code points, as the server counts them.
+- **Not capped:** saved-version (snapshot) descriptions and module field edits. Neither is sent to Claude as a chat turn.
+- **Owner decisions taken this session:** the repository stays public, deliberately open source; the caps above; this branch was cut from the PR #1 branch and opened as its own pull request after #1 merged.
+- **Two sessions worked this project at once today.** The earlier session merged #1 and opened #2 while this one ran; its commit `d6bf8d5` (docs: PR #1 merged) landed on this branch in the main checkout and is carried here. #2 and #3 touch different files apart from `CHANGELOG.md`, where the entries sit in different places.
+
+### Verification (2026-11-24)
+Backend **336 pass · 1 skip** (17 files; 19 new in `test_input_length_caps.py`, which failed before the change). Frontend **81/81** (13 files; 13 new in `inputLimits.test.ts`, `CharLimitHint.test.tsx` and `chatInputLimits.test.tsx`; the page tests fail against the old pages). `tsc -b --noEmit` and ESLint clean; full `npm run build` incl. prerender.
+
+---
+
+## Earlier Session (2026-11-24) — Full audit, then three fixes on `fix/module-start-and-edit-rollback` (merged as pull request #1 on 2026-11-24)
 
 First session after five idle months. A read-only audit of the whole project (2026-11-23), then the first batch of fixes it called for.
 
