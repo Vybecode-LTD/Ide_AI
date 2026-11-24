@@ -4,6 +4,15 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fixed — Module sessions start again, edits persist, Exports limit error (2026-11-24)
+
+- **AI module sessions could not start.** `POST /modules/{project}/{module}/start` read a `pathway` variable the function never defined, so every start and resume returned a 500 (since `544bb2f`). `_ensure_module_in_project_pathway` now returns the pathway and `start_module` uses it.
+- **A module session no longer erases the module's other data.** The chat wrote `{"messages": ...}` over the whole `module_responses.responses` column, which also holds the field values written by v2 discovery and `__generated_output`. It now replaces only the conversation. A row that exists without a conversation (created by discovery, or left by a skip) starts its session in place instead of returning an empty resume or adding a second row.
+- **Edits failed and rolled back.** After an UPDATE, `updated_at` (`onupdate=func.now()`) was left expired; returning the object raised `MissingGreenlet` while the response was serialized, and `get_db` rolled the change back. This affected PATCH on projects, design sheets, blocks and pipeline nodes, and the last step of sprint generation. `Base` now sets `eager_defaults=True`, so every flush reads server-generated values back (RETURNING on PostgreSQL). The explicit `db.refresh()` calls in the blog routes are now redundant but harmless.
+- **Exports page crashed for a plan-limit error.** A 403 from "Generate & Download" carries an object as `detail`; the page passed it to the toast and the error boundary replaced the app. Both downloads now parse the Blob error body (`withParsedBlobError` in `lib/extractError.ts`), open the upgrade dialog for a limit, and toast a string for anything else.
+- **Tests:** 12 backend tests in `test_module_session_routes.py` and `test_request_scoped_writes.py`, and 8 frontend tests (`Exports.test.tsx`, plus `withParsedBlobError` cases in `extractError.test.ts`). New `request_client` fixture in `tests/conftest.py` gives each request its own committed session, as production does; the existing shared-session fixtures could not see the rollback fault. One test asserts every model keeps `eager_defaults`.
+- **Not yet confirmed on production PostgreSQL:** the rollback fault was reproduced on the locked SQLAlchemy 2.0.48 with SQLite. MEMORY.md gains the matching pitfalls.
+
 ### Changed — CLAUDE.md leaned to a map (2026-10-15)
 
 - **CLAUDE.md 2.19.0 → 3.0.0:** from 58 KB to a short brief (identity, current state, commands, a brief architecture, critical gotchas, conventions, a project map). It loads on every turn, so this saves about 14K tokens a session, plus about 10K more because the four vendored directive manuals are no longer `@include`d (they're linked by path under "Process references").
