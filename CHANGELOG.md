@@ -4,6 +4,17 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Added — A CI built for this repository (2026-11-24, audit H-2)
+
+- **`.github/workflows/ci.yml` replaces `test-pipeline.yml`,** the generic pipeline that failed all 90 of its runs (it installed from the repo root, skipped the frontend, and could not fail on most of its gates). Runs on pull requests to `main`, pushes to `main`, and by hand. No nightly schedule.
+- **Path filters inside the workflow** (a `changes` job reads the pull request's diff), so a docs-only change runs only the secret scan. A change to `.github/workflows/`, a push to `main` and a manual run check everything. The backend job also runs when `frontend/src/lib/inputLimits.ts` changes, because a backend test reads it.
+- **Backend** (Python 3.12, as in production; Poetry 2.4.1): ruff on the errors that break at runtime (`E9,F63,F7,F82`, which includes undefined names such as the one behind the module-start bug), the full pytest suite, Alembic on a **PostgreSQL 17 service** (one head; upgrade from empty, downgrade to base, upgrade again), and `pip-audit` on the exported lock.
+- **Frontend** (Node 24, as in the Dockerfile): `npm ci`, `tsc -b --noEmit`, ESLint with zero warnings, vitest, the full build with prerender, and `npm audit`.
+- **Database backup:** the `ops/db-backup` tests with PostgreSQL 17 client tools against a Postgres 17 service, the real-tools tests forced on; then the image is built, must ship `pg_dump` 17, and must exit 1 with "Missing settings" when run unconfigured.
+- **Secret scan** on every run: gitleaks 8.30.1 (installed with `go install`) over the whole history.
+- **One gate, "CI result":** fails if any job failed or was cancelled; a skipped job passes. It is the check a branch ruleset on `main` should require. The ruleset itself, and Railway's "Wait for CI", are the owner's settings.
+- **Not yet run on GitHub.** Checked locally: the YAML parses, the path regexes select the right sample paths, each job's commands pass on this machine (backend also under Python 3.12; Alembic up, down and up on a throwaway PostgreSQL 18; the backup tests with real tools; gitleaks over the history). Not checkable here: the GitHub-hosted steps themselves (service containers, the PGDG install on Ubuntu, `docker build`). ruff's other 33 findings (unused imports) stay with the lint-debt item; `alembic check` is not gated because models and migrations have drifted (many nullable and index differences).
+
 ### Added — Private nightly database backups (2026-11-24, audit C-4)
 
 - **`ops/db-backup/`, a Railway cron service** (07:00 UTC daily): `pg_dump --format=custom` of the production database, checked before upload (`pg_restore --list` must read it and list table data), uploaded to a private S3-compatible bucket (a Railway bucket by default), size checked after upload, then all but the newest 30 dumps deleted. Only objects named `ideai-<UTC time>.dump` under the prefix are ever deleted.
