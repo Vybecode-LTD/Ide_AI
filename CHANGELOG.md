@@ -4,6 +4,14 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fixed — Error tracking can actually be turned on, and sends no user data (2026-11-24, audit H-3, part of M-20)
+
+- **The browser half could not have worked.** `frontend/Dockerfile` never passed `VITE_SENTRY_DSN` into the build, so a DSN set in Railway never reached the bundle; and the Caddyfile's CSP blocked Sentry's ingest hosts, so reports would have been refused anyway. The Dockerfile now declares the build argument (and tags each release with `RAILWAY_GIT_COMMIT_SHA`), and `connect-src` allows `*.ingest.sentry.io`, `*.ingest.us.sentry.io` and `*.ingest.de.sentry.io`.
+- **One module, `frontend/src/lib/errorTracking.ts`,** replaces the two inline dynamic imports in `main.tsx` and `ErrorBoundary.tsx`. It loads the SDK once, only with a DSN; an error reported while the SDK is loading is sent once it has loaded; a failed load is logged and ignored. Every event loses request cookies, headers, bodies and user data; console breadcrumbs are dropped (they can hold a user's text); every URL loses its query and fragment, and `/shared/<token>` becomes `/shared/[token]`. No replay and no tracing.
+- **Backend: `app/core/error_tracking.py`** sets `max_request_body_size="never"` and `include_local_variables=False` besides `send_default_pii=False`. With the SDK's defaults, an error event carried request bodies up to 10 KB (a whole chat message) and the locals of each stack frame.
+- **Tests:** frontend `errorTracking.test.ts` (scrubbing, loading once, the loading race, a failed load), `ErrorBoundary.test.tsx`, and `deployConfig.test.ts`, which checks the Dockerfile's build argument and Node major and matches sample Sentry, Clerk and backend URLs against the CSP (3 of its 5 tests fail against `main`'s files). Backend `test_error_tracking.py` (6), including one that runs Sentry for real in a subprocess against a capturing transport: a marker sent in the request body shows up in the event with the SDK's defaults and not with ours.
+- **Turning it on is the owner's step:** a Sentry project, then `SENTRY_DSN` on the Backend service and `VITE_SENTRY_DSN` on the Frontend service (then rebuild the frontend). **DEPLOYMENT_RAILWAY.md** lists both variables; **ROADMAP.md** no longer calls error tracking done.
+
 ### Added — A CI built for this repository (2026-11-24, audit H-2)
 
 - **`.github/workflows/ci.yml` replaces `test-pipeline.yml`,** the generic pipeline that failed all 90 of its runs (it installed from the repo root, skipped the frontend, and could not fail on most of its gates). Runs on pull requests to `main`, pushes to `main`, and by hand. No nightly schedule.

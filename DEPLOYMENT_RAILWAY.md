@@ -138,6 +138,7 @@ Railway will build the Docker image, run `alembic upgrade head` (pre-deploy), an
 | `CLERK_AUTHORIZED_PARTIES` | — | Expected JWT audience for production hardening |
 | `SHARE_ACCESS_SECRET` | — | Secret for generating share access tokens |
 | `INTEGRATION_TOKEN_KEY` | — | Fernet key for encrypting OAuth tokens |
+| `SENTRY_DSN` | — | Optional. Sentry DSN for backend error reports (`app/core/error_tracking.py`); events carry no request bodies, frame locals or personal data |
 
 ### Frontend Service
 
@@ -145,6 +146,7 @@ Railway will build the Docker image, run `alembic upgrade head` (pre-deploy), an
 |----------|-------------|
 | `VITE_API_BASE_URL` | Full public backend URL + `/api/v1` (e.g. `https://backend-production-xxxx.up.railway.app/api/v1`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key for frontend auth |
+| `VITE_SENTRY_DSN` | Optional. Sentry DSN for browser error reports (`src/lib/errorTracking.ts`); off when unset. The CSP already allows Sentry's ingest hosts |
 
 > **Important:** `VITE_*` variables are baked into the JS bundle at build time. Changing them requires a redeploy.
 

@@ -8,6 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
+from app.core.error_tracking import init_error_tracking
 from app.core.rate_limit import limiter
 from app.routers import admin, auth, billing, blocks, blog, branching, clerk_webhook, design_sheet, discovery, exports, inbox, integrations, library, market, meta, module_pathway, modules, pathways, pipeline, projects, prompts, sharing, sprints, templates, webhooks
 
@@ -17,16 +18,7 @@ def create_app() -> FastAPI:
     is_production = settings.ENVIRONMENT == "production"
 
     # Error tracking — no-op unless SENTRY_DSN is set in the environment.
-    if settings.SENTRY_DSN:
-        import sentry_sdk
-
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            environment=settings.ENVIRONMENT,
-            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-            send_default_pii=False,  # never ship user PII to Sentry
-        )
-
+    init_error_tracking(settings)
 
     app = FastAPI(
         title=settings.APP_NAME,

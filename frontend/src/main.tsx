@@ -10,6 +10,7 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { dark } from '@clerk/themes'
 import { HelmetProvider } from 'react-helmet-async'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
+import { initErrorTracking } from './lib/errorTracking'
 import '@fontsource/jetbrains-mono/400.css'
 import '@fontsource/jetbrains-mono/500.css'
 import './styles/globals.css'
@@ -17,18 +18,8 @@ import App from './App'
 
 const queryClient = new QueryClient()
 
-// Error tracking — dynamic import so the Sentry bundle is only fetched when
-// a DSN is configured (no-op + zero bundle cost otherwise).
-const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
-if (SENTRY_DSN) {
-  import('@sentry/react').then((Sentry) => {
-    Sentry.init({
-      dsn: SENTRY_DSN,
-      environment: import.meta.env.MODE,
-      sendDefaultPii: false,
-    })
-  })
-}
+// Error tracking: Sentry loads only when VITE_SENTRY_DSN was set at build time.
+void initErrorTracking()
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 

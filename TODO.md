@@ -33,7 +33,7 @@ The code-side production-readiness work is done (see Recently Done + CHANGELOG).
 
 - [ ] **Merge + push `chore/production-hardening`** → Railway auto-deploys both services (no migration in this batch).
 - [ ] **Bootstrap an admin** — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` — the Blog CMS is unusable until then.
-- [ ] **Activate Sentry** — create a (free-tier) Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway. Code no-ops until set.
+- [ ] **Activate Sentry** — superseded 2026-11-24: as written in June, the frontend half could not work (no build argument, CSP blocked the ingest host). Fixed on `chore/safety-nets`; listed again in the 2026-11-24 list above.
 - [ ] **Activate DB backups** — superseded 2026-11-24: `db-backup.yml` is deleted (it never produced a backup, and on this public repository it would have published each dump as an artifact). Set up the `db-backup` Railway cron service instead, then run the restore drill once: [`ops/db-backup/README.md`](ops/db-backup/README.md). Listed again in the 2026-11-24 list above.
 - [ ] **Live smoke after deploy** — tour auto-launch on a *fresh* sign-up (existing accounts no longer auto-launch), "?" replay, publish a blog post → renders at `/blog/{slug}`, Notion end-to-end push (Design Kit → page renders), spam a shared link's comment box → 429 after 10.
 - [ ] **Re-run the ROADMAP smoke-test checklist** (signup → discovery → export → plan limit → Stripe checkout → admin).
