@@ -13,6 +13,13 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 - **Tests:** 12 backend tests in `test_module_session_routes.py` and `test_request_scoped_writes.py`, and 8 frontend tests (`Exports.test.tsx`, plus `withParsedBlobError` cases in `extractError.test.ts`). New `request_client` fixture in `tests/conftest.py` gives each request its own committed session, as production does; the existing shared-session fixtures could not see the rollback fault. One test asserts every model keeps `eager_defaults`.
 - **Not yet confirmed on production PostgreSQL:** the rollback fault was reproduced on the locked SQLAlchemy 2.0.48 with SQLite. MEMORY.md gains the matching pitfalls.
 
+### Changed — Session-state docs brought up to date (2026-11-24)
+
+- **CLAUDE.md 3.0.0 → 3.1.0:** Current State now gives the live deploy (`60443a0`), the fix branch in flight, and the state of CI.
+- **CONTEXT_HANDOFF.md 3.15.0 → 3.16.0:** new Current Session block for 2026-11-24. The 2026-06-10 block is corrected: its branch was merged and deployed that day. The working directory is `C:\DEV\Ide_AI`.
+- **TODO.md 3.14.0 → 3.15.0:** new "Needs YOUR action" list at the top.
+- **WORKFLOW.md:** Last Completed Task updated.
+
 ### Changed — CLAUDE.md leaned to a map (2026-10-15)
 
 - **CLAUDE.md 2.19.0 → 3.0.0:** from 58 KB to a short brief (identity, current state, commands, a brief architecture, critical gotchas, conventions, a project map). It loads on every turn, so this saves about 14K tokens a session, plus about 10K more because the four vendored directive manuals are no longer `@include`d (they're linked by path under "Process references").

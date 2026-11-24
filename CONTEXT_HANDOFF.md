@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.15.0 · **Last updated:** 2026-06-10 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.16.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -16,7 +16,7 @@ The full process: describe an idea → configure options → AI-guided discovery
 **Live deployment:** Railway (backend + frontend as separate public services)
 **Frontend URL:** https://myide.ai
 **Backend URL:** https://backend-production-9c212.up.railway.app
-**Working directory:** `C:\Users\vybec\OneDrive\Documents\Development\Ide_AI\` (NOT `D:\`)
+**Working directory:** `C:\DEV\Ide_AI` (older notes name a OneDrive or `D:\` folder; both are obsolete)
 
 ---
 
@@ -38,7 +38,40 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-06-10) — Production-hardening sweep (P0→P4) on `chore/production-hardening` (NOT yet merged)
+## Current Session (2026-11-24) — Full audit, then three fixes on `fix/module-start-and-edit-rollback` (NOT pushed)
+
+First session after five idle months. A read-only audit of the whole project (2026-11-23), then the first batch of fixes it called for.
+
+- **The audit report is `dev plans/project-assessment-2026-11-23.md`. It is kept out of git on purpose: this repository is public.** Read it before choosing work. Its section 6 gives the order of work and the owner decisions still open.
+- **Next-session prompt:** `dev plans/NEXT_SESSION_PROMPT.md` (also local only).
+
+### Commits (on the branch, not pushed: a push to `main` deploys, and that is the owner's call)
+| Hash | What |
+|------|------|
+| `259861a` | `fix(modules)`: `POST /modules/{project}/{module}/start` returned a 500 on every call (undefined `pathway`, since `544bb2f`). The module chat also overwrote the whole `module_responses.responses` column; it now replaces only the conversation. New `request_client` test fixture. |
+| `b7af86f` | `fix(db)`: `Base` sets `eager_defaults=True`. Edits (PATCH project, design sheet, block, pipeline node) and the end of sprint generation failed with `MissingGreenlet` and rolled back. |
+| `74f3f3f` | `fix(exports)`: a plan-limit 403 on the Exports page crashed the app; it now opens the upgrade dialog. |
+| `ad7f162` | `docs`: CHANGELOG and MEMORY.md pitfalls. |
+
+### Key decisions / gotchas
+- **`eager_defaults` is set once on `Base`, not per route.** 13 models and about 16 routes shared the fault. A test asserts every model keeps the setting.
+- **The rollback fault is reproduced locally only** (SQLAlchemy 2.0.48, SQLite, per-request session). Nobody has yet seen it on production PostgreSQL. One signed-in edit on myide.ai settles it.
+- **The shared `responses` column is guarded, not redesigned.** Splitting transcript, field values and generated output into separate columns is still open.
+- **Write-route tests must use `request_client`.** The per-file `client` fixtures share one session across requests and cannot see serialization faults.
+- **`npx vitest run` can time out starting workers when the machine is busy.** `--maxWorkers=2` fixed it.
+- **All three GitHub workflows are disabled** (GitHub switched them off for inactivity). The Test Pipeline has never passed, so a red run on a pull request is expected and gates nothing.
+
+### Verification (all green, 2026-11-24)
+Backend **317 pass · 1 skip** (16 files); frontend **68/68** (10 files); `tsc -b --noEmit` and ESLint clean; full `npm run build` incl. prerender.
+
+### What the USER must do next
+Decide whether to push the branch and open a pull request. Work through the "checks only the owner can make" and "decisions that are the owner's" lists in section 6 of the audit report.
+
+---
+
+## Previous Session (2026-06-10) — Production-hardening sweep (P0→P4): merged as `60443a0` and deployed 2026-06-10
+
+> **Correction (2026-11-24):** this section was written before the merge. The branch was merged (`60443a0`) and Railway deployed both services on 2026-06-10. That is still the live deploy.
 
 Ran a full production-readiness audit (all docs verified against disk + fresh test/audit runs), then executed the resulting P0→P4 plan. **4 commits on branch `chore/production-hardening` — deliberately NOT merged/pushed: push = Railway deploy, that's the user's call.** No DB migration in this batch.
 
