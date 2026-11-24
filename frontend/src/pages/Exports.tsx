@@ -11,7 +11,13 @@ import { Card } from '../components/ui/Card'
 import { StageInterlude, Whisper } from '../components/tutorial'
 import apiClient from '../lib/apiClient'
 import toast from 'react-hot-toast'
-import { extractError } from '../lib/extractError'
+import {
+  extractError,
+  getEntitlementDetail,
+  withParsedBlobError,
+  type EntitlementDetail,
+} from '../lib/extractError'
+import { EntitlementLimitModal } from '../components/ui/EntitlementLimitModal'
 import { downloadBlob, formatFilename } from '../lib/exportUtils'
 
 const FORMATS = [
@@ -40,6 +46,23 @@ export function Exports() {
   // Prompt package state
   const [selectedPlatform, setSelectedPlatform] = useState('cursor')
   const [generatingPackage, setGeneratingPackage] = useState(false)
+  const [upgradeDetail, setUpgradeDetail] = useState<EntitlementDetail | null>(null)
+
+  /**
+   * Downloads use `responseType: 'blob'`, so the error body is a Blob too.
+   * Parse it first: a plan-limit 403 opens the upgrade dialog, anything else
+   * becomes a toast. `extractError` always returns a string, so an object
+   * `detail` can never reach the toast (it used to, and crashed the app).
+   */
+  const reportDownloadError = async (rawErr: unknown, fallback: string) => {
+    const err = await withParsedBlobError(rawErr)
+    const limit = getEntitlementDetail(err)
+    if (limit) {
+      setUpgradeDetail(limit)
+      return
+    }
+    toast.error(extractError(err, fallback))
+  }
 
   const handleExport = async () => {
     if (!projectId) return
@@ -53,7 +76,7 @@ export function Exports() {
       downloadBlob(response.data, filename)
     } catch (err) {
       console.error('Export failed:', err)
-      toast.error(extractError(err, "Couldn't export design kit."))
+      await reportDownloadError(err, "Couldn't export design kit.")
     } finally {
       setDownloading(false)
     }
@@ -86,20 +109,7 @@ export function Exports() {
       downloadBlob(response.data, filename)
     } catch (err: unknown) {
       console.error('Prompt package generation failed:', err)
-      const axiosErr = err as { response?: { data?: Blob } }
-      let message = 'Generation failed. Please try again.'
-      if (axiosErr.response?.data instanceof Blob) {
-        try {
-          const text = await axiosErr.response.data.text()
-          const json = JSON.parse(text)
-          if (json.detail) message = json.detail
-        } catch {
-          // Fall through to default message
-        }
-      } else {
-        message = extractError(err, message)
-      }
-      toast.error(message)
+      await reportDownloadError(err, 'Generation failed. Please try again.')
     } finally {
       setGeneratingPackage(false)
     }
@@ -107,6 +117,7 @@ export function Exports() {
 
   return (
     <div className="min-h-screen bg-background flex">
+      <EntitlementLimitModal detail={upgradeDetail} onClose={() => setUpgradeDetail(null)} />
       <StageInterlude
         phase="exports"
         message="Your design kit is ready. Choose a format and platform to export."

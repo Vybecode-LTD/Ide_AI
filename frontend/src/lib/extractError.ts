@@ -42,6 +42,25 @@ export function getEntitlementDetail(err: unknown): EntitlementDetail | null {
   return null
 }
 
+/**
+ * Make the error body of a `responseType: 'blob'` request readable.
+ *
+ * Axios hands back the error body in the requested response type, so a failed
+ * download carries a Blob where `extractError` and `getEntitlementDetail`
+ * expect parsed JSON. This returns an error whose `response.data` is the
+ * parsed body. Anything that is not a Blob, or not JSON, is returned as is.
+ */
+export async function withParsedBlobError(err: unknown): Promise<unknown> {
+  const resp = (err as { response?: { data?: unknown; status?: number } } | null)?.response
+  if (!resp || !(resp.data instanceof Blob)) return err
+  try {
+    const data: unknown = JSON.parse(await resp.data.text())
+    return { message: (err as { message?: unknown }).message, response: { ...resp, data } }
+  } catch {
+    return err
+  }
+}
+
 /** Convenience: returns true when the error is an entitlement 403. */
 export function isEntitlementError(err: unknown): boolean {
   return getEntitlementDetail(err) !== null
