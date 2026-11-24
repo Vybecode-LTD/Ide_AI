@@ -10,7 +10,7 @@
 
 The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; this repo is public). Its section 6 holds the order of work.
 
-- [ ] **Decide: push `fix/module-start-and-edit-rollback` and open a pull request?** Four commits, all suites green locally. The Test Pipeline will run red: it has never passed.
+- [ ] **Review and merge pull request #1** (`fix/module-start-and-edit-rollback`). All suites green locally. Merging deploys both services. No CI runs on it: the workflows are disabled.
 - [ ] **Make one edit on myide.ai** (rename a project, or reorder a block). It tells us whether the "edit fails and rolls back" fault is live in production.
 - [ ] **Work through "checks only the owner can make"** in section 6 of the report.
 - [ ] **Answer "decisions that are the owner's"** in section 6 (repository visibility first).

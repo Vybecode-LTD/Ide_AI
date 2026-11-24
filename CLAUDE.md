@@ -15,7 +15,7 @@ and **a push to `main` deploys both.**
   `dev plans/project-assessment-2026-11-23.md`, kept out of git because **this repository is public**.
 - **Live:** `60443a0` (2026-06-10) on both services. `main` is at `bbfa182` (docs only since).
 - **In flight:** branch `fix/module-start-and-edit-rollback` (module session start, edits rolling back,
-  Exports crash; all with tests). Not pushed: that is the owner's call.
+  Exports crash; all with tests), open as pull request #1. Merging deploys, and is the owner's call.
 - **Waiting on the owner:** the checks and decisions in section 6 of the audit report (TODO.md, top).
 - **CI:** all three GitHub workflows are disabled and the Test Pipeline has never passed. A red run gates
   nothing until the pipeline is rebuilt.

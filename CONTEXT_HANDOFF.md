@@ -38,14 +38,14 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24) — Full audit, then three fixes on `fix/module-start-and-edit-rollback` (NOT pushed)
+## Current Session (2026-11-24) — Full audit, then three fixes on `fix/module-start-and-edit-rollback` (pull request #1 open, NOT merged)
 
 First session after five idle months. A read-only audit of the whole project (2026-11-23), then the first batch of fixes it called for.
 
 - **The audit report is `dev plans/project-assessment-2026-11-23.md`. It is kept out of git on purpose: this repository is public.** Read it before choosing work. Its section 6 gives the order of work and the owner decisions still open.
 - **Next-session prompt:** `dev plans/NEXT_SESSION_PROMPT.md` (also local only).
 
-### Commits (on the branch, not pushed: a push to `main` deploys, and that is the owner's call)
+### Commits (pushed 2026-11-24 as pull request #1; merging to `main` deploys, and that is the owner's call)
 | Hash | What |
 |------|------|
 | `259861a` | `fix(modules)`: `POST /modules/{project}/{module}/start` returned a 500 on every call (undefined `pathway`, since `544bb2f`). The module chat also overwrote the whole `module_responses.responses` column; it now replaces only the conversation. New `request_client` test fixture. |
@@ -65,7 +65,7 @@ First session after five idle months. A read-only audit of the whole project (20
 Backend **317 pass · 1 skip** (16 files); frontend **68/68** (10 files); `tsc -b --noEmit` and ESLint clean; full `npm run build` incl. prerender.
 
 ### What the USER must do next
-Decide whether to push the branch and open a pull request. Work through the "checks only the owner can make" and "decisions that are the owner's" lists in section 6 of the audit report.
+Review pull request #1 and merge it when ready (merging deploys both services). One signed-in edit on myide.ai before the merge shows whether the rollback fault is live today. Work through the "checks only the owner can make" and "decisions that are the owner's" lists in section 6 of the audit report.
 
 ---
 
