@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.16.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.17.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -11,16 +11,19 @@
 The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; this repo is public). Its section 6 holds the order of work.
 
 - [x] **Pull request #1 merged 2026-11-24** (`fix/module-start-and-edit-rollback`): module session start, edits persisting, Exports limit error. The merge deployed both services.
-- [ ] **Confirm the fixes live:** on myide.ai, rename a project or reorder a block (it should save), then start an AI module session (it should ask its first question).
+- [x] **Pull request #2 merged 2026-11-24** (`fix/module-response-write-race`): module saves made while the model is working survive.
+- [x] **Pull request #3 merged 2026-11-24** (`fix/input-length-caps`): length caps on text sent to Claude, 4,000 characters for a chat message or module answer, 10,000 for a description, 2,000 for a block description. This closes audit step 1.
+- [x] **Repository visibility decided 2026-11-24:** it stays public, deliberately open source.
+- [ ] **Confirm the fixes live:** on myide.ai, rename a project or reorder a block (it should save), start an AI module session (it should ask its first question), and paste more than 4,000 characters into the discovery chat (Send should be disabled).
 - [ ] **Work through "checks only the owner can make"** in section 6 of the report.
-- [ ] **Answer "decisions that are the owner's"** in section 6 (repository visibility first).
-- [ ] **Next code work, in order:** the rest of step 1, then step 2 (backups, a CI that runs, error tracking, dependency updates).
+- [ ] **Answer the rest of "decisions that are the owner's"** in section 6.
+- [ ] **Next code work, in order:** step 2 (backups, a CI that runs, error tracking, dependency updates), then step 3 (one AI client layer).
 
 **Without the report** (a fresh clone does not have it), the open items are:
 
-- **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres; whether this repository is meant to be public.
+- **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres.
 - **Owner decisions:** positioning; target audience; whether to retire the v1 flow; analytics and consent; pricing.
-- **Code, in order:** the rest of step 1 (in progress on its own branch); private database backups; a CI pipeline built for this repo; frontend error tracking; dependency updates; one AI client layer (current models, usage metering, stream error handling).
+- **Code, in order:** private database backups; a CI pipeline built for this repo; frontend error tracking; dependency updates; one AI client layer (current models, usage metering, stream error handling).
 
 The 2026-06-10 list below is partly superseded: the hardening branch **was** merged and deployed that day.
 

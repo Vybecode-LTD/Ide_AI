@@ -148,7 +148,7 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task (2026-11-24, second session):** Length caps on text sent to Claude, on branch **`fix/input-length-caps`** (pull request #3; merging is the owner's call): 4,000 characters for a chat message or module answer, 10,000 for a project description, 2,000 for a block description, with a counter and a clear over-limit message in the UI. Backend 336 pass · 1 skip; frontend 81/81; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
+**Task (2026-11-24, second session):** Length caps on text sent to Claude, on branch **`fix/input-length-caps`** (merged as pull request #3 on 2026-11-24 and deployed, alongside #2, module saves made during a model call): 4,000 characters for a chat message or module answer, 10,000 for a project description, 2,000 for a block description, with a counter and a clear over-limit message in the UI. Backend 336 pass · 1 skip; frontend 81/81; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
 
 _The entry below is the previous task._
 

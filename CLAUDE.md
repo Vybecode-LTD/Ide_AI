@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.2.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.3.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -14,11 +14,12 @@ and **a push to `main` deploys both.**
 - **Phase:** back in work after five idle months. A full audit ran on 2026-11-23; its report is
   `dev plans/project-assessment-2026-11-23.md`, kept out of git because **this repository is public**.
   It stays public, deliberately open source (owner, 2026-11-24).
-- **Live:** pull request #1, merged 2026-11-24 (module session start, edits persisting, Exports limit
-  error; all with tests). The deploy before it was `60443a0` (2026-06-10).
-- **In flight:** pull request #2 (`fix/module-response-write-race`: saves made during a model call
-  survive) and pull request #3 (`fix/input-length-caps`: length caps on chat messages and descriptions).
-  Merging each deploys, and is the owner's call.
+- **Live:** pull requests #1, #2 and #3, all merged and deployed on 2026-11-24 (`main` at `f542d37`):
+  module session start, edits persisting, the Exports limit error (#1); module saves made during a model
+  call survive (#2); length caps on chat messages and descriptions (#3). All with tests. Not yet confirmed
+  by a signed-in user on myide.ai. The deploy before them was `60443a0` (2026-06-10).
+- **In flight:** audit step 2 on branch `chore/safety-nets`. Pushing, opening its pull request and
+  merging (which deploys) are the owner's call.
 - **Waiting on the owner:** the checks and decisions in section 6 of the audit report (TODO.md, top).
 - **CI:** all three GitHub workflows are disabled and the Test Pipeline has never passed. A red run gates
   nothing until the pipeline is rebuilt.

@@ -4,6 +4,13 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Docs record pull requests #1 to #3 as merged (2026-11-24)
+
+- **CLAUDE.md 3.2.0 → 3.3.0:** Current State lists #1, #2 and #3 as live (`main` at `f542d37`) instead of "in flight", and names the new branch for audit step 2.
+- **CONTEXT_HANDOFF.md 3.17.0 → 3.18.0:** the top block's heading says #3 was merged, with the state on `main` after the merges.
+- **TODO.md 3.16.0 → 3.17.0:** #2, #3 and the repository-visibility decision ticked off; the open items no longer list step 1.
+- **WORKFLOW.md:** Last Completed Task says #3 was merged.
+
 ### Fixed — Module data survives writes made during a model call; folder instructions (2026-11-24)
 
 Follow-up to pull request #1, from its review.

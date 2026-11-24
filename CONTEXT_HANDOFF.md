@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.17.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.18.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,9 +38,11 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, pull request #3, NOT merged)
+## Current Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, merged as pull request #3 on 2026-11-24)
 
-Second session of the day, on the rest of audit step 1. Merging deploys both services; that is the owner's call.
+Second session of the day, on the rest of audit step 1.
+
+- **State after this session:** pull requests #1, #2 (`fix/module-response-write-race`: module saves made during a model call survive) and #3 were all merged on 2026-11-24 with the owner's OK and deployed; `main` is at `f542d37`. Tests on `main`: backend 340 pass · 1 skip; frontend 81/81. Not yet confirmed by a signed-in user: edits saving and module sessions starting (#1), and a message over 4,000 characters being refused (#3).
 
 - **Caps (owner's choice, 2026-11-24):** a discovery message or module answer 4,000 characters; a project description, a template's extra detail and the pathway-detection text 10,000; a block description 2,000. One source each side: `backend/app/core/limits.py` and `frontend/src/lib/inputLimits.ts`. A backend test fails if they disagree.
 - **Server:** the request schemas reject one character over with a 422 before the route runs. Chat messages and module answers must also be non-empty. `/pathways/detect` went from 5,000 to 10,000, because the Home page sends the same idea text to detection and to project creation; at 5,000 a long idea would have lost detection silently.
