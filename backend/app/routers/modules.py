@@ -137,18 +137,19 @@ async def _ensure_module_in_project_pathway(
     project_id: uuid.UUID,
     module_id: str,
     db: AsyncSession,
-) -> None:
-    """Raise 404 if *module_id* is not part of the project's locked pathway."""
+) -> ModulePathway:
+    """Return the project's pathway, or raise 404 if *module_id* is not in it."""
     result = await db.execute(
         select(ModulePathway).where(ModulePathway.project_id == project_id)
     )
     pathway = result.scalar_one_or_none()
     modules = set(pathway.modules or []) if pathway else set()
-    if module_id not in modules:
+    if pathway is None or module_id not in modules:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Module is not part of this project pathway",
         )
+    return pathway
 
 
 # ── Start Module ─────────────────────────────────────────────────────
@@ -162,7 +163,7 @@ async def start_module(
 ):
     """Initialize a module session and return the first AI question."""
     project = await _get_project_for_module(project_id, current_user, db)
-    await _ensure_module_in_project_pathway(project_id, module_id, db)
+    pathway = await _ensure_module_in_project_pathway(project_id, module_id, db)
 
     # Check if this is an existing module (routes to dedicated page)
     if is_existing_module(module_id):
@@ -186,13 +187,17 @@ async def start_module(
     )
     module_resp = mr_result.scalar_one_or_none()
 
-    mode = pathway.lite_deep_settings.get(module_id, "lite")
+    mode = (pathway.lite_deep_settings or {}).get(module_id, "lite")
 
     _min_q, max_q_start = _question_range(mode)
 
-    # Resume: return existing active session messages instead of overwriting
-    if module_resp and module_resp.status == "active":
-        messages = (module_resp.responses or {}).get("messages", [])
+    stored = (module_resp.responses or {}) if module_resp else {}
+    messages = stored.get("messages") or []
+
+    # Resume: return existing active session messages instead of overwriting.
+    # An active row with no conversation is not a session to resume: v2
+    # discovery creates such rows to hold field values (handled below).
+    if module_resp and module_resp.status == "active" and messages:
         return {
             "module_id": module_id,
             "label": defn["label"],
@@ -227,14 +232,25 @@ async def start_module(
         pre_populated=pre_populated,
     )
 
-    # Create new module response record
-    module_resp = ModuleResponse(
-        project_id=project_id,
-        module_id=module_id,
-        responses={"messages": [{"role": "assistant", "content": first_question}]},
-        status="active",
-    )
-    db.add(module_resp)
+    first_message = {"role": "assistant", "content": first_question}
+    if module_resp:
+        # A row can exist without a conversation: v2 discovery stores field
+        # values in it, and a skipped module leaves a marker. Start the
+        # session in that row (the table holds one row per project and
+        # module) and keep everything else it carries.
+        kept = {k: v for k, v in stored.items() if k != "skipped"}
+        module_resp.responses = {**kept, "messages": [first_message]}
+        module_resp.status = "active"
+        # A pathway that was complete is open again once a module restarts.
+        await _sync_pathway_completion(project_id, db)
+    else:
+        module_resp = ModuleResponse(
+            project_id=project_id,
+            module_id=module_id,
+            responses={"messages": [first_message]},
+            status="active",
+        )
+        db.add(module_resp)
 
     await db.commit()
 
@@ -285,8 +301,8 @@ async def respond_to_module(
     pathway = pw_result.scalar_one_or_none()
     mode = pathway.lite_deep_settings.get(module_id, "lite") if pathway else "lite"
 
-    # Append user message
-    messages = module_resp.responses.get("messages", [])
+    # Append user message (to a copy: the stored value changes only on save)
+    messages = list((module_resp.responses or {}).get("messages") or [])
     messages.append({"role": "user", "content": payload.content})
 
     # Build Claude messages
@@ -329,16 +345,16 @@ async def respond_to_module(
         # Store assistant message
         messages.append({"role": "assistant", "content": response_text})
 
-        # Update module response record
-        module_resp.responses = {"messages": messages}
+        # Update module response record. This JSON column is shared: v2
+        # discovery keeps field values in it and refresh-output keeps
+        # "__generated_output", so replace only the conversation.
+        module_resp.responses = {**(module_resp.responses or {}), "messages": messages}
         if complete:
             module_resp.status = "complete"
             module_resp.completed_at = datetime.now(timezone.utc)
             # Extract structured output
             extracted = await extract_module_output(module_id, messages)
-            current_data = module_resp.responses
-            current_data["extracted"] = extracted
-            module_resp.responses = current_data
+            module_resp.responses = {**module_resp.responses, "extracted": extracted}
 
         # Sync pathway completion status when a module finishes
         pathway_new_status = None

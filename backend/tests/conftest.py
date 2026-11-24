@@ -127,3 +127,46 @@ async def test_user(db_session: AsyncSession) -> User:
     db_session.add(user)
     await db_session.flush()
     return user
+
+
+@pytest_asyncio.fixture
+async def request_client(db_session: AsyncSession, test_user: User):
+    """TestClient whose database dependency behaves like production.
+
+    Each request gets its own session, committed on success and rolled back
+    on error, exactly as ``app.core.database.get_db`` does. The older
+    per-file ``client`` fixtures hand one shared session to every request,
+    which hides faults that only appear when the response is serialized
+    after the request's own flush (for example an expired ``updated_at``).
+
+    Commit any setup rows with ``await db_session.commit()`` before calling
+    the client, and read results back with a fresh ``TestSessionLocal()``.
+    """
+    from fastapi import Depends
+    from fastapi.testclient import TestClient
+
+    from app.core.database import get_db
+    from app.main import app
+    from app.routers.auth import get_current_user
+
+    await db_session.commit()
+    user_id = test_user.id
+
+    async def override_get_db():
+        async with TestSessionLocal() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    async def override_get_current_user(db: AsyncSession = Depends(get_db)):
+        return await db.get(User, user_id)
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
+    yield TestClient(app, raise_server_exceptions=False)
+
+    app.dependency_overrides.clear()
