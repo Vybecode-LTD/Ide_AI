@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.19.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.19.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,14 +38,14 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (local, NOT pushed)
+## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (pull request #4, NOT merged)
 
-Third session of the day. Branch cut from `main` at `f542d37`; six commits, nothing pushed. Pushing, opening pull request #4 and merging (which deploys both services) are the owner's call.
+Third session of the day. Branch cut from `main` at `f542d37`; pushed and opened as pull request #4 on the owner's OK. Merging it deploys both services and is the owner's call.
 
 - **Docs** (first commit): PRs #2 and #3 recorded as merged and live.
 - **Dependencies (H-4):** `pip-audit` 104 → 0, `npm audit` 27 → 0, all within the existing version ranges. Held back on purpose: SQLAlchemy at 2.0.x (2.1 fixes no advisory, and the SQLite-only tests would not catch a PostgreSQL flush change), `eslint-plugin-react-hooks` at 7.0.x (7.1's React Compiler rules flag 26 existing sites), the Anthropic SDK at 0.84 (step 3). Frontend image on Node 24; backend image pins Poetry 2.4.1.
 - **Backups (C-4):** `ops/db-backup/`, a Railway cron service (07:00 UTC) that dumps to a private bucket, verifies, prunes to 30 and fails loudly, with an optional heartbeat and a `restore-check` command. `db-backup.yml` deleted. Not running until the owner sets it up (`ops/db-backup/README.md`).
-- **CI (H-2):** `.github/workflows/ci.yml`, path-filtered, one "CI result" gate; backend on Python 3.12 with Alembic on PostgreSQL 17, frontend on Node 24, the backup job with real tools and an image build, gitleaks. `test-pipeline.yml` deleted. **It has never run on GitHub**: the first run is on the push.
+- **CI (H-2):** `.github/workflows/ci.yml`, path-filtered, one "CI result" gate; backend on Python 3.12 with Alembic on PostgreSQL 17, frontend on Node 24, the backup job with real tools and an image build, gitleaks. `test-pipeline.yml` deleted. **It had never run on GitHub before pull request #4**, whose run is its first.
 - **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend now drops request bodies and frame locals. Off until the DSNs are set.
 
 ### Verification (2026-11-24)

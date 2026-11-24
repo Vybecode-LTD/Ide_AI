@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.4.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.4.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -19,12 +19,13 @@ and **a push to `main` deploys both.**
   call survive (#2); length caps on chat messages and descriptions (#3). All with tests. Not yet confirmed
   by a signed-in user on myide.ai. The deploy before them was `60443a0` (2026-06-10).
 - **In flight:** audit step 2 on branch `chore/safety-nets` (dependency updates, private nightly backups
-  in `ops/db-backup/`, a new CI, working error tracking), local and not pushed; its pull request would be
-  #4. Pushing, opening it and merging (which deploys) are the owner's call.
+  in `ops/db-backup/`, a new CI, working error tracking), open as pull request #4 (pushed on the owner's
+  OK, 2026-11-24). Merging it deploys both services and is the owner's call.
 - **Waiting on the owner:** the checks and decisions in section 6 of the audit report, and the setup steps
   the branch needs (backup service, Sentry DSNs, a ruleset on `main`): TODO.md, top.
 - **CI:** on the branch, `.github/workflows/ci.yml` replaces the old pipeline; its one gate is the
-  "CI result" check. It has not run on GitHub yet. On `main` the old workflows are disabled and gate nothing.
+  "CI result" check. Its first run is on pull request #4. On `main` the old workflows are disabled and gate
+  nothing.
 
 Next steps, blockers and warnings live in CONTEXT_HANDOFF.md and TODO.md, this project's equivalents of
 docs/HANDOFF.md.

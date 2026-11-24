@@ -10,6 +10,7 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 - **CONTEXT_HANDOFF.md 3.18.0 → 3.19.0:** new Current Session block (third session of 2026-11-24).
 - **TODO.md 3.17.0 → 3.18.0:** the owner's steps for this branch (push and merge, backups and the restore drill, Sentry, a ruleset on `main`, an uptime monitor), and what was held back on purpose.
 - **WORKFLOW.md:** Last Completed Task.
+- **CLAUDE.md 3.4.1, CONTEXT_HANDOFF.md 3.19.1, TODO.md 3.18.1:** the branch is open as pull request #4 (pushed on the owner's OK); merging stays the owner's call.
 
 ### Fixed — Error tracking can actually be turned on, and sends no user data (2026-11-24, audit H-3, part of M-20)
 
