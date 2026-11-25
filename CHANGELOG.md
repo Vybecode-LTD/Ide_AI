@@ -4,6 +4,13 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Changed — Pull request #4 recorded as merged and live (2026-11-25)
+
+- **CLAUDE.md 3.4.2 → 3.5.0:** Current State: #1 to #4 live (`main` at `b6c966a`), what is not running yet (backups, error tracking), and the CI with no ruleset requiring it yet.
+- **CONTEXT_HANDOFF.md 3.19.2 → 3.20.0:** the third session's block records the merge and the deploy checks (both services SUCCESS, Frontend on Node 24, health 200, live CSP allows Sentry).
+- **TODO.md 3.18.1 → 3.19.0:** "Merge pull request #4?" ticked; the setup steps no longer say "after the merge".
+- **WORKFLOW.md:** Last Completed Task.
+
 ### Fixed — What the first CI run and the reviews on pull request #4 caught (2026-11-24)
 
 - **Backup image:** `useradd ... backup` failed with exit 9 because Debian already has a `backup` system user. `ops/db-backup/Dockerfile` now runs as `dbbackup`. (No Docker on the dev machine, so CI's image build was the first build.)

@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.19.2 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.20.0 · **Last updated:** 2026-11-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,15 +38,15 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (pull request #4, NOT merged)
+## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (pull request #4, merged and live)
 
-Third session of the day. Branch cut from `main` at `f542d37`; pushed and opened as pull request #4 on the owner's OK. Merging it deploys both services and is the owner's call.
+Third session of the day. Branch cut from `main` at `f542d37`, pushed and opened as pull request #4 on the owner's OK. **Merged on the owner's OK on 2026-11-25 at 03:44 UTC** (merge commit `b6c966a`) and deployed. Checks after the deploy: Backend and Frontend deployments SUCCESS, the Frontend built `FROM node:24-alpine`, backend `/api/v1/health` 200 with a clean startup (no migration), and the live CSP on myide.ai allows `*.ingest.us.sentry.io` and `clerk.myide.ai`. Backups and error tracking stay off until the owner's setup steps (TODO.md, top).
 
 - **Docs** (first commit): PRs #2 and #3 recorded as merged and live.
 - **Dependencies (H-4):** `pip-audit` 104 → 0, `npm audit` 27 → 0, all within the existing version ranges. Held back on purpose: SQLAlchemy at 2.0.x (2.1 fixes no advisory, and the SQLite-only tests would not catch a PostgreSQL flush change), `eslint-plugin-react-hooks` at 7.0.x (7.1's React Compiler rules flag 26 existing sites), the Anthropic SDK at 0.84 (step 3). Frontend image on Node 24; backend image pins Poetry 2.4.1.
 - **Backups (C-4):** `ops/db-backup/`, a Railway cron service (07:00 UTC) that dumps to a private bucket, verifies, prunes to 30 and fails loudly, with an optional heartbeat and a `restore-check` command. `db-backup.yml` deleted. Not running until the owner sets it up (`ops/db-backup/README.md`).
 - **CI (H-2):** `.github/workflows/ci.yml`, path-filtered, one "CI result" gate; backend on Python 3.12 with Alembic on PostgreSQL 17, frontend on Node 24, the backup job with real tools and an image build, gitleaks. `test-pipeline.yml` deleted. **It had never run on GitHub before pull request #4**, whose run is its first.
-- **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend now drops request bodies and frame locals. Off until the DSNs are set.
+- **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend keeps only the request's method and scrubbed URL and drops bodies, frame locals and log breadcrumbs. Off until the DSNs are set.
 
 ### Verification (2026-11-24)
 Backend **352 pass · 1 skip** after the review fixes on pull request #4 (346 before them, the same on a Python 3.12 venv); ruff's runtime-error rules clean; `pip-audit` clean, dev extras included. Frontend **100/100** (16 files); `tsc`, ESLint (zero warnings), full build with prerender, `npm audit` clean. Backup job **37/37** in a clean Python 3.12 venv (38 after the review fixes, real round trip re-run on PostgreSQL 18), including the real `pg_dump`/`pg_restore`/`psql` round trip. Alembic upgrade → downgrade base → upgrade on a throwaway PostgreSQL 18. gitleaks: no leaks. **Not checked locally:** any Docker build (no Docker here), and the GitHub-hosted CI steps. **First CI run on pull request #4:** Frontend, Secret scan and the path filter passed; Backend failed its dependency audit (pytest 8.4.2, now 9.2.0) and Database backup failed its image build (Debian already has a `backup` user, now `dbbackup`). Both fixed in one push, with the review fixes from Codex and CodeRabbit (CHANGELOG, top entry).

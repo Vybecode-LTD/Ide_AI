@@ -1,6 +1,6 @@
 # CLAUDE.md — Ide/AI
 
-> **Version:** 3.4.2 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.5.0 · **Last updated:** 2026-11-25 · See [CHANGELOG.md](CHANGELOG.md)
 
 ## Identity
 Ide/AI (`myide.ai`, formerly ideaFORGE) turns a rough idea into an export-ready design kit (features,
@@ -14,18 +14,20 @@ and **a push to `main` deploys both.**
 - **Phase:** back in work after five idle months. A full audit ran on 2026-11-23; its report is
   `dev plans/project-assessment-2026-11-23.md`, kept out of git because **this repository is public**.
   It stays public, deliberately open source (owner, 2026-11-24).
-- **Live:** pull requests #1, #2 and #3, all merged and deployed on 2026-11-24 (`main` at `f542d37`):
-  module session start, edits persisting, the Exports limit error (#1); module saves made during a model
-  call survive (#2); length caps on chat messages and descriptions (#3). All with tests. Not yet confirmed
-  by a signed-in user on myide.ai. The deploy before them was `60443a0` (2026-06-10).
-- **In flight:** audit step 2 on branch `chore/safety-nets` (dependency updates, private nightly backups
-  in `ops/db-backup/`, a new CI, working error tracking), open as pull request #4 (pushed on the owner's
-  OK, 2026-11-24). Merging it deploys both services and is the owner's call.
-- **Waiting on the owner:** the checks and decisions in section 6 of the audit report, and the setup steps
-  the branch needs (backup service, Sentry DSNs, a ruleset on `main`): TODO.md, top.
-- **CI:** on the branch, `.github/workflows/ci.yml` replaces the old pipeline; its one gate is the
-  "CI result" check. Its first run is on pull request #4. On `main` the old workflows are disabled and gate
-  nothing.
+- **Live:** pull requests #1 to #4, all merged and deployed (`main` at `b6c966a`). Merged and deployed on
+  2026-11-24 were module session start, edits persisting and the Exports limit error (#1), module saves made
+  during a model call (#2), and length caps on chat messages and descriptions (#3). Audit step 2 (#4) went
+  live on 2026-11-25 at 03:44 UTC (22:44 ET on the 24th): dependency updates, the backup job in
+  `ops/db-backup/`, the new CI and scrubbed error tracking. The #4 deploy was checked: both services
+  SUCCESS, the Frontend built on Node 24, health 200, and the live CSP allows Sentry. No signed-in user
+  has confirmed #1 to #3 on myide.ai yet.
+- **Not running yet:** backups (no `db-backup` service in Railway) and error tracking (no DSNs). Both wait
+  on the owner's setup steps: TODO.md, top.
+- **Waiting on the owner:** the checks and decisions in section 6 of the audit report, the setup steps
+  above, and a ruleset on `main` requiring "CI result".
+- **CI:** `.github/workflows/ci.yml`, one gate, the "CI result" check; it passed on #4. Nothing requires it
+  yet (no ruleset). The old workflows are deleted (`test-pipeline.yml`, `db-backup.yml`); `uptime-check.yml`
+  is still disabled.
 
 Next steps, blockers and warnings live in CONTEXT_HANDOFF.md and TODO.md, this project's equivalents of
 docs/HANDOFF.md.

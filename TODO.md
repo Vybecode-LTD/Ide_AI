@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.18.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.19.0 · **Last updated:** 2026-11-25 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -19,8 +19,8 @@ The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; th
 - [ ] **Answer the rest of "decisions that are the owner's"** in section 6.
 - [x] **Audit step 2 built 2026-11-24** on `chore/safety-nets`: dependency updates (both audits clean), private nightly backups (`ops/db-backup/`), a CI for this repo (`.github/workflows/ci.yml`), error tracking that can be turned on.
 - [x] **Pushed and opened as pull request #4** on 2026-11-24, on the owner's OK. Its CI runs on GitHub there for the first time.
-- [ ] **Merge pull request #4?** Merging deploys both services; after the merge, check the Frontend deploy (the first build on Node 24) and the Backend health.
-- [ ] **After the merge, set up the backups** (Railway: a bucket, the `db-backup` service with variable references, a healthchecks.io heartbeat), then **run the restore drill once**: [`ops/db-backup/README.md`](ops/db-backup/README.md).
+- [x] **Pull request #4 merged 2026-11-25** (03:44 UTC, `b6c966a`) on the owner's OK and deployed: both services SUCCESS, the Frontend built on Node 24, Backend health 200. This closes audit step 2's code.
+- [ ] **Set up the backups** (Railway: a bucket, the `db-backup` service with variable references, a healthchecks.io heartbeat), then **run the restore drill once**: [`ops/db-backup/README.md`](ops/db-backup/README.md).
 - [ ] **Turn on error tracking:** a Sentry project, `SENTRY_DSN` on Backend, `VITE_SENTRY_DSN` on Frontend, then rebuild the Frontend.
 - [ ] **Protect `main`** (GitHub ruleset): require a pull request and the **CI result** check, block force pushes. Optionally turn on Railway's "Wait for CI" on both services.
 - [ ] **Uptime:** `.github/workflows/uptime-check.yml` is disabled (GitHub switches off scheduled workflows after 60 days without a commit). Point an external monitor (UptimeRobot, Better Stack or healthchecks.io) at `https://myide.ai/` and the backend `/api/v1/health`.

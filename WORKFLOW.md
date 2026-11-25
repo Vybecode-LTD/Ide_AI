@@ -148,7 +148,7 @@ This project follows the [DOC_VERSIONING.md](DOC_VERSIONING.md) convention — S
 
 ## Last Completed Task
 
-**Task (2026-11-24, third session):** Audit step 2 on branch **`chore/safety-nets`** (open as pull request #4 on the owner's OK; merging it is the owner's call): dependency updates with both audits clean, private nightly database backups as a Railway cron service (`ops/db-backup/`), a CI built for this repo (`.github/workflows/ci.yml`, gate "CI result"), and error tracking that can be turned on without sending request data, breadcrumbs that carry user text, or share tokens (exception messages are sent as written). After review fixes: backend 352 pass · 1 skip; frontend 100/100; backup job 38/38; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
+**Task (2026-11-24, third session):** Audit step 2 on branch **`chore/safety-nets`** (pull request #4, merged on the owner's OK on 2026-11-25 as `b6c966a` and deployed): dependency updates with both audits clean, private nightly database backups as a Railway cron service (`ops/db-backup/`), a CI built for this repo (`.github/workflows/ci.yml`, gate "CI result"), and error tracking that can be turned on without sending request data, breadcrumbs that carry user text, or share tokens (exception messages are sent as written). After review fixes: backend 352 pass · 1 skip; frontend 100/100; backup job 38/38; `tsc`, ESLint and the full build green. Detail: CONTEXT_HANDOFF.md, "Current Session".
 
 _The entry below is the previous task._
 
