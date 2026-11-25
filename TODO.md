@@ -1,6 +1,6 @@
 # Ide/AI — TODO
 
-> **Version:** 3.16.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.18.1 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Concrete actionable items. See [`ROADMAP.md`](ROADMAP.md) for strategic direction, [`CONTEXT_HANDOFF.md`](CONTEXT_HANDOFF.md) for current-session state + the **Regression Test Matrix** (which code path is protected by which test file), and [`MEMORY.md`](MEMORY.md) for conventions + recent-session signature.
 
@@ -11,16 +11,27 @@
 The audit report is `dev plans/project-assessment-2026-11-23.md` (local only; this repo is public). Its section 6 holds the order of work.
 
 - [x] **Pull request #1 merged 2026-11-24** (`fix/module-start-and-edit-rollback`): module session start, edits persisting, Exports limit error. The merge deployed both services.
-- [ ] **Confirm the fixes live:** on myide.ai, rename a project or reorder a block (it should save), then start an AI module session (it should ask its first question).
+- [x] **Pull request #2 merged 2026-11-24** (`fix/module-response-write-race`): module saves made while the model is working survive.
+- [x] **Pull request #3 merged 2026-11-24** (`fix/input-length-caps`): length caps on text sent to Claude, 4,000 characters for a chat message or module answer, 10,000 for a description, 2,000 for a block description. This closes audit step 1.
+- [x] **Repository visibility decided 2026-11-24:** it stays public, deliberately open source.
+- [ ] **Confirm the fixes live:** on myide.ai, rename a project or reorder a block (it should save), start an AI module session (it should ask its first question), and paste more than 4,000 characters into the discovery chat (Send should be disabled).
 - [ ] **Work through "checks only the owner can make"** in section 6 of the report.
-- [ ] **Answer "decisions that are the owner's"** in section 6 (repository visibility first).
-- [ ] **Next code work, in order:** the rest of step 1, then step 2 (backups, a CI that runs, error tracking, dependency updates).
+- [ ] **Answer the rest of "decisions that are the owner's"** in section 6.
+- [x] **Audit step 2 built 2026-11-24** on `chore/safety-nets`: dependency updates (both audits clean), private nightly backups (`ops/db-backup/`), a CI for this repo (`.github/workflows/ci.yml`), error tracking that can be turned on.
+- [x] **Pushed and opened as pull request #4** on 2026-11-24, on the owner's OK. Its CI runs on GitHub there for the first time.
+- [ ] **Merge pull request #4?** Merging deploys both services; after the merge, check the Frontend deploy (the first build on Node 24) and the Backend health.
+- [ ] **After the merge, set up the backups** (Railway: a bucket, the `db-backup` service with variable references, a healthchecks.io heartbeat), then **run the restore drill once**: [`ops/db-backup/README.md`](ops/db-backup/README.md).
+- [ ] **Turn on error tracking:** a Sentry project, `SENTRY_DSN` on Backend, `VITE_SENTRY_DSN` on Frontend, then rebuild the Frontend.
+- [ ] **Protect `main`** (GitHub ruleset): require a pull request and the **CI result** check, block force pushes. Optionally turn on Railway's "Wait for CI" on both services.
+- [ ] **Uptime:** `.github/workflows/uptime-check.yml` is disabled (GitHub switches off scheduled workflows after 60 days without a commit). Point an external monitor (UptimeRobot, Better Stack or healthchecks.io) at `https://myide.ai/` and the backend `/api/v1/health`.
+- [ ] **Next code work:** step 3, one AI client layer (current models and SDK, usage ledger, stream error handling, structured outputs, database sessions out of streams).
 
 **Without the report** (a fresh clone does not have it), the open items are:
 
-- **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres; whether this repository is meant to be public.
+- **Owner checks:** a monthly spend limit on the Anthropic workspace; the auth and model variables set in Railway; whether Railway keeps volume backups of Postgres.
 - **Owner decisions:** positioning; target audience; whether to retire the v1 flow; analytics and consent; pricing.
-- **Code, in order:** the rest of step 1 (in progress on its own branch); private database backups; a CI pipeline built for this repo; frontend error tracking; dependency updates; one AI client layer (current models, usage metering, stream error handling).
+- **Owner setup for step 2:** the items above (push and merge, backups, Sentry, the ruleset, an uptime monitor).
+- **Code, in order:** one AI client layer (current models, usage metering, stream error handling); later, SQLAlchemy 2.1 and the React Compiler lint rules (both held back on purpose), the ruff and `alembic check` debt.
 
 The 2026-06-10 list below is partly superseded: the hardening branch **was** merged and deployed that day.
 
@@ -30,8 +41,8 @@ The code-side production-readiness work is done (see Recently Done + CHANGELOG).
 
 - [ ] **Merge + push `chore/production-hardening`** → Railway auto-deploys both services (no migration in this batch).
 - [ ] **Bootstrap an admin** — `UPDATE users SET is_admin=TRUE WHERE id='<id from /auth/me>'` — the Blog CMS is unusable until then.
-- [ ] **Activate Sentry** — create a (free-tier) Sentry project, set `SENTRY_DSN` (backend) + `VITE_SENTRY_DSN` (frontend) in Railway. Code no-ops until set.
-- [ ] **Activate DB backups** — **not with `db-backup.yml` while this repository is public:** it stores the dump as a workflow artifact, which any signed-in GitHub user can download from a public repo. The workflow is also disabled (GitHub switches scheduled workflows off after 60 days without a commit), and its secret was never set, so it has never produced a backup. Use private storage instead (Railway volume backups, or a job that writes to a private bucket), then test one restore.
+- [ ] **Activate Sentry** — superseded 2026-11-24: as written in June, the frontend half could not work (no build argument, CSP blocked the ingest host). Fixed on `chore/safety-nets`; listed again in the 2026-11-24 list above.
+- [ ] **Activate DB backups** — superseded 2026-11-24: `db-backup.yml` is deleted (it never produced a backup, and on this public repository it would have published each dump as an artifact). Set up the `db-backup` Railway cron service instead, then run the restore drill once: [`ops/db-backup/README.md`](ops/db-backup/README.md). Listed again in the 2026-11-24 list above.
 - [ ] **Live smoke after deploy** — tour auto-launch on a *fresh* sign-up (existing accounts no longer auto-launch), "?" replay, publish a blog post → renders at `/blog/{slug}`, Notion end-to-end push (Design Kit → page renders), spam a shared link's comment box → 429 after 10.
 - [ ] **Re-run the ROADMAP smoke-test checklist** (signup → discovery → export → plan limit → Stripe checkout → admin).
 - [ ] **Optional DB cleanup** — delete the orphan `is_admin=TRUE` user row (check FKs first; SQL in the DB cleanup section below).

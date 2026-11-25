@@ -1,6 +1,6 @@
 # Ide/AI — Context Handoff Document
 
-> **Version:** 3.17.0 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
+> **Version:** 3.19.2 · **Last updated:** 2026-11-24 · See [CHANGELOG.md](CHANGELOG.md)
 >
 > Single source of truth for the current state of the project.
 > Use this when starting a new Claude Code session.
@@ -38,9 +38,30 @@ The full process: describe an idea → configure options → AI-guided discovery
 
 ---
 
-## Current Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, pull request #3, NOT merged)
+## Current Session (2026-11-24, third) — Audit step 2 on `chore/safety-nets` (pull request #4, NOT merged)
 
-Second session of the day, on the rest of audit step 1. Merging deploys both services; that is the owner's call.
+Third session of the day. Branch cut from `main` at `f542d37`; pushed and opened as pull request #4 on the owner's OK. Merging it deploys both services and is the owner's call.
+
+- **Docs** (first commit): PRs #2 and #3 recorded as merged and live.
+- **Dependencies (H-4):** `pip-audit` 104 → 0, `npm audit` 27 → 0, all within the existing version ranges. Held back on purpose: SQLAlchemy at 2.0.x (2.1 fixes no advisory, and the SQLite-only tests would not catch a PostgreSQL flush change), `eslint-plugin-react-hooks` at 7.0.x (7.1's React Compiler rules flag 26 existing sites), the Anthropic SDK at 0.84 (step 3). Frontend image on Node 24; backend image pins Poetry 2.4.1.
+- **Backups (C-4):** `ops/db-backup/`, a Railway cron service (07:00 UTC) that dumps to a private bucket, verifies, prunes to 30 and fails loudly, with an optional heartbeat and a `restore-check` command. `db-backup.yml` deleted. Not running until the owner sets it up (`ops/db-backup/README.md`).
+- **CI (H-2):** `.github/workflows/ci.yml`, path-filtered, one "CI result" gate; backend on Python 3.12 with Alembic on PostgreSQL 17, frontend on Node 24, the backup job with real tools and an image build, gitleaks. `test-pipeline.yml` deleted. **It had never run on GitHub before pull request #4**, whose run is its first.
+- **Error tracking (H-3, part of M-20):** the frontend half could not have worked (no build argument, CSP blocked Sentry). Fixed, with `src/lib/errorTracking.ts` scrubbing every event; the backend now drops request bodies and frame locals. Off until the DSNs are set.
+
+### Verification (2026-11-24)
+Backend **352 pass · 1 skip** after the review fixes on pull request #4 (346 before them, the same on a Python 3.12 venv); ruff's runtime-error rules clean; `pip-audit` clean, dev extras included. Frontend **100/100** (16 files); `tsc`, ESLint (zero warnings), full build with prerender, `npm audit` clean. Backup job **37/37** in a clean Python 3.12 venv (38 after the review fixes, real round trip re-run on PostgreSQL 18), including the real `pg_dump`/`pg_restore`/`psql` round trip. Alembic upgrade → downgrade base → upgrade on a throwaway PostgreSQL 18. gitleaks: no leaks. **Not checked locally:** any Docker build (no Docker here), and the GitHub-hosted CI steps. **First CI run on pull request #4:** Frontend, Secret scan and the path filter passed; Backend failed its dependency audit (pytest 8.4.2, now 9.2.0) and Database backup failed its image build (Debian already has a `backup` user, now `dbbackup`). Both fixed in one push, with the review fixes from Codex and CodeRabbit (CHANGELOG, top entry).
+
+### Warnings
+- `alembic check` reports wide drift between models and migrations (nullable flags and indexes), so CI does not gate on it.
+- Local port 55432 is taken by another program on this machine; a throwaway Postgres (`initdb` in the scratchpad, `pg_ctl -o "-p 55433"`) works.
+
+---
+
+## Earlier Session (2026-11-24, second) — Length caps on text sent to Claude (`fix/input-length-caps`, merged as pull request #3 on 2026-11-24)
+
+Second session of the day, on the rest of audit step 1.
+
+- **State after this session:** pull requests #1, #2 (`fix/module-response-write-race`: module saves made during a model call survive) and #3 were all merged on 2026-11-24 with the owner's OK and deployed; `main` is at `f542d37`. Tests on `main`: backend 340 pass · 1 skip; frontend 81/81. Not yet confirmed by a signed-in user: edits saving and module sessions starting (#1), and a message over 4,000 characters being refused (#3).
 
 - **Caps (owner's choice, 2026-11-24):** a discovery message or module answer 4,000 characters; a project description, a template's extra detail and the pathway-detection text 10,000; a block description 2,000. One source each side: `backend/app/core/limits.py` and `frontend/src/lib/inputLimits.ts`. A backend test fails if they disagree.
 - **Server:** the request schemas reject one character over with a 422 before the route runs. Chat messages and module answers must also be non-empty. `/pathways/detect` went from 5,000 to 10,000, because the Home page sends the same idea text to detection and to project creation; at 5,000 a long idea would have lost detection silently.

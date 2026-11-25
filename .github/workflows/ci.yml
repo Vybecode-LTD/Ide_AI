@@ -1,0 +1,235 @@
+# CI for Ide/AI. Each job runs only when the paths it checks change; the
+# "CI result" job is the one check a branch ruleset should require (a skipped
+# job passes it, a failed or cancelled one does not).
+#
+# Pushes to main (merges, which also deploy through Railway) and manual runs
+# check everything. Pull requests check what they change.
+#
+# Replaces the generic test-pipeline.yml, which never passed (audit H-2).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backup: ${{ steps.filter.outputs.backup }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2 # a pull request's merge commit and the main under it
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            # --no-renames: a moved file lists both paths, so moving one out of
+            # backend/ still runs the backend job.
+            git diff --name-only --no-renames HEAD^1 HEAD > changed.txt
+          else
+            echo ".github/workflows/ci.yml" > changed.txt
+          fi
+          echo "Changed files:"; cat changed.txt
+          any() { if grep -Eq "$1" changed.txt; then echo true; else echo false; fi; }
+          everything=$(any '^\.github/workflows/')
+          # The backend tests also read the frontend's copy of the length caps.
+          backend=$(any '^(backend/|frontend/src/lib/inputLimits\.ts$)')
+          frontend=$(any '^frontend/')
+          backup=$(any '^ops/db-backup/')
+          if [ "$everything" = true ]; then backend=true; frontend=true; backup=true; fi
+          { echo "backend=$backend"; echo "frontend=$frontend"; echo "backup=$backup"; } | tee -a "$GITHUB_OUTPUT"
+
+  backend:
+    name: Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:17 # production runs Railway's Postgres 17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ideai_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ideai_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12" # production's version
+      - name: Install Poetry
+        run: python -m pip install poetry==2.4.1 poetry-plugin-export==1.10.0
+      - uses: actions/cache@v6
+        with:
+          path: backend/.venv
+          key: backend-venv-${{ runner.os }}-py312-${{ hashFiles('backend/poetry.lock') }}
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-root --all-extras --no-interaction
+      - name: Lint (errors that break at runtime, such as undefined names)
+        run: poetry run ruff check app tests --select E9,F63,F7,F82
+      - name: Tests
+        run: poetry run python -m pytest -q
+      - name: Migrations on PostgreSQL 17 (up, down to base, up again)
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ideai_ci
+        run: |
+          set -euo pipefail
+          heads=$(poetry run alembic heads | grep -c '(head)')
+          if [ "$heads" -ne 1 ]; then echo "::error::Expected one Alembic head, found $heads"; exit 1; fi
+          poetry run alembic upgrade head
+          poetry run alembic downgrade base
+          poetry run alembic upgrade head
+      - name: Dependency audit
+        run: |
+          set -euo pipefail
+          poetry export -f requirements.txt --all-extras --without-hashes -o "$RUNNER_TEMP/requirements.txt"
+          pipx run --spec pip-audit==2.10.1 pip-audit -r "$RUNNER_TEMP/requirements.txt" --disable-pip --no-deps
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24 # the major in frontend/Dockerfile
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc -b --noEmit
+      - name: Lint
+        run: npx eslint . --max-warnings=0
+      - name: Tests
+        run: npx vitest run --maxWorkers=2
+      - name: Build, with prerender
+        run: npm run build
+      - name: Dependency audit
+        run: npm audit
+
+  backup:
+    name: Database backup
+    needs: changes
+    if: needs.changes.outputs.backup == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ops/db-backup
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGPASSWORD: ci
+      BACKUP_REQUIRE_INTEGRATION: "1" # the real-tools tests must run, not skip
+      BACKUP_TEST_DATABASE_URL: postgresql://ci:ci@localhost:5432/backup_src
+      BACKUP_TEST_RESTORE_DATABASE_URL: postgresql://ci:ci@localhost:5432/backup_restore
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ops/db-backup/requirements*.txt
+      - name: PostgreSQL 17 client tools (pg_dump must match the server)
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg-ci.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Scratch databases
+        run: |
+          pg_dump --version
+          createdb -h localhost -U ci backup_src
+          createdb -h localhost -U ci backup_restore
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Tests
+        run: python -m pytest -q -rs
+      - name: Image builds, ships pg_dump 17, and fails loudly unconfigured
+        run: |
+          set -euo pipefail
+          docker build --pull -t ideai-db-backup .
+          docker run --rm ideai-db-backup pg_dump --version | tee "$RUNNER_TEMP/pg_dump_version.txt"
+          grep -Eq '^pg_dump \(PostgreSQL\) 17\.' "$RUNNER_TEMP/pg_dump_version.txt"
+          set +e
+          out=$(docker run --rm ideai-db-backup 2>&1); code=$?
+          set -e
+          echo "$out"
+          if [ "$code" -ne 1 ] || ! grep -q "Missing settings" <<< "$out"; then
+            echo "::error::An unconfigured run must exit 1 with 'Missing settings' (got exit $code)"
+            exit 1
+          fi
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # every commit
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      # go install, so Go's checksum database vouches for the binary.
+      - run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - run: '"$(go env GOPATH)/bin/gitleaks" git --redact --no-banner .'
+
+  result:
+    name: CI result
+    needs: [changes, backend, frontend, backup, secrets]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac

@@ -4,6 +4,71 @@ All notable changes to Ide/AI and its documentation. Format based on [Keep a Cha
 
 ## [Unreleased]
 
+### Fixed — What the first CI run and the reviews on pull request #4 caught (2026-11-24)
+
+- **Backup image:** `useradd ... backup` failed with exit 9 because Debian already has a `backup` system user. `ops/db-backup/Dockerfile` now runs as `dbbackup`. (No Docker on the dev machine, so CI's image build was the first build.)
+- **Backend dev dependencies:** pytest 8.4.2 had an advisory (PYSEC-2026-1845, fixed in 9.0.3). Now `pytest>=9.0.3,<10` (9.2.0 locked) with `pytest-asyncio>=1.3,<2` (1.5.0), since 0.26 caps pytest below 9. All 350 backend tests pass unchanged. The local audit had missed it because its export left out the dev extras; **CLAUDE.md 3.4.2**'s Commands row now uses CI's `--all-extras` export.
+- **Share tokens in API URLs** (Codex and CodeRabbit): see the error tracking entry below.
+- **Click and log breadcrumbs** (CodeRabbit): the browser drops `ui.*` breadcrumbs, whose selectors carry `aria-label`s that hold block names; the backend drops log-line breadcrumbs (`before_breadcrumb`), since INFO logs include a new user's email and model output. Tests for both, the backend one through a real SDK run with the defaults as the positive control. **DEPLOYMENT_RAILWAY.md** and **WORKFLOW.md** now say exactly what is and isn't sent: exception messages and ERROR-level log text go as written.
+- **Backups can't hang** (CodeRabbit): Railway skips a cron run while the last one is still going, so a stuck `pg_dump` would have stopped every later night silently. `pg_dump` now uses `--lock-wait-timeout=5min`, and every tool call stops after 2 hours with a `BackupError` (which pings `/fail`). Tested with a command that sleeps.
+- **Backup README** (CodeRabbit): the nightly check reads the dump's table of contents, not its rows (the restore drill is the only full read), and the drill must copy any non-default `BACKUP_PREFIX`, `BACKUP_S3_REGION` or `BACKUP_S3_URL_STYLE` from the service.
+- **CI path filter** (CodeRabbit): `git diff --no-renames`, so moving a file out of `backend/` or `frontend/` still runs that job.
+- **CONTEXT_HANDOFF.md 3.19.2:** verification numbers and the first CI run.
+
+### Changed — Session state for audit step 2 (2026-11-24)
+
+- **CLAUDE.md 3.3.0 → 3.4.0:** Current State names what `chore/safety-nets` holds and the new CI; Commands gains the backup job's tests.
+- **CONTEXT_HANDOFF.md 3.18.0 → 3.19.0:** new Current Session block (third session of 2026-11-24).
+- **TODO.md 3.17.0 → 3.18.0:** the owner's steps for this branch (push and merge, backups and the restore drill, Sentry, a ruleset on `main`, an uptime monitor), and what was held back on purpose.
+- **WORKFLOW.md:** Last Completed Task.
+- **CLAUDE.md 3.4.1, CONTEXT_HANDOFF.md 3.19.1, TODO.md 3.18.1:** the branch is open as pull request #4 (pushed on the owner's OK); merging stays the owner's call.
+
+### Fixed — Error tracking can actually be turned on, and sends no user data (2026-11-24, audit H-3, part of M-20)
+
+- **The browser half could not have worked.** `frontend/Dockerfile` never passed `VITE_SENTRY_DSN` into the build, so a DSN set in Railway never reached the bundle; and the Caddyfile's CSP blocked Sentry's ingest hosts, so reports would have been refused anyway. The Dockerfile now declares the build argument (and tags each release with `RAILWAY_GIT_COMMIT_SHA`), and `connect-src` allows `*.ingest.sentry.io`, `*.ingest.us.sentry.io` and `*.ingest.de.sentry.io`.
+- **One module, `frontend/src/lib/errorTracking.ts`,** replaces the two inline dynamic imports in `main.tsx` and `ErrorBoundary.tsx`. It loads the SDK once, only with a DSN; an error reported while the SDK is loading is sent once it has loaded; a failed load is logged and ignored. Every event loses request cookies, headers, bodies and user data; console breadcrumbs are dropped (they can hold a user's text); every URL loses its query and fragment, and `/shared/<token>` becomes `/shared/[token]`. No replay and no tracing.
+- **Backend: `app/core/error_tracking.py`** sets `max_request_body_size="never"` and `include_local_variables=False` besides `send_default_pii=False`. With the SDK's defaults, an error event carried request bodies up to 10 KB (a whole chat message) and the locals of each stack frame.
+- **Tests:** frontend `errorTracking.test.ts` (scrubbing, loading once, the loading race, a failed load), `ErrorBoundary.test.tsx`, and `deployConfig.test.ts`, which checks the Dockerfile's build argument and Node major and matches sample Sentry, Clerk and backend URLs against the CSP (3 of its 5 tests fail against `main`'s files). Backend `test_error_tracking.py` (6), including one that runs Sentry for real in a subprocess against a capturing transport: a marker sent in the request body shows up in the event with the SDK's defaults and not with ours.
+- **Share tokens in API URLs are masked too** (from Codex's review of pull request #4): a shared project's fetches to `/sharing/public/<token>` (and its `comments`, `ratings`, `verify` and `csv` subpaths) become breadcrumbs, and an unprotected share's token opens the project. Both halves now mask `/sharing/public/<token>` as well as `/shared/<token>`. The backend also gains a `before_send` (and `before_send_transaction`, since traces are sampled) that keeps only the request's method and a scrubbed URL, and drops query strings from breadcrumb URLs. Tests: breadcrumb and URL cases in `frontend/src/test/errorTracking.test.ts`; in `backend/tests/test_error_tracking.py`, the real-SDK run now also requests a share URL with a query string, with the SDK's defaults as the positive control.
+- **Turning it on is the owner's step:** a Sentry project, then `SENTRY_DSN` on the Backend service and `VITE_SENTRY_DSN` on the Frontend service (then rebuild the frontend). **DEPLOYMENT_RAILWAY.md** lists both variables; **ROADMAP.md** no longer calls error tracking done.
+
+### Added — A CI built for this repository (2026-11-24, audit H-2)
+
+- **`.github/workflows/ci.yml` replaces `test-pipeline.yml`,** the generic pipeline that failed all 90 of its runs (it installed from the repo root, skipped the frontend, and could not fail on most of its gates). Runs on pull requests to `main`, pushes to `main`, and by hand. No nightly schedule.
+- **Path filters inside the workflow** (a `changes` job reads the pull request's diff), so a docs-only change runs only the secret scan. A change to `.github/workflows/`, a push to `main` and a manual run check everything. The backend job also runs when `frontend/src/lib/inputLimits.ts` changes, because a backend test reads it.
+- **Backend** (Python 3.12, as in production; Poetry 2.4.1): ruff on the errors that break at runtime (`E9,F63,F7,F82`, which includes undefined names such as the one behind the module-start bug), the full pytest suite, Alembic on a **PostgreSQL 17 service** (one head; upgrade from empty, downgrade to base, upgrade again), and `pip-audit` on the exported lock.
+- **Frontend** (Node 24, as in the Dockerfile): `npm ci`, `tsc -b --noEmit`, ESLint with zero warnings, vitest, the full build with prerender, and `npm audit`.
+- **Database backup:** the `ops/db-backup` tests with PostgreSQL 17 client tools against a Postgres 17 service, the real-tools tests forced on; then the image is built, must ship `pg_dump` 17, and must exit 1 with "Missing settings" when run unconfigured.
+- **Secret scan** on every run: gitleaks 8.30.1 (installed with `go install`) over the whole history.
+- **One gate, "CI result":** fails if any job failed or was cancelled; a skipped job passes. It is the check a branch ruleset on `main` should require. The ruleset itself, and Railway's "Wait for CI", are the owner's settings.
+- **Not yet run on GitHub.** Checked locally: the YAML parses, the path regexes select the right sample paths, each job's commands pass on this machine (backend also under Python 3.12; Alembic up, down and up on a throwaway PostgreSQL 18; the backup tests with real tools; gitleaks over the history). Not checkable here: the GitHub-hosted steps themselves (service containers, the PGDG install on Ubuntu, `docker build`). ruff's other 33 findings (unused imports) stay with the lint-debt item; `alembic check` is not gated because models and migrations have drifted (many nullable and index differences).
+
+### Added — Private nightly database backups (2026-11-24, audit C-4)
+
+- **`ops/db-backup/`, a Railway cron service** (07:00 UTC daily): `pg_dump --format=custom` of the production database, checked before upload (`pg_restore --list` must read it and list table data), uploaded to a private S3-compatible bucket (a Railway bucket by default), size checked after upload, then all but the newest 30 dumps deleted. Only objects named `ideai-<UTC time>.dump` under the prefix are ever deleted.
+- **It fails loudly.** A missing setting, a failed or empty dump, an unreadable archive or a short upload ends the run with exit code 1 and nothing pruned. An optional heartbeat URL (healthchecks.io style) is pinged on success and `/fail` on failure, so a failed night and a night that never ran both alert. No log line holds a URL, password or key.
+- **`python backup.py restore-check`** downloads the newest dump, reads it back and, given `RESTORE_DATABASE_URL`, restores it into an empty scratch database in one transaction and reports users, projects and the migration revision. It refuses a target that holds any table or matches the production URL.
+- **Removed `.github/workflows/db-backup.yml`.** It never produced a backup (its secret was never set, and each run skipped the dump and still passed), and on this public repository each dump would have been a downloadable artifact.
+- **Tests:** `ops/db-backup/test_backup.py`, 37: settings, naming, pruning, redaction, every failure path, exit codes and the heartbeat, against a fake bucket and fake tools; plus one run of the real `pg_dump`, `pg_restore` and `psql` (dump, upload, restore, count rows) and one real boto3 client. Those two skip without their tools, except in CI, where `BACKUP_REQUIRE_INTEGRATION=1` makes a skip a failure. All 37 pass locally against a throwaway PostgreSQL 18. The Docker image has not been built locally (no Docker on this machine).
+- **Setup is the owner's** (a bucket, the service, references for its variables, the heartbeat, one restore drill): `ops/db-backup/README.md`. **DEPLOYMENT_RAILWAY.md** gains a Database Backups section. **ROADMAP.md 2.7.0 → 2.8.0:** backup automation and uptime alerting are no longer marked done. **TODO.md:** the 2026-06-10 backup item points at the new service.
+
+### Security — Dependency updates: both stacks audit clean (2026-11-24, audit H-4)
+
+- **Backend:** `poetry update` within the existing ranges took `pip-audit` on the exported lock from 104 advisories in 10 packages to none: anyio 4.16.0, certifi 2026.11.20, cryptography 50.0.2, dnspython 2.9.2, fpdf2 2.9.0, Pillow 13.0.0 (67 of the 104), pydantic-settings 2.16.3, PyJWT 2.15.1, Starlette 1.10.0 (FastAPI 0.135.4) and urllib3 2.8.0.
+- **SQLAlchemy is held below 2.1** (`<2.1.0`, now 2.0.58). The update would have taken it to 2.1.9, which fixes no advisory, and the tests run only on SQLite, so a change in how it flushes on PostgreSQL (the edit fix from #1 depends on `eager_defaults`) would not show. Moving to 2.1 is a separate, deliberate step. The two `.distinct(column)` calls in `routers/library.py` (DISTINCT ON) are deprecated in 2.1.
+- **The Anthropic SDK stays at 0.84** (`<0.85`): it has no advisory, and moving it belongs to audit step 3, the AI client layer.
+- **Frontend:** `npm update` within the existing ranges took `npm audit` from 27 (13 high, including axios, react-router, vite and undici) to 0: axios 1.21.1, react-router 7.18.6, vite 7.3.8, vitest 4.1.12, React 19.3.1. **`eslint-plugin-react-hooks` is held at 7.0.x** (`~7.0.1`): 7.1 turns on the React Compiler rules, which report 26 existing sites. Adopting them is lint work for later.
+- **Images:** the frontend builds on Node 24 LTS (`node:24-alpine`; Node 20 is past end of life). The backend image pins Poetry 2.4.1, the version that writes `poetry.lock`.
+- **ruff** joins the backend's dev extras (0.17.x), for CI.
+- **Tests:** backend 340 pass · 1 skip; frontend 81/81; `tsc`, ESLint (zero warnings) and the full build with prerender green.
+
+### Changed — Docs record pull requests #1 to #3 as merged (2026-11-24)
+
+- **CLAUDE.md 3.2.0 → 3.3.0:** Current State lists #1, #2 and #3 as live (`main` at `f542d37`) instead of "in flight", and names the new branch for audit step 2.
+- **CONTEXT_HANDOFF.md 3.17.0 → 3.18.0:** the top block's heading says #3 was merged, with the state on `main` after the merges.
+- **TODO.md 3.16.0 → 3.17.0:** #2, #3 and the repository-visibility decision ticked off; the open items no longer list step 1.
+- **WORKFLOW.md:** Last Completed Task says #3 was merged.
+
 ### Fixed — Module data survives writes made during a model call; folder instructions (2026-11-24)
 
 Follow-up to pull request #1, from its review.

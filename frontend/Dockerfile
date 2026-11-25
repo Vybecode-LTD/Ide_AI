@@ -4,7 +4,9 @@
 # ────────────────────────────────────────────────────────────────
 
 # ── Stage 1: Build static assets ──
-FROM node:20-alpine AS builder
+# Node 24 LTS (supported to April 2028). Node 20 reached end of life in April 2026.
+# CI's frontend job uses the same major (.github/workflows/ci.yml).
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -20,6 +22,16 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+
+# Error tracking (src/lib/errorTracking.ts) is off unless VITE_SENTRY_DSN is
+# set on the Frontend service before a build. Railway passes a service
+# variable to the build only when it is declared here. The Sentry ingest
+# hosts are allowed in the Caddyfile's connect-src.
+ARG VITE_SENTRY_DSN
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+# Tags each error with the commit it came from (Railway provides this).
+ARG RAILWAY_GIT_COMMIT_SHA
+ENV VITE_RELEASE=$RAILWAY_GIT_COMMIT_SHA
 
 RUN npm run build
 
